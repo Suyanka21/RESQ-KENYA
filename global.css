@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+    html,
+    body,
+    #root {
+        height: 100%;
+        width: 100%;
+        /* Ensure React Native Web compatibility */
+        display: flex;
+        flex-direction: column;
+    }
+}

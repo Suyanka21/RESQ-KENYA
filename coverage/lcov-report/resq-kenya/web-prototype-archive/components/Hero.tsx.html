@@ -1,0 +1,484 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for resq-kenya/web-prototype-archive/components/Hero.tsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../prettify.css" />
+    <link rel="stylesheet" href="../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../index.html">All files</a> / <a href="index.html">resq-kenya/web-prototype-archive/components</a> Hero.tsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>0/3</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>0/0</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/2</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">0% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>0/3</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line low'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a>
+<a name='L122'></a><a href='#L122'>122</a>
+<a name='L123'></a><a href='#L123'>123</a>
+<a name='L124'></a><a href='#L124'>124</a>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import React from 'react';
+import { MapPin, Star, ArrowRight, Truck, Activity } from 'lucide-react';
+import Button from './Button';
+&nbsp;
+interface HeroProps {
+  onGetStarted?: () =&gt; void;
+}
+&nbsp;
+const Hero: React.FC&lt;HeroProps&gt; = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >({</span> onGetStarted }) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >  return (</span>
+    &lt;section className="relative min-h-screen flex items-center pt-20 overflow-hidden bg-dark-gradient"&gt;
+      {/* Background Texture */}
+      &lt;div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"&gt;&lt;/div&gt;
+      
+      {/* Ambient Glows */}
+      &lt;div className="absolute top-1/4 left-1/4 w-96 h-96 bg-voltage/10 rounded-full blur-[128px] pointer-events-none" /&gt;
+      &lt;div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-voltage/5 rounded-full blur-[100px] pointer-events-none" /&gt;
+&nbsp;
+      &lt;div className="container mx-auto px-4 relative z-10 grid lg:grid-cols-2 gap-12 lg:gap-20 items-center"&gt;
+        
+        {/* Left Content */}
+        &lt;div className="space-y-8 max-w-2xl animate-fade-rise"&gt;
+          &lt;div className="inline-flex items-center gap-2 bg-charcoal-800 border border-charcoal-600 rounded-full px-4 py-1.5 shadow-lg"&gt;
+            &lt;div className="w-2 h-2 rounded-full bg-success animate-pulse"&gt;&lt;/div&gt;
+            &lt;span className="text-xs font-semibold tracking-wide uppercase text-text-secondary"&gt;
+              24/7 Response in Nairobi
+            &lt;/span&gt;
+          &lt;/div&gt;
+&nbsp;
+          &lt;h1 className="text-5xl lg:text-7xl font-bold leading-[1.1] tracking-tight text-white"&gt;
+            Help when it &lt;br /&gt;
+            matters &lt;br /&gt;
+            &lt;span className="text-transparent bg-clip-text bg-voltage-gradient voltage-text-shadow"&gt;
+              most.
+            &lt;/span&gt;
+          &lt;/h1&gt;
+&nbsp;
+          &lt;p className="text-lg lg:text-xl text-text-secondary max-w-lg leading-relaxed"&gt;
+            From flatbed towing and tire repair to ambulance dispatch. 
+            ResQ is the "Uber for Rescue" — fast, reliable, and just a tap away.
+          &lt;/p&gt;
+&nbsp;
+          &lt;div className="flex flex-col sm:flex-row gap-4 pt-4"&gt;
+            &lt;Button size="lg" pulse className="w-full sm:w-auto shadow-[0_0_40px_rgba(255,214,10,0.3)]" onClick={onGetStarted}&gt;
+              Request Assistance
+              &lt;ArrowRight className="ml-2 h-5 w-5" /&gt;
+            &lt;/Button&gt;
+            &lt;Button variant="secondary" size="lg" className="w-full sm:w-auto" onClick={onGetStarted}&gt;
+              View Services
+            &lt;/Button&gt;
+          &lt;/div&gt;
+&nbsp;
+          &lt;div className="flex items-center gap-4 pt-4 text-sm text-text-secondary"&gt;
+            &lt;div className="flex -space-x-2"&gt;
+              {[1, 2, 3, 4].map(<span class="fstat-no" title="function not covered" >(i</span>) =&gt; (
+<span class="cstat-no" title="statement not covered" >                &lt;div key={i} className="w-10 h-10 rounded-full border-2 border-charcoal-900 overflow-hidden bg-charcoal-700"&gt;</span>
+                  &lt;img src={`https://picsum.photos/seed/driver${i}/100`} alt="Driver" className="w-full h-full object-cover" /&gt;
+                &lt;/div&gt;
+              ))}
+            &lt;/div&gt;
+            &lt;div className="flex flex-col"&gt;
+              &lt;div className="flex items-center gap-1 text-voltage"&gt;
+                &lt;Star className="w-4 h-4 fill-current" /&gt;
+                &lt;Star className="w-4 h-4 fill-current" /&gt;
+                &lt;Star className="w-4 h-4 fill-current" /&gt;
+                &lt;Star className="w-4 h-4 fill-current" /&gt;
+                &lt;Star className="w-4 h-4 fill-current" /&gt;
+              &lt;/div&gt;
+              &lt;span&gt;Verified Mechanics &amp; Medics&lt;/span&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+&nbsp;
+        {/* Right Content - Visual */}
+        &lt;div className="relative hidden lg:block h-[800px] w-full"&gt;
+           {/* Abstract Phone/Map Visualization */}
+           &lt;div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[700px] bg-charcoal-800 rounded-[48px] border-8 border-charcoal-600 shadow-[0_20px_80px_rgba(0,0,0,0.8)] overflow-hidden z-20"&gt;
+              {/* Fake UI Header */}
+              &lt;div className="h-14 bg-charcoal-900 border-b border-charcoal-600 flex items-center justify-between px-6"&gt;
+                 &lt;span className="font-bold"&gt;ResQ App&lt;/span&gt;
+                 &lt;div className="w-8 h-8 rounded-full bg-charcoal-700 flex items-center justify-center"&gt;
+                    &lt;div className="w-2 h-2 bg-success rounded-full"&gt;&lt;/div&gt;
+                 &lt;/div&gt;
+              &lt;/div&gt;
+              
+              {/* Fake Map */}
+              &lt;div className="w-full h-full bg-charcoal-800 relative bg-[url('https://api.mapbox.com/styles/v1/mapbox/dark-v10/static/36.8219,-1.2921,13,0/350x700?access_token=Pk.xxx')] bg-cover"&gt;
+                  {/* Fallback pattern if image fails */}
+                  &lt;div className="absolute inset-0 bg-charcoal-800/80"&gt;&lt;/div&gt;
+&nbsp;
+                  {/* Map Roads (CSS Art representation of Nairobi nodes) */}
+                  &lt;div className="absolute top-0 left-1/2 w-4 h-full bg-charcoal-700/50 -translate-x-1/2"&gt;&lt;/div&gt;
+                  &lt;div className="absolute top-1/2 left-0 w-full h-4 bg-charcoal-700/50 -translate-y-1/2 rotate-12"&gt;&lt;/div&gt;
+                  
+                  {/* User Pin */}
+                  &lt;div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"&gt;
+                    &lt;div className="w-16 h-16 rounded-full bg-voltage/20 animate-ping absolute"&gt;&lt;/div&gt;
+                    &lt;div className="w-4 h-4 rounded-full bg-voltage shadow-[0_0_20px_#FFD60A] relative z-10 border-2 border-white"&gt;&lt;/div&gt;
+                    &lt;div className="mt-2 bg-charcoal-900 text-xs px-2 py-1 rounded text-white font-bold shadow-lg"&gt;You (Muthaiga)&lt;/div&gt;
+                  &lt;/div&gt;
+&nbsp;
+                  {/* Driver Card Overlay */}
+                  &lt;div className="absolute bottom-8 left-4 right-4 bg-charcoal-900/90 backdrop-blur border border-voltage/30 p-4 rounded-2xl shadow-2xl"&gt;
+                    &lt;div className="flex items-center justify-between mb-4"&gt;
+                        &lt;div className="flex items-center gap-3"&gt;
+                            &lt;div className="w-10 h-10 rounded-full bg-charcoal-700 border border-charcoal-600 flex items-center justify-center"&gt;
+                                &lt;Truck size={20} className="text-white"/&gt;
+                            &lt;/div&gt;
+                            &lt;div&gt;
+                                &lt;h4 className="font-bold text-sm"&gt;ResQ Towing Unit&lt;/h4&gt;
+                                &lt;p className="text-xs text-text-secondary"&gt;Arriving in 12 mins&lt;/p&gt;
+                            &lt;/div&gt;
+                        &lt;/div&gt;
+                        &lt;div className="bg-voltage text-charcoal-900 font-bold px-2 py-1 rounded text-xs"&gt;
+                            DISPATCHED
+                        &lt;/div&gt;
+                    &lt;/div&gt;
+                    &lt;div className="w-full bg-charcoal-700 h-1 rounded-full overflow-hidden"&gt;
+                        &lt;div className="bg-voltage h-full w-[65%]"&gt;&lt;/div&gt;
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+              &lt;/div&gt;
+           &lt;/div&gt;
+&nbsp;
+           {/* Decorative elements behind phone */}
+           &lt;div className="absolute top-1/3 right-0 w-64 h-64 bg-voltage rounded-full mix-blend-overlay filter blur-3xl opacity-20 animate-pulse"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+&nbsp;
+      &lt;/div&gt;
+    &lt;/section&gt;
+  );
+};
+&nbsp;
+export default Hero;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2025-12-06T18:57:26.723Z
+            </div>
+        <script src="../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../sorter.js"></script>
+        <script src="../../../block-navigation.js"></script>
+    </body>
+</html>
+    

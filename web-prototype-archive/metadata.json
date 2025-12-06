@@ -1,0 +1,7 @@
+{
+  "name": "ResQ Kenya",
+  "description": "The smart, all-in-one emergency services platform for motorists. Towing, Medical, Fuel, and Repair.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
