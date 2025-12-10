@@ -1,10 +1,10 @@
-// ResQ Kenya - OTP Verification Screen
+// ⚡ ResQ Kenya - OTP Verification Screen (Voltage Premium)
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { signInWithPhoneNumber, PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { colors, borderRadius, spacing } from '../../theme/voltage-premium';
 import { useAuth } from '../../services/AuthContext';
+import { verifyOTP, sendOTP } from '../../services/auth.service';
 
 export default function VerifyOTPScreen() {
     const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
@@ -76,22 +76,22 @@ export default function VerifyOTPScreen() {
             const fullOtp = otp.join('');
             console.log('Verifying OTP:', fullOtp, 'for', phoneNumber);
 
-            // For development/testing, accept test code
+            // Development mode: accept test code 123456
             if (fullOtp === '123456') {
-                // Simulate successful auth for testing
-                console.log('Test OTP accepted - would authenticate in production');
-
-                // In production, this would verify with Firebase
-                // For now, navigate to customer dashboard
+                console.log('Test OTP accepted - skipping Firebase auth in dev mode');
                 router.replace('/(customer)');
                 return;
             }
 
-            // Real verification would happen here
-            // const credential = PhoneAuthProvider.credential(verificationId, fullOtp);
-            // await signInWithCredential(auth, credential);
+            // Production mode: use Firebase auth
+            const result = await verifyOTP(fullOtp);
 
-            setError('Invalid code. Use 123456 for testing.');
+            if (result.success && result.user) {
+                console.log('OTP verified successfully, user:', result.user.uid);
+                router.replace('/(customer)');
+            } else {
+                setError(result.error || 'Invalid code. Please try again.');
+            }
         } catch (err: any) {
             console.error('Verification error:', err);
             setError(err.message || 'Verification failed. Please try again.');
@@ -107,55 +107,60 @@ export default function VerifyOTPScreen() {
         setOtp(['', '', '', '', '', '']);
         setError('');
         console.log('Resending OTP to:', phoneNumber);
-        // In production: await sendOTP(phoneNumber);
+
+        // Production mode: uncomment to use real OTP
+        // const result = await sendOTP(phoneNumber as string, 'recaptcha-container');
+        // if (!result.success) {
+        //     setError(result.error || 'Failed to resend code');
+        // }
     };
 
     if (authLoading) {
         return (
-            <View className="flex-1 bg-charcoal-900 items-center justify-center">
-                <ActivityIndicator size="large" color="#FFD60A" />
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.voltage} />
             </View>
         );
     }
 
     return (
         <KeyboardAvoidingView
-            className="flex-1 bg-charcoal-900"
+            style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            <View className="flex-1 px-6 pt-20">
+            <View style={styles.content}>
                 {/* Back Button */}
                 <Pressable
-                    className="mb-8"
+                    style={styles.backButton}
                     onPress={() => router.back()}
                 >
-                    <Text className="text-voltage text-base">← Back</Text>
+                    <Text style={styles.backText}>← Back</Text>
                 </Pressable>
 
                 {/* Header */}
-                <View className="mb-8">
-                    <Text className="text-3xl font-bold text-white mb-2">
-                        Verify your number
-                    </Text>
-                    <Text className="text-white/60 text-base">
+                <View style={styles.header}>
+                    <Text style={styles.title}>Verify your number</Text>
+                    <Text style={styles.subtitle}>
                         Enter the 6-digit code sent to{'\n'}
-                        <Text className="text-voltage font-semibold">{phoneNumber}</Text>
+                        <Text style={styles.phoneNumber}>{phoneNumber}</Text>
                     </Text>
                 </View>
 
                 {/* Development Notice */}
-                <View className="bg-success/10 rounded-xl p-3 mb-6 border border-success/20">
-                    <Text className="text-success text-sm font-medium">✅ Test Code: 123456</Text>
+                <View style={styles.devNotice}>
+                    <Text style={styles.devText}>✅ Test Code: 123456</Text>
                 </View>
 
                 {/* OTP Input */}
-                <View className="flex-row justify-between mb-6">
+                <View style={styles.otpContainer}>
                     {otp.map((digit, index) => (
                         <TextInput
                             key={index}
                             ref={(ref) => { inputRefs.current[index] = ref; }}
-                            className={`w-12 h-14 bg-charcoal-800 rounded-xl text-center text-white text-2xl font-bold border ${digit ? 'border-voltage' : 'border-charcoal-600'
-                                }`}
+                            style={[
+                                styles.otpInput,
+                                digit ? styles.otpInputFilled : null
+                            ]}
                             keyboardType="number-pad"
                             maxLength={6}
                             value={digit}
@@ -168,37 +173,40 @@ export default function VerifyOTPScreen() {
 
                 {/* Error */}
                 {error ? (
-                    <Text className="text-emergency text-sm mb-4">{error}</Text>
+                    <Text style={styles.errorText}>{error}</Text>
                 ) : null}
 
                 {/* Verify Button */}
                 <Pressable
-                    className={`w-full py-4 rounded-xl ${isOtpComplete ? 'bg-voltage' : 'bg-charcoal-600'
-                        }`}
+                    style={({ pressed }) => [
+                        styles.verifyButton,
+                        isOtpComplete ? styles.verifyButtonActive : styles.verifyButtonDisabled,
+                        pressed && isOtpComplete && styles.verifyButtonPressed
+                    ]}
                     onPress={handleVerify}
                     disabled={!isOtpComplete || isLoading}
                 >
                     {isLoading ? (
-                        <ActivityIndicator color="#0F0F0F" />
+                        <ActivityIndicator color={colors.charcoal[900]} />
                     ) : (
-                        <Text className={`text-center font-bold text-lg ${isOtpComplete ? 'text-charcoal-900' : 'text-white/50'
-                            }`}>
+                        <Text style={[
+                            styles.verifyButtonText,
+                            isOtpComplete ? styles.verifyButtonTextActive : styles.verifyButtonTextDisabled
+                        ]}>
                             Verify
                         </Text>
                     )}
                 </Pressable>
 
                 {/* Resend */}
-                <View className="mt-6 items-center">
+                <View style={styles.resendContainer}>
                     {resendTimer > 0 ? (
-                        <Text className="text-white/50 text-sm">
-                            Resend code in <Text className="text-voltage font-semibold">{resendTimer}s</Text>
+                        <Text style={styles.resendTimerText}>
+                            Resend code in <Text style={styles.resendTimerHighlight}>{resendTimer}s</Text>
                         </Text>
                     ) : (
                         <Pressable onPress={handleResend}>
-                            <Text className="text-voltage font-semibold text-base">
-                                Resend Code
-                            </Text>
+                            <Text style={styles.resendText}>Resend Code</Text>
                         </Pressable>
                     )}
                 </View>
@@ -206,3 +214,129 @@ export default function VerifyOTPScreen() {
         </KeyboardAvoidingView>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: colors.charcoal[900],
+    },
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: colors.charcoal[900],
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    content: {
+        flex: 1,
+        paddingHorizontal: spacing.lg,
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    },
+    backButton: {
+        marginBottom: spacing.xl,
+    },
+    backText: {
+        color: colors.voltage,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    header: {
+        marginBottom: spacing.xl,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: colors.text.primary,
+        marginBottom: 8,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: colors.text.secondary,
+        lineHeight: 24,
+    },
+    phoneNumber: {
+        color: colors.voltage,
+        fontWeight: '600',
+    },
+    devNotice: {
+        backgroundColor: `${colors.success}15`,
+        borderRadius: borderRadius.lg,
+        borderWidth: 1,
+        borderColor: `${colors.success}30`,
+        padding: spacing.md,
+        marginBottom: spacing.lg,
+    },
+    devText: {
+        color: colors.success,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    otpContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: spacing.lg,
+    },
+    otpInput: {
+        width: 48,
+        height: 56,
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius.lg,
+        textAlign: 'center',
+        color: colors.text.primary,
+        fontSize: 24,
+        fontWeight: '700',
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+    },
+    otpInputFilled: {
+        borderColor: colors.voltage,
+    },
+    errorText: {
+        color: colors.emergency,
+        fontSize: 14,
+        marginBottom: spacing.md,
+    },
+    verifyButton: {
+        width: '100%',
+        paddingVertical: 16,
+        borderRadius: borderRadius.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    verifyButtonActive: {
+        backgroundColor: colors.voltage,
+    },
+    verifyButtonDisabled: {
+        backgroundColor: colors.charcoal[600],
+    },
+    verifyButtonPressed: {
+        backgroundColor: colors.voltageDeep,
+        transform: [{ scale: 0.98 }],
+    },
+    verifyButtonText: {
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    verifyButtonTextActive: {
+        color: colors.charcoal[900],
+    },
+    verifyButtonTextDisabled: {
+        color: colors.text.muted,
+    },
+    resendContainer: {
+        marginTop: spacing.lg,
+        alignItems: 'center',
+    },
+    resendTimerText: {
+        color: colors.text.muted,
+        fontSize: 14,
+    },
+    resendTimerHighlight: {
+        color: colors.voltage,
+        fontWeight: '600',
+    },
+    resendText: {
+        color: colors.voltage,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+});

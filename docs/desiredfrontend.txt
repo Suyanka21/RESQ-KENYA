@@ -1,0 +1,83 @@
+This file explains what exists in the webprototypearchive folder
+
+Let me analyze the current state of the codebase to give you a comprehensive description.
+
+
+Read App.tsx
+
+Read Dashboard.tsx
+
+Read Hero.tsx
+
+Read Features.tsx
+Now I have a complete picture. Here is the comprehensive codebase description:
+
+ResQ Emergency App - Codebase Description
+Overview
+ResQ is a fully-functional emergency assistance web application designed for Kenyan motorists. It operates as an "Uber for Rescue" - connecting stranded drivers with verified rescue units for roadside emergencies. The app is built with React/TypeScript and styled with Tailwind CSS using a custom dark theme.
+
+Application Structure
+Entry Point: app/page.tsx imports App.tsx
+
+Main State Management: The app uses a simple ViewState ('landing' | 'dashboard') in App.tsx to toggle between the marketing landing page and the interactive dashboard.
+
+Landing Page Components (Marketing Site)
+Component	Purpose
+Navbar.tsx	Fixed navigation with logo, menu links (Services, How It Works, Membership), and Login button
+Hero.tsx	Large hero section with headline "Help when it matters most", CTA buttons, trust indicators (driver avatars, 5-star ratings), and a mock phone UI showing a map with dispatched unit
+Features.tsx	6-card grid showcasing services: Flatbed Towing, Ambulance Dispatch, Tire & Mechanical, Battery Jumpstart, Vehicle Diagnostics, Fuel Delivery
+HowItWorks.tsx	Step-by-step process explanation
+Membership.tsx	Subscription/membership tiers
+Testimonials.tsx	User testimonials section
+DriverCTA.tsx	Call-to-action for drivers to join the network
+DownloadCTA.tsx	App store download prompts
+Footer.tsx	Site footer with links and branding
+Dashboard Component (Core App Functionality)
+File: components/Dashboard.tsx (656 lines - the largest component)
+
+Features:
+
+Multi-view navigation: Home (Map), Orders History, Wallet, Settings
+Service Selection Grid: 6 emergency services (Fuel, Towing, Ambulance, Battery Jump, Tire Repair, Diagnostics)
+Order Flow Stages: idle → service-select → locating → details-input → payment → processing → tracking → complete
+Dynamic Forms per Service:
+
+Fuel: Petrol/Diesel toggle, amount input, liters calculation
+Towing: Destination input, base fee + per-km pricing
+Ambulance: Emergency notes, direct 999 callout
+Others: Simplified request flows
+Simulated Features:
+
+GPS-based user pin on map
+Driver pin movement animation during tracking
+ETA countdown (15 mins)
+Push notification toasts
+M-Pesa payment simulation
+Nairobi-specific pricing (KES currency, local fuel prices)
+Order History with status badges
+Wallet view with M-Pesa integration mock
+Supporting Components
+Component	Purpose
+Button.tsx	Reusable button with variants (primary/secondary/tertiary), sizes, and optional pulse animation
+Design System (Custom Theme)
+Color Tokens:
+
+charcoal-900/800/700/600: Dark grays for backgrounds
+voltage: Electric yellow (
+#FFD60A) - primary accent
+text-secondary: Muted text color
+success: Green for positive states
+error: Red for alerts/errors
+Custom CSS Classes:
+
+bg-voltage-gradient: Yellow gradient for CTAs
+bg-dark-gradient: Dark radial background
+animate-fade-rise: Fade-in with upward motion
+animate-voltage-pulse: Pulsing glow effect
+Issues That Were Fixed
+Misplaced Files: Features.tsx and Footer.tsx were in root directory instead of components/ folder - moved to correct location
+Missing Theme Configuration: Custom Tailwind colors (charcoal, voltage, text-secondary, success, error) were not defined in globals.css - added full theme
+Missing Animations: Custom keyframes for fade-rise and voltage-pulse were undefined - added to globals.css
+Missing Entry Point: app/page.tsx was missing to connect App.tsx to Next.js routing - created
+Current State
+The app is now fully functional with both the marketing landing page and the interactive emergency services dashboard working correctly. All styling, animations, and component imports are properly configured.

@@ -21,35 +21,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     useEffect(() => {
-        // Subscribe to auth state changes
-        const unsubscribe = onAuthChange(async (firebaseUser: User | null) => {
-            if (firebaseUser) {
-                // User is signed in
-                const [userProfile, isProvider] = await Promise.all([
-                    getUserProfile(firebaseUser.uid),
-                    checkIsProvider(firebaseUser.uid),
-                ]);
+        let unsubscribe: (() => void) | undefined;
+        
+        try {
+            unsubscribe = onAuthChange(async (firebaseUser: User | null) => {
+                try {
+                    if (firebaseUser) {
+                        const [userProfile, isProvider] = await Promise.all([
+                            getUserProfile(firebaseUser.uid),
+                            checkIsProvider(firebaseUser.uid),
+                        ]);
 
-                setAuthState({
-                    user: userProfile,
-                    provider: null, // Load provider profile if needed
-                    isAuthenticated: true,
-                    isLoading: false,
-                    userRole: isProvider ? 'provider' : 'customer',
-                });
-            } else {
-                // User is signed out
-                setAuthState({
-                    user: null,
-                    provider: null,
-                    isAuthenticated: false,
-                    isLoading: false,
-                    userRole: null,
-                });
+                        setAuthState({
+                            user: userProfile,
+                            provider: null,
+                            isAuthenticated: true,
+                            isLoading: false,
+                            userRole: isProvider ? 'provider' : 'customer',
+                        });
+                    } else {
+                        setAuthState({
+                            user: null,
+                            provider: null,
+                            isAuthenticated: false,
+                            isLoading: false,
+                            userRole: null,
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading user profile:', error);
+                    setAuthState({
+                        user: null,
+                        provider: null,
+                        isAuthenticated: false,
+                        isLoading: false,
+                        userRole: null,
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('Error initializing auth listener:', error);
+            setAuthState({
+                user: null,
+                provider: null,
+                isAuthenticated: false,
+                isLoading: false,
+                userRole: null,
+            });
+        }
+
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
             }
-        });
-
-        return () => unsubscribe();
+        };
     }, []);
 
     const handleSignOut = async () => {

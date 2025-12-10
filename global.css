@@ -9,8 +9,29 @@
     #root {
         height: 100%;
         width: 100%;
+        margin: 0;
+        padding: 0;
         /* Ensure React Native Web compatibility */
         display: flex;
         flex-direction: column;
+        /* Voltage Premium dark theme base */
+        background-color: #0F0F0F;
+        color: #FFFFFF;
+        /* Font enhancements */
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Ensure nested flex containers work properly */
+    #root>div {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Remove default focus outlines, use custom */
+    *:focus {
+        outline: none;
     }
 }

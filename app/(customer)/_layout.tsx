@@ -1,11 +1,11 @@
 // ResQ Kenya - Customer Layout
 import { Tabs } from "expo-router";
-import { View, Text } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { colors } from "../../theme/voltage-premium";
 
-// Simple icon text component (will replace with proper icons later)
+// Tab icon component with proper StyleSheet styling for web compatibility
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => (
-    <Text className={focused ? "text-voltage text-lg" : "text-white/50 text-lg"}>
+    <Text style={[styles.tabIcon, focused ? styles.tabIconFocused : styles.tabIconInactive]}>
         {name}
     </Text>
 );
@@ -73,6 +73,32 @@ export default function CustomerLayout() {
                     href: null,
                 }}
             />
+            {/* Hide help screen from tabs */}
+            <Tabs.Screen
+                name="help"
+                options={{
+                    href: null,
+                }}
+            />
+            {/* Hide terms screen from tabs */}
+            <Tabs.Screen
+                name="terms"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    tabIcon: {
+        fontSize: 18,
+    },
+    tabIconFocused: {
+        color: colors.voltage,
+    },
+    tabIconInactive: {
+        color: 'rgba(255, 255, 255, 0.5)',
+    },
+});

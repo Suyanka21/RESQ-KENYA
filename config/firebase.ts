@@ -18,6 +18,12 @@ const firebaseConfig = {
     databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.error('Firebase configuration is missing! Environment variables not loaded.');
+    console.error('Please ensure .env.local file exists with EXPO_PUBLIC_FIREBASE_* variables');
+    console.error('Current config:', firebaseConfig);
+}
+
 // Initialize Firebase (prevent re-initialization on hot reload)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 

@@ -37,6 +37,14 @@ export default function LoginScreen() {
             const fullNumber = formatPhoneNumber(phoneNumber);
             console.log('Initiating OTP for:', fullNumber);
 
+            // For development, skip actual OTP sending and go directly to verify screen
+            // In production, uncomment the sendOTP call:
+            // const result = await sendOTP(fullNumber, 'recaptcha-container');
+            // if (!result.success) {
+            //     setError(result.error || 'Failed to send verification code');
+            //     return;
+            // }
+
             // Navigate to OTP verification
             router.push({
                 pathname: '/(auth)/verify-otp',
