@@ -1,8 +1,10 @@
-// ResQ Kenya - Provider Settings Screen
-import { View, Text, ScrollView, Pressable, Switch, Alert } from 'react-native';
+// ⚡ ResQ Kenya - Provider Settings Screen
+// Converted from NativeWind to StyleSheet for consistency
+
+import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { colors } from '../../theme/voltage-premium';
+import { colors, spacing, borderRadius } from '../../theme/voltage-premium';
 
 export default function ProviderSettingsScreen() {
     const [notifications, setNotifications] = useState(true);
@@ -21,67 +23,63 @@ export default function ProviderSettingsScreen() {
     };
 
     const SettingItem = ({
-        icon,
         title,
         subtitle,
         onPress,
         rightElement,
     }: {
-        icon: string;
         title: string;
         subtitle?: string;
         onPress?: () => void;
         rightElement?: React.ReactNode;
     }) => (
         <Pressable
-            className="flex-row items-center bg-charcoal-800 px-4 py-4 border-b border-charcoal-600"
+            style={styles.settingItem}
             onPress={onPress}
             disabled={!onPress}
         >
-            <Text className="text-xl mr-4">{icon}</Text>
-            <View className="flex-1">
-                <Text className="text-white font-medium">{title}</Text>
-                {subtitle && <Text className="text-white/50 text-sm">{subtitle}</Text>}
+            <View style={styles.settingInfo}>
+                <Text style={styles.settingTitle}>{title}</Text>
+                {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
             </View>
-            {rightElement || (onPress && <Text className="text-white/50">→</Text>)}
+            {rightElement || (onPress && <Text style={styles.settingArrow}>→</Text>)}
         </Pressable>
     );
 
     return (
-        <View className="flex-1 bg-charcoal-900">
+        <View style={styles.container}>
             {/* Header */}
-            <View className="px-6 pt-16 pb-6 bg-charcoal-800 border-b border-charcoal-600">
-                <Text className="text-white text-2xl font-bold">Settings</Text>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Settings</Text>
             </View>
 
-            <ScrollView className="flex-1">
+            <ScrollView style={styles.scrollView}>
                 {/* Profile Section */}
-                <View className="p-6 flex-row items-center bg-charcoal-800 border-b border-charcoal-600">
-                    <View className="w-16 h-16 bg-voltage rounded-full items-center justify-center mr-4">
-                        <Text className="text-charcoal-900 text-2xl font-bold">JT</Text>
+                <View style={styles.profileCard}>
+                    <View style={styles.profileAvatar}>
+                        <Text style={styles.profileAvatarText}>JT</Text>
                     </View>
-                    <View className="flex-1">
-                        <Text className="text-white text-lg font-bold">John's Towing Services</Text>
-                        <Text className="text-white/60">+254 700 000 001</Text>
-                        <View className="flex-row items-center mt-1">
-                            <Text className="text-voltage">⭐ 4.8</Text>
-                            <Text className="text-white/40 mx-2">•</Text>
-                            <Text className="text-white/60">156 services</Text>
+                    <View style={styles.profileInfo}>
+                        <Text style={styles.profileName}>John's Towing Services</Text>
+                        <Text style={styles.profilePhone}>+254 700 000 001</Text>
+                        <View style={styles.profileStats}>
+                            <Text style={styles.profileRating}>★ 4.8</Text>
+                            <Text style={styles.profileDot}>•</Text>
+                            <Text style={styles.profileServices}>156 services</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Account */}
-                <Text className="text-white/60 text-sm px-6 pt-6 pb-2 font-medium">Account</Text>
-                <SettingItem icon="👤" title="Edit Profile" onPress={() => { }} />
-                <SettingItem icon="🚗" title="Vehicle Details" subtitle="Tow Truck • KCA 123A" onPress={() => { }} />
-                <SettingItem icon="📄" title="Documents" subtitle="All verified ✓" onPress={() => { }} />
-                <SettingItem icon="💳" title="Payment Methods" subtitle="M-Pesa •••• 0001" onPress={() => { }} />
+                <Text style={styles.sectionTitle}>Account</Text>
+                <SettingItem title="Edit Profile" onPress={() => { }} />
+                <SettingItem title="Vehicle Details" subtitle="Tow Truck • KCA 123A" onPress={() => { }} />
+                <SettingItem title="Documents" subtitle="All verified ✓" onPress={() => { }} />
+                <SettingItem title="Payment Methods" subtitle="M-Pesa •••• 0001" onPress={() => { }} />
 
                 {/* Notifications */}
-                <Text className="text-white/60 text-sm px-6 pt-6 pb-2 font-medium">Notifications</Text>
+                <Text style={styles.sectionTitle}>Notifications</Text>
                 <SettingItem
-                    icon="🔔"
                     title="Push Notifications"
                     rightElement={
                         <Switch
@@ -92,7 +90,6 @@ export default function ProviderSettingsScreen() {
                     }
                 />
                 <SettingItem
-                    icon="🔊"
                     title="Sound Alerts"
                     rightElement={
                         <Switch
@@ -104,9 +101,8 @@ export default function ProviderSettingsScreen() {
                 />
 
                 {/* Preferences */}
-                <Text className="text-white/60 text-sm px-6 pt-6 pb-2 font-medium">Preferences</Text>
+                <Text style={styles.sectionTitle}>Preferences</Text>
                 <SettingItem
-                    icon="⚡"
                     title="Auto-Accept Requests"
                     subtitle="Automatically accept nearby requests"
                     rightElement={
@@ -117,29 +113,159 @@ export default function ProviderSettingsScreen() {
                         />
                     }
                 />
-                <SettingItem icon="📍" title="Service Area" subtitle="15 km radius" onPress={() => { }} />
-                <SettingItem icon="🛠️" title="Service Types" subtitle="Towing, Tire, Battery" onPress={() => { }} />
+                <SettingItem title="Service Area" subtitle="15 km radius" onPress={() => { }} />
+                <SettingItem title="Service Types" subtitle="Towing, Tire, Battery" onPress={() => { }} />
 
                 {/* Support */}
-                <Text className="text-white/60 text-sm px-6 pt-6 pb-2 font-medium">Support</Text>
-                <SettingItem icon="💬" title="Help Center" onPress={() => { }} />
-                <SettingItem icon="📞" title="Contact Support" onPress={() => { }} />
-                <SettingItem icon="📋" title="Terms & Conditions" onPress={() => { }} />
-                <SettingItem icon="🔒" title="Privacy Policy" onPress={() => { }} />
+                <Text style={styles.sectionTitle}>Support</Text>
+                <SettingItem title="Help Center" onPress={() => { }} />
+                <SettingItem title="Contact Support" onPress={() => { }} />
+                <SettingItem title="Terms & Conditions" onPress={() => { }} />
+                <SettingItem title="Privacy Policy" onPress={() => { }} />
 
                 {/* Sign Out */}
-                <Pressable
-                    className="mx-6 my-6 py-4 rounded-xl border border-emergency"
-                    onPress={handleLogout}
-                >
-                    <Text className="text-emergency text-center font-semibold">Sign Out</Text>
+                <Pressable style={styles.signOutButton} onPress={handleLogout}>
+                    <Text style={styles.signOutButtonText}>Sign Out</Text>
                 </Pressable>
 
                 {/* App Version */}
-                <Text className="text-white/30 text-center text-xs mb-8">
-                    ResQ Provider v1.0.0
-                </Text>
+                <Text style={styles.versionText}>ResQ Provider v1.0.0</Text>
             </ScrollView>
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: colors.charcoal[900],
+    },
+
+    // Header
+    header: {
+        paddingHorizontal: spacing.lg,
+        paddingTop: Platform.OS === 'ios' ? 70 : 50,
+        paddingBottom: spacing.lg,
+        backgroundColor: colors.charcoal[800],
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    headerTitle: {
+        color: colors.text.primary,
+        fontSize: 24,
+        fontWeight: '700',
+    },
+
+    // Scroll
+    scrollView: {
+        flex: 1,
+    },
+
+    // Profile Card
+    profileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: spacing.lg,
+        backgroundColor: colors.charcoal[800],
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    profileAvatar: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: colors.voltage,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: spacing.md,
+    },
+    profileAvatarText: {
+        color: colors.charcoal[900],
+        fontSize: 24,
+        fontWeight: '700',
+    },
+    profileInfo: {
+        flex: 1,
+    },
+    profileName: {
+        color: colors.text.primary,
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    profilePhone: {
+        color: colors.text.secondary,
+    },
+    profileStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: spacing.xs,
+    },
+    profileRating: {
+        color: colors.voltage,
+    },
+    profileDot: {
+        color: colors.text.muted,
+        marginHorizontal: spacing.sm,
+    },
+    profileServices: {
+        color: colors.text.secondary,
+    },
+
+    // Section Title
+    sectionTitle: {
+        color: colors.text.secondary,
+        fontSize: 14,
+        fontWeight: '500',
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.sm,
+    },
+
+    // Setting Item
+    settingItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.charcoal[800],
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    settingInfo: {
+        flex: 1,
+    },
+    settingTitle: {
+        color: colors.text.primary,
+        fontWeight: '500',
+    },
+    settingSubtitle: {
+        color: colors.text.muted,
+        fontSize: 14,
+    },
+    settingArrow: {
+        color: colors.text.muted,
+    },
+
+    // Sign Out
+    signOutButton: {
+        marginHorizontal: spacing.lg,
+        marginVertical: spacing.lg,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.xl,
+        borderWidth: 1,
+        borderColor: colors.emergency,
+    },
+    signOutButtonText: {
+        color: colors.emergency,
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+
+    // Version
+    versionText: {
+        color: colors.text.muted,
+        textAlign: 'center',
+        fontSize: 12,
+        marginBottom: spacing.xl,
+    },
+});

@@ -1,820 +1,637 @@
-// ⚡ ResQ Kenya - Profile & Settings
-// Settings screen matching web prototype's Settings view
+// ⚡ ResQ Kenya - Digital Glovebox & Account Hub
+// Garage Management, System Settings, Urgency Banner
+// Phase 2.5 UI Enhancement
 
-import React, { useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    ScrollView,
-    StyleSheet,
-    Pressable,
-    Platform,
-    Switch,
-    TextInput,
-    Alert
+    View, Text, StyleSheet, Pressable, ScrollView, Animated,
+    Easing, Platform, Switch
 } from 'react-native';
 import { router } from 'expo-router';
-import { colors, shadows, borderRadius, spacing } from '../../theme/voltage-premium';
-import { useAuth } from '../../services/AuthContext';
+import {
+    ArrowLeft, Camera, User, CreditCard, Crown, Phone,
+    HeartPulse, HelpCircle, Headphones, FileText, Info,
+    LogOut, ChevronRight, Edit2, Shield, Car, Trash2,
+    Fingerprint, Globe, Bell, AlertTriangle
+} from 'lucide-react-native';
+import { colors, spacing, borderRadius, typography } from '../../theme/voltage-premium';
+import { StatusBar } from 'expo-status-bar';
 
-export default function ProfileScreen() {
-    const { signOut, user } = useAuth();
+// ============================================================================
+// SECTION HEADER
+// ============================================================================
+const SectionHeader = ({ title }: { title: string }) => (
+    <Text style={styles.sectionLabel}>{title}</Text>
+);
+
+// ============================================================================
+// MENU ITEM
+// ============================================================================
+interface MenuItemProps {
+    icon: any;
+    label: string;
+    sublabel?: string;
+    sublabelColor?: string;
+    sublabelMono?: boolean;
+    badge?: string;
+    badgeColor?: string;
+    badgeTextColor?: string;
+    iconColor?: string;
+    isLast?: boolean;
+    onPress?: () => void;
+    rightElement?: React.ReactNode;
+}
+
+const MenuItem = ({
+    icon: Icon,
+    label,
+    sublabel,
+    sublabelColor = colors.text.tertiary,
+    sublabelMono = false,
+    badge,
+    badgeColor = colors.charcoal[700],
+    badgeTextColor = colors.text.secondary,
+    iconColor = colors.voltage,
+    isLast = false,
+    onPress,
+    rightElement,
+}: MenuItemProps) => (
+    <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+            styles.menuItem,
+            !isLast && styles.menuItemBorder,
+            pressed && { backgroundColor: 'rgba(255,165,0,0.04)' },
+        ]}
+        accessibilityLabel={label}
+        accessibilityRole="button"
+    >
+        <View style={styles.menuItemLeft}>
+            <View style={styles.menuItemIconWrap}>
+                <Icon size={20} color={iconColor} strokeWidth={2} />
+            </View>
+            <View style={{ flex: 1 }}>
+                <View style={styles.menuItemLabelRow}>
+                    <Text style={styles.menuItemLabel}>{label}</Text>
+                    {badge && (
+                        <View style={[styles.menuItemBadge, { backgroundColor: badgeColor }]}>
+                            <Text style={[styles.menuItemBadgeText, { color: badgeTextColor }]}>{badge}</Text>
+                        </View>
+                    )}
+                </View>
+                {sublabel && (
+                    <Text style={[
+                        styles.menuItemSublabel,
+                        { color: sublabelColor },
+                        sublabelMono && styles.monoText,
+                    ]}>{sublabel}</Text>
+                )}
+            </View>
+        </View>
+        {rightElement || <ChevronRight size={20} color={colors.text.tertiary} strokeWidth={2} />}
+    </Pressable>
+);
+
+// ============================================================================
+// TOGGLE ITEM
+// ============================================================================
+const ToggleItem = ({
+    icon: Icon,
+    label,
+    sublabel,
+    value,
+    onValueChange,
+    iconColor = colors.voltage,
+    isLast = false,
+}: {
+    icon: any;
+    label: string;
+    sublabel?: string;
+    value: boolean;
+    onValueChange: (v: boolean) => void;
+    iconColor?: string;
+    isLast?: boolean;
+}) => (
+    <View style={[styles.menuItem, !isLast && styles.menuItemBorder]}>
+        <View style={styles.menuItemLeft}>
+            <View style={styles.menuItemIconWrap}>
+                <Icon size={20} color={iconColor} strokeWidth={2} />
+            </View>
+            <View>
+                <Text style={styles.menuItemLabel}>{label}</Text>
+                {sublabel && (
+                    <Text style={[styles.menuItemSublabel, { color: colors.text.tertiary }]}>{sublabel}</Text>
+                )}
+            </View>
+        </View>
+        <Switch
+            value={value}
+            onValueChange={onValueChange}
+            trackColor={{ false: colors.charcoal[700], true: `${colors.voltage}80` }}
+            thumbColor={value ? colors.voltage : colors.charcoal[500]}
+            ios_backgroundColor={colors.charcoal[700]}
+        />
+    </View>
+);
+
+// ============================================================================
+// MEMBERSHIP BADGE TOKEN
+// ============================================================================
+const MEMBERSHIP_TIERS: Record<string, { bg: string; text: string; border: string }> = {
+    Basic: { bg: colors.charcoal[700], text: colors.text.secondary, border: colors.charcoal[600] },
+    Gold: { bg: 'rgba(255, 165, 0, 0.15)', text: colors.voltage, border: 'rgba(255, 165, 0, 0.3)' },
+    Platinum: { bg: 'rgba(160, 160, 160, 0.15)', text: '#C0C0C0', border: 'rgba(192, 192, 192, 0.3)' },
+};
+
+// ============================================================================
+// PROFILE SCREEN → ACCOUNT HUB
+// ============================================================================
+export default function AccountHubScreen() {
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
+
+    // System Settings state
+    const [biometricEnabled, setBiometricEnabled] = useState(true);
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-    const [locationEnabled, setLocationEnabled] = useState(true);
 
-    // Modals
-    const [showPhotoModal, setShowPhotoModal] = useState(false);
-    const [showVehicleModal, setShowVehicleModal] = useState(false);
-    const [toast, setToast] = useState<{ title: string, message: string } | null>(null);
+    // Current membership
+    const membershipTier = 'Basic';
+    const tierStyle = MEMBERSHIP_TIERS[membershipTier];
 
-    // Vehicle form
-    const [vehicleMake, setVehicleMake] = useState('');
-    const [vehicleModel, setVehicleModel] = useState('');
-    const [vehiclePlate, setVehiclePlate] = useState('');
-    const [vehicleFuel, setVehicleFuel] = useState<'petrol' | 'diesel'>('petrol');
-
-    // Saved vehicles
-    const [vehicles, setVehicles] = useState([
-        { id: 1, make: 'Toyota', model: 'Prado', plate: 'KBZ 123A', fuel: 'Diesel', isDefault: true }
-    ]);
-
-    const showToast = (title: string, message: string) => {
-        setToast({ title, message });
-        setTimeout(() => setToast(null), 3000);
-    };
-
-    const handleAddVehicle = () => {
-        if (vehicleMake && vehicleModel && vehiclePlate) {
-            setVehicles(prev => [...prev, {
-                id: Date.now(),
-                make: vehicleMake,
-                model: vehicleModel,
-                plate: vehiclePlate.toUpperCase(),
-                fuel: vehicleFuel.charAt(0).toUpperCase() + vehicleFuel.slice(1),
-                isDefault: false
-            }]);
-            setVehicleMake('');
-            setVehicleModel('');
-            setVehiclePlate('');
-            setShowVehicleModal(false);
-            showToast('✅ Vehicle Added', `${vehicleMake} ${vehicleModel} saved!`);
-        }
-    };
-
-    const handleLogout = async () => {
-        if (Platform.OS === 'web') {
-            if (confirm('Are you sure you want to log out?')) {
-                await signOut();
-                router.replace('/');
-            }
-        } else {
-            Alert.alert(
-                'Logout',
-                'Are you sure you want to log out?',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Logout', style: 'destructive', onPress: async () => {
-                            await signOut();
-                            router.replace('/');
-                        }
-                    },
-                ]
-            );
-        }
-    };
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]).start();
+    }, []);
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerIcon}>
-                    <Text style={styles.headerIconText}>⚙️</Text>
+            <StatusBar style="light" />
+
+            <Animated.View style={[styles.wrapper, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Pressable
+                        onPress={() => router.back()}
+                        style={({ pressed }) => [styles.headerButton, pressed && { transform: [{ scale: 0.95 }], backgroundColor: 'rgba(255,165,0,0.08)' }]}
+                        accessibilityLabel="Go back"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={20} color={colors.voltage} strokeWidth={2} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Account</Text>
+                    <View style={{ width: 40 }} />
                 </View>
-                <Text style={styles.headerTitle}>Settings</Text>
-            </View>
 
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Profile Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderIcon}>👤</Text>
-                        <Text style={styles.sectionHeaderTitle}>Profile</Text>
-                    </View>
-
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    {/* Profile Header Card */}
                     <View style={styles.profileCard}>
-                        <View style={styles.profileImageSection}>
-                            <View style={styles.profileAvatar}>
-                                <Text style={styles.profileAvatarText}>JW</Text>
+                        {/* Centered Avatar */}
+                        <View style={styles.avatarContainer}>
+                            <View style={styles.avatar}>
+                                <View style={styles.avatarInner}>
+                                    <Text style={styles.avatarText}>JM</Text>
+                                </View>
                             </View>
-                            <Pressable style={styles.changePhotoButton} onPress={() => setShowPhotoModal(true)}>
-                                <Text style={styles.changePhotoButtonText}>Change Photo</Text>
+                            <Pressable
+                                style={styles.cameraButton}
+                                accessibilityLabel="Change profile photo"
+                                accessibilityRole="button"
+                            >
+                                <Camera size={16} color={colors.background.primary} strokeWidth={2.5} />
                             </Pressable>
                         </View>
 
-                        <View style={styles.profileFields}>
-                            <View style={styles.field}>
-                                <Text style={styles.fieldLabel}>Full Name</Text>
-                                <TextInput
-                                    style={styles.fieldInput}
-                                    value={user?.displayName || "Joseph Wainaina"}
-                                    editable={false}
-                                />
-                            </View>
-                            <View style={styles.field}>
-                                <Text style={styles.fieldLabel}>Phone Number</Text>
-                                <TextInput
-                                    style={styles.fieldInput}
-                                    value={user?.phoneNumber || "+254 7** *** 892"}
-                                    editable={false}
-                                />
-                            </View>
-                            <View style={styles.field}>
-                                <Text style={styles.fieldLabel}>Location</Text>
-                                <TextInput
-                                    style={styles.fieldInput}
-                                    value="Nairobi, Kenya"
-                                    editable={false}
-                                />
-                            </View>
-                        </View>
-                    </View>
-                </View>
+                        <Text style={styles.userName}>John Mwangi</Text>
+                        <Text style={styles.userPhone}>+254 712 345 678</Text>
 
-                {/* Saved Vehicles Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderIcon}>🚗</Text>
-                        <Text style={styles.sectionHeaderTitle}>Saved Vehicles ({vehicles.length})</Text>
+                        {/* Membership Badge */}
+                        <View style={[styles.membershipBadge, {
+                            backgroundColor: tierStyle.bg,
+                            borderColor: tierStyle.border,
+                        }]}>
+                            <Crown size={14} color={tierStyle.text} strokeWidth={2} />
+                            <Text style={[styles.membershipText, { color: tierStyle.text }]}>
+                                {membershipTier} Member
+                            </Text>
+                        </View>
+
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.editProfileButton,
+                                pressed && { backgroundColor: `${colors.voltage}15` }
+                            ]}
+                            accessibilityLabel="Edit profile"
+                            accessibilityRole="button"
+                        >
+                            <Edit2 size={14} color={colors.voltage} strokeWidth={2} />
+                            <Text style={styles.editProfileText}>Edit Profile</Text>
+                        </Pressable>
                     </View>
 
-                    {vehicles.map((vehicle) => (
-                        <View key={vehicle.id} style={styles.vehicleCard}>
-                            <View style={styles.vehicleIconContainer}>
-                                <Text style={styles.vehicleIcon}>🚙</Text>
-                            </View>
-                            <View style={styles.vehicleInfo}>
-                                <Text style={styles.vehicleName}>{vehicle.make} {vehicle.model}</Text>
-                                <Text style={styles.vehicleDetails}>{vehicle.plate} • {vehicle.fuel}</Text>
-                            </View>
-                            {vehicle.isDefault && (
-                                <View style={styles.defaultBadge}>
-                                    <Text style={styles.defaultBadgeText}>DEFAULT</Text>
-                                </View>
-                            )}
+                    {/* ============================================================ */}
+                    {/* URGENCY BANNER */}
+                    {/* ============================================================ */}
+                    <Pressable style={styles.urgencyBanner} accessibilityRole="button">
+                        <View style={styles.urgencyIconWrap}>
+                            <AlertTriangle size={18} color={colors.status.info} strokeWidth={2} />
                         </View>
-                    ))}
-
-                    <Pressable style={styles.addVehicleCard} onPress={() => setShowVehicleModal(true)}>
-                        <View style={styles.addVehicleIcon}>
-                            <Text style={styles.addVehicleIconText}>+</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.urgencyText}>
+                                Complete your Medical Profile for faster Ambulance dispatch.
+                            </Text>
                         </View>
-                        <Text style={styles.addVehicleText}>Add Vehicle</Text>
+                        <ChevronRight size={16} color={colors.status.info} />
                     </Pressable>
-                </View>
 
-                {/* Preferences Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderIcon}>🔔</Text>
-                        <Text style={styles.sectionHeaderTitle}>Preferences</Text>
+                    {/* ============================================================ */}
+                    {/* GARAGE MANAGEMENT */}
+                    {/* ============================================================ */}
+                    <View style={styles.sectionBlock}>
+                        <SectionHeader title="Garage Management" />
+                        <View style={styles.menuList}>
+                            <MenuItem
+                                icon={Car}
+                                label="My Vehicles"
+                                sublabel="Toyota Prado · KBZ 123A"
+                                sublabelMono
+                                badge="2 saved"
+                                badgeColor={colors.voltage}
+                                badgeTextColor={colors.background.primary}
+                                onPress={() => router.push('/(customer)/vehicles')}
+                            />
+                            <MenuItem
+                                icon={Phone}
+                                label="Emergency Contacts"
+                                sublabel="Next of Kin"
+                                iconColor="#FF3D3D"
+                                badge="3 added"
+                                badgeColor="rgba(0, 230, 118, 0.2)"
+                                badgeTextColor="#00E676"
+                                isLast
+                            />
+                        </View>
                     </View>
 
-                    <View style={styles.preferencesCard}>
-                        <View style={styles.preferenceRow}>
-                            <View style={styles.preferenceInfo}>
-                                <Text style={styles.preferenceLabel}>Push Notifications</Text>
-                                <Text style={styles.preferenceDescription}>
-                                    Receive updates about your rescues
-                                </Text>
-                            </View>
-                            <Switch
+                    {/* ============================================================ */}
+                    {/* SYSTEM SETTINGS */}
+                    {/* ============================================================ */}
+                    <View style={styles.sectionBlock}>
+                        <SectionHeader title="System Settings" />
+                        <View style={styles.menuList}>
+                            <ToggleItem
+                                icon={Fingerprint}
+                                label="Biometric Login"
+                                sublabel="Face ID / Fingerprint"
+                                value={biometricEnabled}
+                                onValueChange={setBiometricEnabled}
+                            />
+                            <MenuItem
+                                icon={Globe}
+                                label="Language"
+                                sublabel="English (KE)"
+                            />
+                            <ToggleItem
+                                icon={Bell}
+                                label="Notifications"
+                                sublabel="Push & SMS alerts"
                                 value={notificationsEnabled}
                                 onValueChange={setNotificationsEnabled}
-                                trackColor={{ false: colors.charcoal[600], true: `${colors.voltage}50` }}
-                                thumbColor={notificationsEnabled ? colors.voltage : colors.charcoal[600]}
-                            />
-                        </View>
-
-                        <View style={styles.preferenceDivider} />
-
-                        <View style={styles.preferenceRow}>
-                            <View style={styles.preferenceInfo}>
-                                <Text style={styles.preferenceLabel}>Location Services</Text>
-                                <Text style={styles.preferenceDescription}>
-                                    Enable GPS for faster dispatch
-                                </Text>
-                            </View>
-                            <Switch
-                                value={locationEnabled}
-                                onValueChange={setLocationEnabled}
-                                trackColor={{ false: colors.charcoal[600], true: `${colors.voltage}50` }}
-                                thumbColor={locationEnabled ? colors.voltage : colors.charcoal[600]}
+                                isLast
                             />
                         </View>
                     </View>
-                </View>
 
-                {/* Emergency Contacts */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderIcon}>🆘</Text>
-                        <Text style={styles.sectionHeaderTitle}>Emergency Contacts</Text>
+                    {/* ============================================================ */}
+                    {/* SUPPORT */}
+                    {/* ============================================================ */}
+                    <View style={styles.sectionBlock}>
+                        <SectionHeader title="Support" />
+                        <View style={styles.menuList}>
+                            <MenuItem
+                                icon={HelpCircle}
+                                label="Help Center"
+                                onPress={() => router.push('/(customer)/help')}
+                            />
+                            <MenuItem
+                                icon={Headphones}
+                                label="Contact Support"
+                                sublabel="24/7 available"
+                                sublabelColor="#00E676"
+                                onPress={() => router.push('/(customer)/help')}
+                            />
+                            <MenuItem
+                                icon={FileText}
+                                label="Terms & Privacy"
+                                onPress={() => router.push('/(customer)/terms')}
+                            />
+                            <MenuItem
+                                icon={Info}
+                                label="About ResQ"
+                                sublabel="Version 2.5.0"
+                                isLast
+                            />
+                        </View>
                     </View>
 
-                    <View style={styles.emergencyCard}>
-                        <View style={styles.emergencyRow}>
-                            <Text style={styles.emergencyLabel}>Police</Text>
-                            <Text style={styles.emergencyNumber}>999</Text>
-                        </View>
-                        <View style={styles.emergencyDivider} />
-                        <View style={styles.emergencyRow}>
-                            <Text style={styles.emergencyLabel}>Ambulance</Text>
-                            <Text style={styles.emergencyNumber}>112</Text>
-                        </View>
-                        <View style={styles.emergencyDivider} />
-                        <View style={styles.emergencyRow}>
-                            <Text style={styles.emergencyLabel}>Fire</Text>
-                            <Text style={styles.emergencyNumber}>999</Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Support Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderIcon}>💬</Text>
-                        <Text style={styles.sectionHeaderTitle}>Support</Text>
-                    </View>
-
-                    <Pressable style={styles.menuItem}>
-                        <Text style={styles.menuItemText}>Help Center</Text>
-                        <Text style={styles.menuItemArrow}>→</Text>
+                    {/* ============================================================ */}
+                    {/* BOTTOM ACTIONS */}
+                    {/* ============================================================ */}
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.logoutButton,
+                            pressed && { backgroundColor: 'rgba(255, 255, 255, 0.06)', transform: [{ scale: 0.98 }] }
+                        ]}
+                        onPress={() => router.replace('/')}
+                        accessibilityLabel="Sign out"
+                        accessibilityRole="button"
+                    >
+                        <LogOut size={20} color="#FFFFFF" strokeWidth={2} />
+                        <Text style={styles.logoutText}>Log Out</Text>
                     </Pressable>
-                    <Pressable style={styles.menuItem}>
-                        <Text style={styles.menuItemText}>Contact Support</Text>
-                        <Text style={styles.menuItemArrow}>→</Text>
+
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.deleteButton,
+                            pressed && { backgroundColor: 'rgba(255, 61, 61, 0.12)', transform: [{ scale: 0.98 }] }
+                        ]}
+                        accessibilityLabel="Delete account"
+                        accessibilityRole="button"
+                    >
+                        <Trash2 size={20} color="#FF3D3D" strokeWidth={2} />
+                        <Text style={styles.deleteText}>Delete Account</Text>
                     </Pressable>
-                    <Pressable style={styles.menuItem}>
-                        <Text style={styles.menuItemText}>Terms of Service</Text>
-                        <Text style={styles.menuItemArrow}>→</Text>
-                    </Pressable>
-                    <Pressable style={styles.menuItem}>
-                        <Text style={styles.menuItemText}>Privacy Policy</Text>
-                        <Text style={styles.menuItemArrow}>→</Text>
-                    </Pressable>
-                </View>
-
-                {/* Logout */}
-                <Pressable style={styles.logoutButton} onPress={handleLogout}>
-                    <Text style={styles.logoutIcon}>🚪</Text>
-                    <Text style={styles.logoutText}>Logout</Text>
-                </Pressable>
-
-                {/* Version */}
-                <Text style={styles.versionText}>ResQ Kenya v1.0.0</Text>
-            </ScrollView>
-
-            {/* Toast Notification */}
-            {toast && (
-                <Pressable style={styles.toast} onPress={() => setToast(null)}>
-                    <Text style={styles.toastTitle}>{toast.title}</Text>
-                    <Text style={styles.toastMessage}>{toast.message}</Text>
-                </Pressable>
-            )}
-
-            {/* Photo Modal */}
-            {showPhotoModal && (
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>📸 Change Profile Photo</Text>
-                        <View style={styles.modalAvatar}>
-                            <Text style={styles.modalAvatarText}>JW</Text>
-                        </View>
-                        <Pressable style={styles.modalButton} onPress={() => { setShowPhotoModal(false); showToast('📷 Camera', 'Camera access coming soon'); }}>
-                            <Text style={styles.modalButtonText}>📷 Take Photo</Text>
-                        </Pressable>
-                        <Pressable style={styles.modalButton} onPress={() => { setShowPhotoModal(false); showToast('🖼️ Gallery', 'Gallery access coming soon'); }}>
-                            <Text style={styles.modalButtonText}>🖼️ Choose from Gallery</Text>
-                        </Pressable>
-                        <Pressable style={styles.modalButtonCancel} onPress={() => setShowPhotoModal(false)}>
-                            <Text style={styles.modalButtonCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            )}
-
-            {/* Vehicle Modal */}
-            {showVehicleModal && (
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>🚗 Add New Vehicle</Text>
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Make (e.g., Toyota)"
-                            placeholderTextColor={colors.text.muted}
-                            value={vehicleMake}
-                            onChangeText={setVehicleMake}
-                        />
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Model (e.g., Land Cruiser)"
-                            placeholderTextColor={colors.text.muted}
-                            value={vehicleModel}
-                            onChangeText={setVehicleModel}
-                        />
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="License Plate (e.g., KBZ 123A)"
-                            placeholderTextColor={colors.text.muted}
-                            value={vehiclePlate}
-                            onChangeText={setVehiclePlate}
-                            autoCapitalize="characters"
-                        />
-                        <View style={styles.fuelToggle}>
-                            <Text style={styles.fuelLabel}>Fuel Type:</Text>
-                            <Pressable
-                                style={[styles.fuelOption, vehicleFuel === 'petrol' && styles.fuelOptionActive]}
-                                onPress={() => setVehicleFuel('petrol')}
-                            >
-                                <Text style={[styles.fuelOptionText, vehicleFuel === 'petrol' && styles.fuelOptionTextActive]}>⛽ Petrol</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[styles.fuelOption, vehicleFuel === 'diesel' && styles.fuelOptionActive]}
-                                onPress={() => setVehicleFuel('diesel')}
-                            >
-                                <Text style={[styles.fuelOptionText, vehicleFuel === 'diesel' && styles.fuelOptionTextActive]}>🛢️ Diesel</Text>
-                            </Pressable>
-                        </View>
-                        <Pressable style={styles.modalButtonPrimary} onPress={handleAddVehicle}>
-                            <Text style={styles.modalButtonPrimaryText}>Add Vehicle</Text>
-                        </Pressable>
-                        <Pressable style={styles.modalButtonCancel} onPress={() => setShowVehicleModal(false)}>
-                            <Text style={styles.modalButtonCancelText}>Cancel</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            )}
+                </ScrollView>
+            </Animated.View>
         </View>
     );
 }
 
+// ============================================================================
+// STYLES — 4px base grid enforcement
+// ============================================================================
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.charcoal[900],
+        backgroundColor: colors.background.primary,
     },
+    wrapper: { flex: 1 },
 
     // Header
     header: {
+        height: 60,
+        paddingHorizontal: spacing.lg, // 16px
         flexDirection: 'row',
         alignItems: 'center',
-        paddingTop: Platform.OS === 'ios' ? 70 : 50,
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.lg,
-        backgroundColor: colors.charcoal[800],
+        justifyContent: 'space-between',
         borderBottomWidth: 1,
-        borderBottomColor: colors.charcoal[600],
+        borderBottomColor: colors.charcoal[700],
     },
-    headerIcon: {
+    headerButton: {
         width: 40,
         height: 40,
-        borderRadius: 20,
-        backgroundColor: `${colors.voltage}20`,
-        justifyContent: 'center',
+        borderRadius: borderRadius.xl,
         alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    headerIconText: {
-        fontSize: 20,
+        justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 24,
+        fontSize: typography.fontSize.xl,
         fontWeight: '700',
         color: colors.text.primary,
-    },
-
-    // Scroll
-    scrollView: {
-        flex: 1,
     },
     scrollContent: {
-        padding: spacing.lg,
-        paddingBottom: 120,
-    },
-
-    // Sections
-    section: {
-        marginBottom: spacing.xl,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.md,
-    },
-    sectionHeaderIcon: {
-        fontSize: 18,
-        marginRight: 8,
-    },
-    sectionHeaderTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: colors.text.primary,
+        padding: spacing.lg, // 16px
+        paddingBottom: spacing.xl * 2,
     },
 
     // Profile Card
     profileCard: {
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
+        backgroundColor: colors.background.secondary,
+        borderRadius: borderRadius['2xl'],
         borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        padding: spacing.lg,
-    },
-    profileImageSection: {
-        flexDirection: 'row',
+        borderColor: colors.background.border,
+        padding: spacing.lg, // 16px (4px × 4)
         alignItems: 'center',
         marginBottom: spacing.lg,
+        overflow: 'hidden',
     },
-    profileAvatar: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: colors.charcoal[700],
-        borderWidth: 2,
-        borderColor: colors.voltage,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: spacing.md,
+    avatarContainer: {
+        position: 'relative',
+        marginBottom: spacing.md, // 12px (4px × 3)
     },
-    profileAvatarText: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: colors.voltage,
-    },
-    changePhotoButton: {
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        borderRadius: borderRadius.md,
-        paddingHorizontal: spacing.md,
-        paddingVertical: 10,
-    },
-    changePhotoButtonText: {
-        color: colors.text.secondary,
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    profileFields: {
-        gap: spacing.md,
-    },
-    field: {
-        gap: 6,
-    },
-    fieldLabel: {
-        fontSize: 12,
-        color: colors.text.secondary,
-    },
-    fieldInput: {
-        backgroundColor: colors.charcoal[900],
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        borderRadius: borderRadius.md,
-        paddingHorizontal: spacing.md,
-        paddingVertical: 14,
-        color: colors.text.primary,
-        fontSize: 16,
-    },
-
-    // Vehicle Card
-    vehicleCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: `${colors.voltage}50`,
-        padding: spacing.md,
-        marginBottom: spacing.sm,
-    },
-    vehicleIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 8,
-        backgroundColor: colors.charcoal[700],
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    vehicleIcon: {
-        fontSize: 20,
-    },
-    vehicleInfo: {
-        flex: 1,
-    },
-    vehicleName: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: colors.text.primary,
-    },
-    vehicleDetails: {
-        fontSize: 12,
-        color: colors.text.secondary,
-        marginTop: 2,
-    },
-    defaultBadge: {
-        backgroundColor: colors.voltage,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
-    },
-    defaultBadgeText: {
-        color: colors.charcoal[900],
-        fontSize: 10,
-        fontWeight: '700',
-    },
-    addVehicleCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        borderStyle: 'dashed',
-        padding: spacing.md,
-    },
-    addVehicleIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 8,
-        backgroundColor: colors.charcoal[700],
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    addVehicleIconText: {
-        color: colors.text.secondary,
-        fontSize: 20,
-    },
-    addVehicleText: {
-        color: colors.text.secondary,
-        fontSize: 14,
-        fontWeight: '600',
-    },
-
-    // Preferences
-    preferencesCard: {
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        padding: spacing.lg,
-    },
-    preferenceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    preferenceInfo: {
-        flex: 1,
-        marginRight: spacing.md,
-    },
-    preferenceLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: colors.text.primary,
-    },
-    preferenceDescription: {
-        fontSize: 12,
-        color: colors.text.secondary,
-        marginTop: 2,
-    },
-    preferenceDivider: {
-        height: 1,
-        backgroundColor: colors.charcoal[600],
-        marginVertical: spacing.md,
-    },
-
-    // Emergency Contacts
-    emergencyCard: {
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        padding: spacing.lg,
-    },
-    emergencyRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    emergencyLabel: {
-        fontSize: 14,
-        color: colors.text.primary,
-    },
-    emergencyNumber: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: colors.emergency,
-        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    },
-    emergencyDivider: {
-        height: 1,
-        backgroundColor: colors.charcoal[600],
-        marginVertical: spacing.md,
-    },
-
-    // Menu Items
-    menuItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.lg,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        padding: spacing.md,
-        marginBottom: spacing.sm,
-    },
-    menuItemText: {
-        fontSize: 14,
-        color: colors.text.primary,
-        fontWeight: '500',
-    },
-    menuItemArrow: {
-        fontSize: 16,
-        color: colors.text.muted,
-    },
-
-    // Logout
-    logoutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: `${colors.emergency}10`,
-        borderWidth: 1,
-        borderColor: `${colors.emergency}30`,
-        borderRadius: borderRadius.lg,
-        padding: spacing.md,
-        marginBottom: spacing.lg,
-    },
-    logoutIcon: {
-        fontSize: 18,
-        marginRight: 8,
-    },
-    logoutText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: colors.emergency,
-    },
-
-    // Version
-    versionText: {
-        fontSize: 12,
-        color: colors.text.muted,
-        textAlign: 'center',
-    },
-
-    // Toast
-    toast: {
-        position: 'absolute',
-        top: 100,
-        left: spacing.lg,
-        right: spacing.lg,
-        backgroundColor: colors.charcoal[800],
-        borderWidth: 1,
-        borderColor: colors.voltage,
-        borderRadius: borderRadius.lg,
-        padding: spacing.md,
-        zIndex: 1000,
-    },
-    toastTitle: {
-        color: colors.voltage,
-        fontWeight: '700',
-        fontSize: 14,
-    },
-    toastMessage: {
-        color: colors.text.secondary,
-        fontSize: 13,
-        marginTop: 4,
-    },
-
-    // Modal
-    modalOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.85)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 999,
-    },
-    modalContent: {
-        width: '85%',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        padding: spacing.xl,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: colors.text.primary,
-        textAlign: 'center',
-        marginBottom: spacing.lg,
-    },
-    modalAvatar: {
+    avatar: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: colors.charcoal[700],
         borderWidth: 2,
         borderColor: colors.voltage,
+        padding: 2,
+    },
+    avatarInner: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 38,
+        backgroundColor: colors.charcoal[800],
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center',
-        alignSelf: 'center',
-        marginBottom: spacing.lg,
     },
-    modalAvatarText: {
-        fontSize: 28,
+    avatarText: {
+        fontSize: 24,
         fontWeight: '700',
-        color: colors.voltage,
-    },
-    modalInput: {
-        backgroundColor: colors.charcoal[900],
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        borderRadius: borderRadius.md,
-        padding: spacing.md,
         color: colors.text.primary,
-        fontSize: 16,
-        marginBottom: spacing.md,
     },
-    modalButton: {
-        backgroundColor: colors.charcoal[700],
-        borderRadius: borderRadius.md,
-        padding: spacing.md,
-        alignItems: 'center',
-        marginBottom: spacing.sm,
-    },
-    modalButtonText: {
-        color: colors.text.primary,
-        fontWeight: '600',
-    },
-    modalButtonPrimary: {
+    cameraButton: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         backgroundColor: colors.voltage,
-        borderRadius: borderRadius.md,
-        padding: spacing.md,
         alignItems: 'center',
-        marginTop: spacing.sm,
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: colors.background.secondary,
     },
-    modalButtonPrimaryText: {
-        color: colors.charcoal[900],
+    userName: {
+        fontSize: typography.fontSize.xl,
         fontWeight: '700',
-        fontSize: 16,
+        color: colors.text.primary,
+        marginBottom: 4, // 4px grid
     },
-    modalButtonCancel: {
-        padding: spacing.md,
-        alignItems: 'center',
-        marginTop: spacing.xs,
-    },
-    modalButtonCancelText: {
+    userPhone: {
+        fontSize: typography.fontSize.sm,
         color: colors.text.secondary,
+        marginBottom: 8, // 4px × 2
     },
-
-    // Fuel Toggle
-    fuelToggle: {
+    membershipBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.md,
-        gap: spacing.sm,
+        gap: 6,
+        paddingHorizontal: 12, // 4px × 3
+        paddingVertical: 6,
+        borderRadius: borderRadius.full,
+        borderWidth: 1,
     },
-    fuelLabel: {
-        color: colors.text.secondary,
-        marginRight: spacing.sm,
+    membershipText: {
+        fontSize: typography.fontSize.xs,
+        fontWeight: '600',
     },
-    fuelOption: {
+    editProfileButton: {
+        marginTop: spacing.md, // 12px
+        height: 40,
         paddingHorizontal: spacing.md,
-        paddingVertical: 8,
         borderRadius: borderRadius.md,
         borderWidth: 1,
-        borderColor: colors.charcoal[600],
+        borderColor: `${colors.voltage}50`,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
     },
-    fuelOptionActive: {
-        borderColor: colors.voltage,
-        backgroundColor: `${colors.voltage}20`,
-    },
-    fuelOptionText: {
-        color: colors.text.secondary,
-        fontSize: 13,
-    },
-    fuelOptionTextActive: {
+    editProfileText: {
+        fontSize: typography.fontSize.sm,
+        fontWeight: '700',
         color: colors.voltage,
+    },
+
+    // Urgency Banner
+    urgencyBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12, // 4px × 3
+        backgroundColor: 'rgba(41, 182, 246, 0.12)', // status.infoGlow
+        borderRadius: borderRadius.xl,
+        borderWidth: 1,
+        borderColor: 'rgba(41, 182, 246, 0.25)',
+        padding: 16, // 4px × 4
+        marginBottom: spacing.lg,
+    },
+    urgencyIconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: 'rgba(41, 182, 246, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    urgencyText: {
+        fontSize: 13,
         fontWeight: '600',
+        color: '#29B6F6', // status.info
+        lineHeight: 18,
+    },
+
+    // Section block
+    sectionBlock: {
+        marginBottom: spacing.lg, // 16px
+    },
+    sectionLabel: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
+        color: colors.text.primary,
+        marginBottom: spacing.md, // 12px
+        paddingLeft: 4, // 4px grid
+    },
+    menuList: {
+        backgroundColor: colors.background.secondary,
+        borderRadius: borderRadius['2xl'],
+        borderWidth: 1,
+        borderColor: colors.background.border,
+        overflow: 'hidden',
+    },
+
+    // Menu item — 4px grid padding
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16, // 4px × 4
+    },
+    menuItemBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: colors.background.border,
+    },
+    menuItemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12, // 4px × 3
+        flex: 1,
+    },
+    menuItemIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 12, // 4px × 3
+        backgroundColor: colors.charcoal[800],
+        borderWidth: 1,
+        borderColor: colors.background.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    menuItemLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8, // 4px × 2
+    },
+    menuItemLabel: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '500',
+        color: colors.text.primary,
+        fontFamily: Platform.OS === 'ios' ? 'Inter' : undefined,
+    },
+    menuItemBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: borderRadius.sm,
+    },
+    menuItemBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    menuItemSublabel: {
+        fontSize: typography.fontSize.xs,
+        marginTop: 2,
+        fontFamily: Platform.OS === 'ios' ? 'Inter' : undefined,
+    },
+    monoText: {
+        fontFamily: Platform.OS === 'ios' ? 'JetBrains Mono' : 'monospace',
+        letterSpacing: 0.5,
+    },
+
+    // Bottom actions
+    logoutButton: {
+        width: '100%',
+        height: 56,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        borderRadius: borderRadius.xl,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        marginBottom: 12, // 4px × 3
+    },
+    logoutText: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+    deleteButton: {
+        width: '100%',
+        height: 56,
+        borderWidth: 2,
+        borderColor: '#FF3D3D',
+        borderRadius: borderRadius.xl,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.xl,
+    },
+    deleteText: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
+        color: '#FF3D3D',
     },
 });

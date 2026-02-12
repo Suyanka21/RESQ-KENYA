@@ -3,7 +3,9 @@ import "../global.css";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Text } from "react-native";
+import { Zap } from "lucide-react-native";
 import { AuthProvider } from "../services/AuthContext";
+import { colors, spacing } from "../theme/voltage-premium";
 import React from "react";
 
 class ErrorBoundary extends React.Component<
@@ -26,17 +28,20 @@ class ErrorBoundary extends React.Component<
     render() {
         if (this.state.hasError) {
             return (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F0F0F', padding: 20 }}>
-                    <Text style={{ color: '#FFD60A', fontSize: 24, fontWeight: 'bold', marginBottom: 10 }}>
-                        ⚡ ResQ Kenya
-                    </Text>
-                    <Text style={{ color: '#FF3D3D', fontSize: 18, marginBottom: 10 }}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background.primary, padding: spacing.xl }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
+                        <Zap size={24} color={colors.voltage} fill={colors.voltage} strokeWidth={1} />
+                        <Text style={{ color: colors.voltage, fontSize: 24, fontWeight: 'bold', marginLeft: 4 }}>
+                            ResQ Kenya
+                        </Text>
+                    </View>
+                    <Text style={{ color: colors.status.error, fontSize: 18, marginBottom: spacing.sm }}>
                         App Error
                     </Text>
-                    <Text style={{ color: '#FFFFFF', fontSize: 14, textAlign: 'center' }}>
+                    <Text style={{ color: colors.text.primary, fontSize: 14, textAlign: 'center' }}>
                         {this.state.error?.message || 'An unexpected error occurred'}
                     </Text>
-                    <Text style={{ color: '#A0A0A0', fontSize: 12, marginTop: 20, textAlign: 'center' }}>
+                    <Text style={{ color: colors.text.secondary, fontSize: 12, marginTop: spacing.xl, textAlign: 'center' }}>
                         Check console for details
                     </Text>
                 </View>
@@ -51,12 +56,12 @@ export default function RootLayout() {
     return (
         <ErrorBoundary>
             <AuthProvider>
-                <View style={{ flex: 1, backgroundColor: '#0F0F0F' }}>
+                <View style={{ flex: 1, backgroundColor: colors.background.primary }}>
                     <StatusBar style="light" />
                     <Stack
                         screenOptions={{
                             headerShown: false,
-                            contentStyle: { backgroundColor: '#0F0F0F' },
+                            contentStyle: { backgroundColor: colors.background.primary },
                             animation: 'slide_from_right',
                         }}
                     >

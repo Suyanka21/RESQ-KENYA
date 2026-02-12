@@ -39,3 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase build output
+functions/lib/
+
+# Generated/temporary files
+eslint-output.json
+
+# Design assets (non-code)
+DESIGN RES Q/

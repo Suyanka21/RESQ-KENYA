@@ -1,7 +1,10 @@
-// ResQ Kenya - Provider Dashboard
+// ⚡ ResQ Kenya - Provider Dashboard
+// Converted from NativeWind to StyleSheet for consistency
+
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
+import { ClipboardList, Banknote, Bell, BarChart3, MessageCircle } from 'lucide-react-native';
 import {
     updateProviderLocation,
     getPendingRequestsNearby
@@ -15,7 +18,8 @@ import {
     startLocationUpdates,
     NAIROBI_DEFAULT
 } from '../../services/location.service';
-import { colors, SERVICE_TYPES } from '../../theme/voltage-premium';
+import { colors, SERVICE_TYPES, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
+import { ServiceIcon } from '../../components/ui/ServiceIcon';
 import type { GeoLocation, ServiceRequest } from '../../types';
 
 // Mock provider data (in production, fetch from Firestore)
@@ -101,40 +105,46 @@ export default function ProviderDashboard() {
         }
     };
 
-    const StatCard = ({ title, value, icon, suffix = '' }: {
+    const StatCard = ({ title, value, iconType, suffix = '' }: {
         title: string;
         value: string | number;
-        icon: string;
+        iconType: 'check' | 'wallet' | 'location' | 'star';
         suffix?: string;
     }) => (
-        <View className="bg-charcoal-800 rounded-xl p-4 flex-1 mx-1 border border-charcoal-600">
-            <Text className="text-2xl mb-2">{icon}</Text>
-            <Text className="text-voltage text-xl font-bold">{value}{suffix}</Text>
-            <Text className="text-white/60 text-xs">{title}</Text>
+        <View style={styles.statCard}>
+            <View style={styles.statIconContainer}>
+                {iconType === 'check' && <Text style={styles.statIcon}>✓</Text>}
+                {iconType === 'wallet' && <Text style={styles.statIcon}>$</Text>}
+                {iconType === 'location' && <Text style={styles.statIcon}>◉</Text>}
+                {iconType === 'star' && <Text style={styles.statIcon}>★</Text>}
+            </View>
+            <Text style={styles.statValue}>{value}{suffix}</Text>
+            <Text style={styles.statLabel}>{title}</Text>
         </View>
     );
 
     return (
-        <View className="flex-1 bg-charcoal-900">
+        <View style={styles.container}>
             {/* Header */}
-            <View className={`px-6 pt-16 pb-6 ${isOnline ? 'bg-success/20' : 'bg-charcoal-800'} border-b border-charcoal-600`}>
-                <View className="flex-row justify-between items-start mb-4">
+            <View style={[styles.header, isOnline && styles.headerOnline]}>
+                <View style={styles.headerTop}>
                     <View>
-                        <Text className="text-white/60 text-sm">Good morning</Text>
-                        <Text className="text-white text-xl font-bold">{MOCK_PROVIDER.displayName}</Text>
+                        <Text style={styles.greeting}>Good morning</Text>
+                        <Text style={styles.providerName}>{MOCK_PROVIDER.displayName}</Text>
                     </View>
-                    <View className="items-center">
-                        <View className={`px-3 py-1 rounded-full ${isOnline ? 'bg-success' : 'bg-charcoal-600'}`}>
-                            <Text className={`text-xs font-semibold ${isOnline ? 'text-white' : 'text-white/60'}`}>
-                                {isOnline ? '🟢 ONLINE' : '⚫ OFFLINE'}
+                    <View style={styles.statusBadgeContainer}>
+                        <View style={[styles.statusBadge, isOnline ? styles.statusOnline : styles.statusOffline]}>
+                            <View style={[styles.statusDot, isOnline ? styles.dotOnline : styles.dotOffline]} />
+                            <Text style={[styles.statusText, isOnline ? styles.statusTextOnline : styles.statusTextOffline]}>
+                                {isOnline ? 'ONLINE' : 'OFFLINE'}
                             </Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Online Toggle */}
-                <View className="flex-row items-center justify-between bg-charcoal-700 rounded-xl p-4">
-                    <View className="flex-row items-center">
+                <View style={styles.toggleContainer}>
+                    <View style={styles.toggleLeft}>
                         {isLoading ? (
                             <ActivityIndicator size="small" color={colors.voltage} />
                         ) : (
@@ -142,16 +152,16 @@ export default function ProviderDashboard() {
                                 value={isOnline}
                                 onValueChange={handleToggleOnline}
                                 trackColor={{ false: colors.charcoal[600], true: colors.success }}
-                                thumbColor={isOnline ? '#FFFFFF' : '#888888'}
+                                thumbColor={isOnline ? colors.text.primary : colors.text.tertiary}
                             />
                         )}
-                        <Text className="text-white ml-3 font-medium">
+                        <Text style={styles.toggleText}>
                             {isOnline ? 'Accepting Jobs' : 'Go Online to Accept Jobs'}
                         </Text>
                     </View>
                     {isOnline && (
-                        <View className="bg-voltage/20 px-2 py-1 rounded">
-                            <Text className="text-voltage text-xs font-semibold">
+                        <View style={styles.nearbyBadge}>
+                            <Text style={styles.nearbyBadgeText}>
                                 {nearbyRequests.length} nearby
                             </Text>
                         </View>
@@ -159,61 +169,67 @@ export default function ProviderDashboard() {
                 </View>
             </View>
 
-            <ScrollView className="flex-1 px-4 pt-4">
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {/* Today's Stats */}
-                <Text className="text-white font-bold text-lg mb-3 px-2">Today's Performance</Text>
-                <View className="flex-row mb-4">
-                    <StatCard title="Jobs Done" value={todayStats.completedJobs} icon="✅" />
-                    <StatCard title="Earnings" value={`KES ${todayStats.earnings.toLocaleString()}`} icon="💰" />
+                <Text style={styles.sectionTitle}>Today's Performance</Text>
+                <View style={styles.statsRow}>
+                    <StatCard title="Jobs Done" value={todayStats.completedJobs} iconType="check" />
+                    <StatCard title="Earnings" value={`KES ${todayStats.earnings.toLocaleString()}`} iconType="wallet" />
                 </View>
-                <View className="flex-row mb-6">
-                    <StatCard title="Distance" value={todayStats.distance} icon="📍" suffix=" km" />
-                    <StatCard title="Avg Rating" value={todayStats.avgRating} icon="⭐" />
+                <View style={styles.statsRow}>
+                    <StatCard title="Distance" value={todayStats.distance} iconType="location" suffix=" km" />
+                    <StatCard title="Avg Rating" value={todayStats.avgRating} iconType="star" />
                 </View>
 
                 {/* Quick Actions */}
-                <Text className="text-white font-bold text-lg mb-3 px-2">Quick Actions</Text>
-                <View className="flex-row flex-wrap mb-6">
+                <Text style={styles.sectionTitle}>Quick Actions</Text>
+                <View style={styles.actionsGrid}>
                     <Pressable
-                        className="bg-charcoal-800 rounded-xl p-4 w-[48%] mr-[2%] mb-2 border border-charcoal-600"
+                        style={styles.actionCard}
                         onPress={() => router.push('/(provider)/requests')}
                     >
-                        <Text className="text-2xl mb-2">📋</Text>
-                        <Text className="text-white font-semibold">View Requests</Text>
-                        <Text className="text-white/50 text-xs">See pending jobs nearby</Text>
+                        <View style={styles.actionIconContainer}>
+                            <ClipboardList size={24} color={colors.voltage} strokeWidth={2} />
+                        </View>
+                        <Text style={styles.actionTitle}>View Requests</Text>
+                        <Text style={styles.actionSubtitle}>See pending jobs nearby</Text>
                     </Pressable>
                     <Pressable
-                        className="bg-charcoal-800 rounded-xl p-4 w-[48%] mb-2 border border-charcoal-600"
+                        style={styles.actionCard}
                         onPress={() => router.push('/(provider)/earnings')}
                     >
-                        <Text className="text-2xl mb-2">💵</Text>
-                        <Text className="text-white font-semibold">Earnings</Text>
-                        <Text className="text-white/50 text-xs">View your earnings</Text>
+                        <View style={styles.actionIconContainer}>
+                            <Banknote size={24} color={colors.voltage} strokeWidth={2} />
+                        </View>
+                        <Text style={styles.actionTitle}>Earnings</Text>
+                        <Text style={styles.actionSubtitle}>View your earnings</Text>
                     </Pressable>
-                    <Pressable className="bg-charcoal-800 rounded-xl p-4 w-[48%] mr-[2%] mb-2 border border-charcoal-600">
-                        <Text className="text-2xl mb-2">📊</Text>
-                        <Text className="text-white font-semibold">Stats</Text>
-                        <Text className="text-white/50 text-xs">Performance metrics</Text>
+                    <Pressable style={styles.actionCard}>
+                        <View style={styles.actionIconContainer}>
+                            <BarChart3 size={24} color={colors.voltage} strokeWidth={2} />
+                        </View>
+                        <Text style={styles.actionTitle}>Stats</Text>
+                        <Text style={styles.actionSubtitle}>Performance metrics</Text>
                     </Pressable>
-                    <Pressable className="bg-charcoal-800 rounded-xl p-4 w-[48%] mb-2 border border-charcoal-600">
-                        <Text className="text-2xl mb-2">💬</Text>
-                        <Text className="text-white font-semibold">Support</Text>
-                        <Text className="text-white/50 text-xs">Get help</Text>
+                    <Pressable style={styles.actionCard}>
+                        <View style={styles.actionIconContainer}>
+                            <MessageCircle size={24} color={colors.voltage} strokeWidth={2} />
+                        </View>
+                        <Text style={styles.actionTitle}>Support</Text>
+                        <Text style={styles.actionSubtitle}>Get help</Text>
                     </Pressable>
                 </View>
 
                 {/* Services Offered */}
-                <Text className="text-white font-bold text-lg mb-3 px-2">Your Services</Text>
-                <View className="flex-row flex-wrap mb-8">
+                <Text style={styles.sectionTitle}>Your Services</Text>
+                <View style={styles.servicesRow}>
                     {MOCK_PROVIDER.serviceTypes.map(type => {
                         const service = SERVICE_TYPES[type as keyof typeof SERVICE_TYPES];
                         return (
-                            <View
-                                key={type}
-                                className="bg-charcoal-800 rounded-lg px-3 py-2 mr-2 mb-2 border border-voltage/30"
-                            >
-                                <Text className="text-voltage text-sm font-medium">
-                                    {getServiceEmoji(type)} {service?.name || type}
+                            <View key={type} style={styles.serviceChip}>
+                                <ServiceIcon type={type as any} size={16} color={colors.voltage} />
+                                <Text style={styles.serviceChipText}>
+                                    {service?.name || type}
                                 </Text>
                             </View>
                         );
@@ -223,17 +239,15 @@ export default function ProviderDashboard() {
 
             {/* Incoming Request Alert (Demo) */}
             {isOnline && nearbyRequests.length === 0 && (
-                <View className="absolute bottom-24 left-4 right-4 bg-voltage rounded-xl p-4">
-                    <View className="flex-row items-center">
-                        <View className="w-12 h-12 bg-charcoal-900/30 rounded-full items-center justify-center mr-3">
-                            <Text className="text-2xl">🔔</Text>
-                        </View>
-                        <View className="flex-1">
-                            <Text className="text-charcoal-900 font-bold">Ready for Requests</Text>
-                            <Text className="text-charcoal-900/70 text-sm">
-                                You'll be notified when jobs are available
-                            </Text>
-                        </View>
+                <View style={styles.alertBanner}>
+                    <View style={styles.alertIconContainer}>
+                        <Bell size={24} color={colors.voltage} fill={colors.voltage} strokeWidth={1} />
+                    </View>
+                    <View style={styles.alertContent}>
+                        <Text style={styles.alertTitle}>Ready for Requests</Text>
+                        <Text style={styles.alertSubtitle}>
+                            You'll be notified when jobs are available
+                        </Text>
                     </View>
                 </View>
             )}
@@ -241,14 +255,259 @@ export default function ProviderDashboard() {
     );
 }
 
-function getServiceEmoji(type: string): string {
-    const emojis: Record<string, string> = {
-        towing: '🚛',
-        tire: '🔧',
-        battery: '⚡',
-        fuel: '⛽',
-        diagnostics: '🔍',
-        ambulance: '🚑',
-    };
-    return emojis[type] || '🔧';
-}
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: colors.charcoal[900],
+    },
+
+    // Header
+    header: {
+        paddingHorizontal: spacing.lg,
+        paddingTop: Platform.OS === 'ios' ? 70 : 50,
+        paddingBottom: spacing.lg,
+        backgroundColor: colors.charcoal[800],
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    headerOnline: {
+        backgroundColor: `${colors.success}20`,
+    },
+    headerTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: spacing.md,
+    },
+    greeting: {
+        color: colors.text.secondary,
+        fontSize: 14,
+    },
+    providerName: {
+        color: colors.text.primary,
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    statusBadgeContainer: {
+        alignItems: 'center',
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: borderRadius.full,
+    },
+    statusOnline: {
+        backgroundColor: colors.success,
+    },
+    statusOffline: {
+        backgroundColor: colors.charcoal[600],
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: spacing.xs,
+    },
+    dotOnline: {
+        backgroundColor: colors.text.primary,
+    },
+    dotOffline: {
+        backgroundColor: colors.text.tertiary,
+    },
+    statusText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    statusTextOnline: {
+        color: colors.text.primary,
+    },
+    statusTextOffline: {
+        color: colors.text.secondary,
+    },
+
+    // Toggle
+    toggleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: colors.charcoal[700],
+        borderRadius: borderRadius.xl,
+        padding: spacing.md,
+    },
+    toggleLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    toggleText: {
+        color: colors.text.primary,
+        marginLeft: spacing.md,
+        fontWeight: '500',
+    },
+    nearbyBadge: {
+        backgroundColor: `${colors.voltage}20`,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: borderRadius.sm,
+    },
+    nearbyBadgeText: {
+        color: colors.voltage,
+        fontSize: 12,
+        fontWeight: '600',
+    },
+
+    // Scroll
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: spacing.md,
+        paddingBottom: 120,
+    },
+
+    // Section
+    sectionTitle: {
+        color: colors.text.primary,
+        fontWeight: '700',
+        fontSize: 18,
+        marginBottom: spacing.md,
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.sm,
+    },
+
+    // Stats
+    statsRow: {
+        flexDirection: 'row',
+        marginBottom: spacing.sm,
+    },
+    statCard: {
+        flex: 1,
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius.xl,
+        padding: spacing.md,
+        marginHorizontal: spacing.xs,
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+    },
+    statIconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: `${colors.voltage}20`,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: spacing.sm,
+    },
+    statIcon: {
+        fontSize: 16,
+        color: colors.voltage,
+    },
+    statValue: {
+        color: colors.voltage,
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    statLabel: {
+        color: colors.text.secondary,
+        fontSize: 12,
+    },
+
+    // Actions Grid
+    actionsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: spacing.md,
+    },
+    actionCard: {
+        width: '48%',
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius.xl,
+        padding: spacing.md,
+        marginRight: '2%',
+        marginBottom: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+    },
+    actionIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: `${colors.voltage}20`,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: spacing.sm,
+    },
+    actionIcon: {
+        fontSize: 20,
+    },
+    actionTitle: {
+        color: colors.text.primary,
+        fontWeight: '600',
+    },
+    actionSubtitle: {
+        color: colors.text.muted,
+        fontSize: 12,
+    },
+
+    // Services
+    servicesRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: spacing.xl,
+    },
+    serviceChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius.lg,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        marginRight: spacing.sm,
+        marginBottom: spacing.sm,
+        borderWidth: 1,
+        borderColor: `${colors.voltage}30`,
+    },
+    serviceChipText: {
+        color: colors.voltage,
+        fontSize: 14,
+        fontWeight: '500',
+        marginLeft: spacing.sm,
+    },
+
+    // Alert Banner
+    alertBanner: {
+        position: 'absolute',
+        bottom: 100,
+        left: spacing.md,
+        right: spacing.md,
+        backgroundColor: colors.voltage,
+        borderRadius: borderRadius.xl,
+        padding: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    alertIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: `${colors.charcoal[900]}30`,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: spacing.md,
+    },
+    alertIcon: {
+        fontSize: 24,
+    },
+    alertContent: {
+        flex: 1,
+    },
+    alertTitle: {
+        color: colors.charcoal[900],
+        fontWeight: '700',
+    },
+    alertSubtitle: {
+        color: `${colors.charcoal[900]}99`,
+        fontSize: 14,
+    },
+});

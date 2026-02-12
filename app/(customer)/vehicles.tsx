@@ -1,10 +1,11 @@
-// ResQ Kenya - Vehicles Management Screen
-// Allows users to add, edit, and select vehicles
+// ⚡ ResQ Kenya - Vehicles Management Screen
+// Converted from NativeWind to StyleSheet for consistency
 
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { colors } from '../../theme/voltage-premium';
+import { Car } from 'lucide-react-native';
+import { colors, spacing, borderRadius } from '../../theme/voltage-premium';
 
 interface Vehicle {
     id: string;
@@ -132,98 +133,94 @@ export default function VehiclesScreen() {
     };
 
     return (
-        <View className="flex-1 bg-charcoal-900">
+        <View style={styles.container}>
             {/* Header */}
-            <View className="px-6 pt-16 pb-4 bg-charcoal-800 border-b border-charcoal-600">
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center">
-                        <Pressable onPress={() => router.back()} className="mr-4">
-                            <Text className="text-white text-xl">←</Text>
+            <View style={styles.header}>
+                <View style={styles.headerContent}>
+                    <View style={styles.headerLeft}>
+                        <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && { transform: [{ scale: 0.9 }], opacity: 0.7 }]}>
+                            <Text style={styles.backArrow}>←</Text>
                         </Pressable>
-                        <Text className="text-white text-2xl font-bold">My Vehicles</Text>
+                        <Text style={styles.headerTitle}>My Vehicles</Text>
                     </View>
-                    <Pressable
-                        className="bg-voltage px-4 py-2 rounded-lg"
-                        onPress={openAddModal}
-                    >
-                        <Text className="text-charcoal-900 font-bold">+ Add</Text>
+                    <Pressable style={styles.addButton} onPress={openAddModal}>
+                        <Text style={styles.addButtonText}>+ Add</Text>
                     </Pressable>
                 </View>
             </View>
 
-            <ScrollView className="flex-1 px-6 pt-6">
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {vehicles.length > 0 ? (
                     vehicles.map(vehicle => (
                         <Pressable
                             key={vehicle.id}
-                            className={`bg-charcoal-800 rounded-2xl p-4 mb-4 border ${vehicle.isDefault ? 'border-voltage' : 'border-charcoal-600'
-                                }`}
+                            style={[
+                                styles.vehicleCard,
+                                vehicle.isDefault && styles.vehicleCardDefault
+                            ]}
                             onPress={() => openEditModal(vehicle)}
                         >
-                            <View className="flex-row items-center">
-                                <View className="w-14 h-14 bg-charcoal-700 rounded-xl items-center justify-center mr-4">
-                                    <Text className="text-3xl">🚗</Text>
+                            <View style={styles.vehicleRow}>
+                                <View style={styles.vehicleIcon}>
+                                    <Car size={20} color={colors.voltage} strokeWidth={2} />
                                 </View>
-                                <View className="flex-1">
-                                    <View className="flex-row items-center">
-                                        <Text className="text-white font-bold text-lg">
+                                <View style={styles.vehicleInfo}>
+                                    <View style={styles.vehicleNameRow}>
+                                        <Text style={styles.vehicleName}>
                                             {vehicle.make} {vehicle.model}
                                         </Text>
                                         {vehicle.isDefault && (
-                                            <View className="bg-voltage ml-2 px-2 py-0.5 rounded">
-                                                <Text className="text-charcoal-900 text-xs font-bold">DEFAULT</Text>
+                                            <View style={styles.defaultBadge}>
+                                                <Text style={styles.defaultBadgeText}>DEFAULT</Text>
                                             </View>
                                         )}
                                     </View>
-                                    <Text className="text-white/60 text-sm">
+                                    <Text style={styles.vehicleDetails}>
                                         {vehicle.registration} • {vehicle.year} • {vehicle.fuelType.charAt(0).toUpperCase() + vehicle.fuelType.slice(1)}
                                     </Text>
-                                    <Text className="text-white/40 text-xs">{vehicle.color}</Text>
+                                    <Text style={styles.vehicleColor}>{vehicle.color}</Text>
                                 </View>
-                                <Text className="text-white/50">›</Text>
+                                <Text style={styles.vehicleArrow}>›</Text>
                             </View>
 
                             {!vehicle.isDefault && (
-                                <View className="flex-row mt-3 pt-3 border-t border-charcoal-600">
+                                <View style={styles.vehicleActions}>
                                     <Pressable
-                                        className="flex-1 py-2 mr-2"
+                                        style={styles.vehicleAction}
                                         onPress={() => handleSetDefault(vehicle.id)}
                                     >
-                                        <Text className="text-voltage text-center text-sm font-medium">Set as Default</Text>
+                                        <Text style={styles.vehicleActionText}>Set as Default</Text>
                                     </Pressable>
                                     <Pressable
-                                        className="flex-1 py-2 ml-2"
+                                        style={styles.vehicleAction}
                                         onPress={() => handleDelete(vehicle.id)}
                                     >
-                                        <Text className="text-emergency text-center text-sm font-medium">Remove</Text>
+                                        <Text style={styles.vehicleActionTextDanger}>Remove</Text>
                                     </Pressable>
                                 </View>
                             )}
                         </Pressable>
                     ))
                 ) : (
-                    <View className="items-center py-12">
-                        <Text className="text-4xl mb-4">🚗</Text>
-                        <Text className="text-white text-lg font-bold mb-2">No Vehicles Added</Text>
-                        <Text className="text-white/60 text-center mb-6">
+                    <View style={styles.emptyState}>
+                        <Car size={48} color={colors.text.muted} strokeWidth={1.5} />
+                        <Text style={styles.emptyTitle}>No Vehicles Added</Text>
+                        <Text style={styles.emptyText}>
                             Add your vehicle to get faster service
                         </Text>
-                        <Pressable
-                            className="bg-voltage px-6 py-3 rounded-xl"
-                            onPress={openAddModal}
-                        >
-                            <Text className="text-charcoal-900 font-bold">Add Your First Vehicle</Text>
+                        <Pressable style={styles.emptyButton} onPress={openAddModal}>
+                            <Text style={styles.emptyButtonText}>Add Your First Vehicle</Text>
                         </Pressable>
                     </View>
                 )}
 
                 {/* Info Card */}
-                <View className="bg-charcoal-800 rounded-xl p-4 mt-4 mb-8 border border-charcoal-600">
-                    <View className="flex-row items-center mb-2">
-                        <Text className="text-voltage mr-2">ℹ️</Text>
-                        <Text className="text-white font-bold">Why add vehicles?</Text>
+                <View style={styles.infoCard}>
+                    <View style={styles.infoHeader}>
+                        <Text style={styles.infoIcon}>ℹ️</Text>
+                        <Text style={styles.infoTitle}>Why add vehicles?</Text>
                     </View>
-                    <Text className="text-white/60 text-sm">
+                    <Text style={styles.infoText}>
                         Adding your vehicle details helps our providers prepare the right equipment
                         and speeds up the service process.
                     </Text>
@@ -238,63 +235,63 @@ export default function VehiclesScreen() {
                 onRequestClose={() => setShowAddModal(false)}
             >
                 <KeyboardAvoidingView
-                    className="flex-1 bg-black/80 justify-end"
+                    style={styles.modalOverlay}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
-                    <View className="bg-charcoal-800 rounded-t-3xl px-6 pt-6 pb-10 max-h-[85%]">
+                    <View style={styles.modalContent}>
                         {/* Modal Header */}
-                        <View className="flex-row justify-between items-center mb-6">
-                            <Text className="text-white text-xl font-bold">
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>
                                 {editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
                             </Text>
                             <Pressable onPress={() => setShowAddModal(false)}>
-                                <Text className="text-white/60 text-2xl">×</Text>
+                                <Text style={styles.modalClose}>×</Text>
                             </Pressable>
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {/* Make */}
-                            <Text className="text-white/60 text-sm mb-2">Make *</Text>
+                            <Text style={styles.inputLabel}>Make *</Text>
                             <TextInput
-                                className="bg-charcoal-900 border border-charcoal-600 rounded-xl py-3 px-4 text-white mb-4"
+                                style={styles.textInput}
                                 value={make}
                                 onChangeText={setMake}
                                 placeholder="e.g. Toyota, BMW, Mercedes"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                placeholderTextColor={colors.text.muted}
                             />
 
                             {/* Model */}
-                            <Text className="text-white/60 text-sm mb-2">Model *</Text>
+                            <Text style={styles.inputLabel}>Model *</Text>
                             <TextInput
-                                className="bg-charcoal-900 border border-charcoal-600 rounded-xl py-3 px-4 text-white mb-4"
+                                style={styles.textInput}
                                 value={model}
                                 onChangeText={setModel}
                                 placeholder="e.g. Prado, X5, C-Class"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                placeholderTextColor={colors.text.muted}
                             />
 
                             {/* Year & Registration Row */}
-                            <View className="flex-row mb-4">
-                                <View className="flex-1 mr-2">
-                                    <Text className="text-white/60 text-sm mb-2">Year</Text>
+                            <View style={styles.inputRow}>
+                                <View style={styles.inputHalf}>
+                                    <Text style={styles.inputLabel}>Year</Text>
                                     <TextInput
-                                        className="bg-charcoal-900 border border-charcoal-600 rounded-xl py-3 px-4 text-white"
+                                        style={styles.textInput}
                                         value={year}
                                         onChangeText={setYear}
                                         placeholder="2020"
-                                        placeholderTextColor="rgba(255,255,255,0.3)"
+                                        placeholderTextColor={colors.text.muted}
                                         keyboardType="numeric"
                                         maxLength={4}
                                     />
                                 </View>
-                                <View className="flex-1 ml-2">
-                                    <Text className="text-white/60 text-sm mb-2">Registration *</Text>
+                                <View style={styles.inputHalf}>
+                                    <Text style={styles.inputLabel}>Registration *</Text>
                                     <TextInput
-                                        className="bg-charcoal-900 border border-charcoal-600 rounded-xl py-3 px-4 text-white"
+                                        style={styles.textInput}
                                         value={registration}
                                         onChangeText={text => setRegistration(text.toUpperCase())}
                                         placeholder="KBZ 123A"
-                                        placeholderTextColor="rgba(255,255,255,0.3)"
+                                        placeholderTextColor={colors.text.muted}
                                         autoCapitalize="characters"
                                         maxLength={10}
                                     />
@@ -302,52 +299,57 @@ export default function VehiclesScreen() {
                             </View>
 
                             {/* Fuel Type */}
-                            <Text className="text-white/60 text-sm mb-2">Fuel Type</Text>
-                            <View className="flex-row mb-4">
+                            <Text style={styles.inputLabel}>Fuel Type</Text>
+                            <View style={styles.fuelRow}>
                                 <Pressable
-                                    className={`flex-1 py-3 rounded-xl mr-2 border ${fuelType === 'petrol'
-                                            ? 'border-voltage bg-voltage/10'
-                                            : 'border-charcoal-600 bg-charcoal-900'
-                                        }`}
+                                    style={[
+                                        styles.fuelButton,
+                                        fuelType === 'petrol' && styles.fuelButtonActive
+                                    ]}
                                     onPress={() => setFuelType('petrol')}
                                 >
-                                    <Text className={`text-center font-medium ${fuelType === 'petrol' ? 'text-voltage' : 'text-white/60'
-                                        }`}>
-                                        ⛽ Petrol
-                                    </Text>
+                                    <Text style={[
+                                        styles.fuelButtonText,
+                                        fuelType === 'petrol' && styles.fuelButtonTextActive
+                                    ]}>Petrol</Text>
                                 </Pressable>
                                 <Pressable
-                                    className={`flex-1 py-3 rounded-xl ml-2 border ${fuelType === 'diesel'
-                                            ? 'border-voltage bg-voltage/10'
-                                            : 'border-charcoal-600 bg-charcoal-900'
-                                        }`}
+                                    style={[
+                                        styles.fuelButton,
+                                        fuelType === 'diesel' && styles.fuelButtonActive
+                                    ]}
                                     onPress={() => setFuelType('diesel')}
                                 >
-                                    <Text className={`text-center font-medium ${fuelType === 'diesel' ? 'text-voltage' : 'text-white/60'
-                                        }`}>
-                                        🛢️ Diesel
-                                    </Text>
+                                    <Text style={[
+                                        styles.fuelButtonText,
+                                        fuelType === 'diesel' && styles.fuelButtonTextActive
+                                    ]}>Diesel</Text>
                                 </Pressable>
                             </View>
 
                             {/* Color */}
-                            <Text className="text-white/60 text-sm mb-2">Color</Text>
+                            <Text style={styles.inputLabel}>Color</Text>
                             <TextInput
-                                className="bg-charcoal-900 border border-charcoal-600 rounded-xl py-3 px-4 text-white mb-6"
+                                style={[styles.textInput, styles.inputSpacing]}
                                 value={color}
                                 onChangeText={setColor}
                                 placeholder="e.g. White, Black, Silver"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                placeholderTextColor={colors.text.muted}
                             />
 
                             {/* Save Button */}
                             <Pressable
-                                className={`py-4 rounded-xl ${isFormValid() ? 'bg-voltage' : 'bg-charcoal-600'}`}
+                                style={[
+                                    styles.saveButton,
+                                    !isFormValid() && styles.saveButtonDisabled
+                                ]}
                                 onPress={handleSave}
                                 disabled={!isFormValid()}
                             >
-                                <Text className={`text-center font-bold text-lg ${isFormValid() ? 'text-charcoal-900' : 'text-white/50'
-                                    }`}>
+                                <Text style={[
+                                    styles.saveButtonText,
+                                    !isFormValid() && styles.saveButtonTextDisabled
+                                ]}>
                                     {editingVehicle ? 'Save Changes' : 'Add Vehicle'}
                                 </Text>
                             </Pressable>
@@ -358,3 +360,307 @@ export default function VehiclesScreen() {
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: colors.charcoal[900],
+    },
+
+    // Header
+    header: {
+        paddingHorizontal: spacing.lg,
+        paddingTop: Platform.OS === 'ios' ? 70 : 50,
+        paddingBottom: spacing.md,
+        backgroundColor: colors.charcoal[800],
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backButton: {
+        marginRight: spacing.md,
+    },
+    backArrow: {
+        color: colors.text.primary,
+        fontSize: 20,
+    },
+    headerTitle: {
+        color: colors.text.primary,
+        fontSize: 24,
+        fontWeight: '700',
+    },
+    addButton: {
+        backgroundColor: colors.voltage,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: borderRadius.lg,
+    },
+    addButtonText: {
+        color: colors.charcoal[900],
+        fontWeight: '700',
+    },
+
+    // Scroll
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: spacing.lg,
+        paddingBottom: 100,
+    },
+
+    // Vehicle Card
+    vehicleCard: {
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius['2xl'],
+        padding: spacing.md,
+        marginBottom: spacing.md,
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+    },
+    vehicleCardDefault: {
+        borderColor: colors.voltage,
+    },
+    vehicleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    vehicleIcon: {
+        width: 56,
+        height: 56,
+        backgroundColor: colors.charcoal[700],
+        borderRadius: borderRadius.xl,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: spacing.md,
+    },
+    vehicleIconText: {
+        fontSize: 28,
+    },
+    vehicleInfo: {
+        flex: 1,
+    },
+    vehicleNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    vehicleName: {
+        color: colors.text.primary,
+        fontWeight: '700',
+        fontSize: 18,
+    },
+    defaultBadge: {
+        backgroundColor: colors.voltage,
+        marginLeft: spacing.sm,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 2,
+        borderRadius: borderRadius.sm,
+    },
+    defaultBadgeText: {
+        color: colors.charcoal[900],
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    vehicleDetails: {
+        color: colors.text.secondary,
+        fontSize: 14,
+    },
+    vehicleColor: {
+        color: colors.text.muted,
+        fontSize: 12,
+    },
+    vehicleArrow: {
+        color: colors.text.muted,
+        fontSize: 20,
+    },
+    vehicleActions: {
+        flexDirection: 'row',
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: colors.charcoal[600],
+    },
+    vehicleAction: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+    },
+    vehicleActionText: {
+        color: colors.voltage,
+        textAlign: 'center',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    vehicleActionTextDanger: {
+        color: colors.emergency,
+        textAlign: 'center',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+
+    // Empty State
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: spacing.xl * 2,
+    },
+    emptyIcon: {
+        fontSize: 48,
+        marginBottom: spacing.md,
+    },
+    emptyTitle: {
+        color: colors.text.primary,
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: spacing.sm,
+    },
+    emptyText: {
+        color: colors.text.secondary,
+        textAlign: 'center',
+        marginBottom: spacing.lg,
+    },
+    emptyButton: {
+        backgroundColor: colors.voltage,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.xl,
+    },
+    emptyButtonText: {
+        color: colors.charcoal[900],
+        fontWeight: '700',
+    },
+
+    // Info Card
+    infoCard: {
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius.xl,
+        padding: spacing.md,
+        marginTop: spacing.md,
+        marginBottom: spacing.xl,
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+    },
+    infoHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: spacing.sm,
+    },
+    infoIcon: {
+        marginRight: spacing.sm,
+    },
+    infoTitle: {
+        color: colors.text.primary,
+        fontWeight: '700',
+    },
+    infoText: {
+        color: colors.text.secondary,
+        fontSize: 14,
+    },
+
+    // Modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: colors.charcoal[800],
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xl * 2,
+        maxHeight: '85%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: spacing.lg,
+    },
+    modalTitle: {
+        color: colors.text.primary,
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    modalClose: {
+        color: colors.text.secondary,
+        fontSize: 28,
+    },
+
+    // Form
+    inputLabel: {
+        color: colors.text.secondary,
+        fontSize: 14,
+        marginBottom: spacing.sm,
+    },
+    textInput: {
+        backgroundColor: colors.charcoal[900],
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+        borderRadius: borderRadius.xl,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        color: colors.text.primary,
+        marginBottom: spacing.md,
+    },
+    inputRow: {
+        flexDirection: 'row',
+        marginBottom: spacing.md,
+    },
+    inputHalf: {
+        flex: 1,
+        marginRight: spacing.sm,
+    },
+    inputSpacing: {
+        marginBottom: spacing.lg,
+    },
+    fuelRow: {
+        flexDirection: 'row',
+        marginBottom: spacing.md,
+    },
+    fuelButton: {
+        flex: 1,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.xl,
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+        backgroundColor: colors.charcoal[900],
+        marginHorizontal: spacing.xs,
+    },
+    fuelButtonActive: {
+        borderColor: colors.voltage,
+        backgroundColor: `${colors.voltage}10`,
+    },
+    fuelButtonText: {
+        textAlign: 'center',
+        fontWeight: '500',
+        color: colors.text.secondary,
+    },
+    fuelButtonTextActive: {
+        color: colors.voltage,
+    },
+    saveButton: {
+        backgroundColor: colors.voltage,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.xl,
+    },
+    saveButtonDisabled: {
+        backgroundColor: colors.charcoal[600],
+    },
+    saveButtonText: {
+        color: colors.charcoal[900],
+        textAlign: 'center',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    saveButtonTextDisabled: {
+        color: colors.text.muted,
+    },
+});

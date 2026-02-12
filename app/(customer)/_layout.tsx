@@ -1,13 +1,26 @@
 // ResQ Kenya - Customer Layout
-import { Tabs } from "expo-router";
-import { View, Text, StyleSheet } from "react-native";
-import { colors } from "../../theme/voltage-premium";
+// Premium tab bar with Lucide icons
 
-// Tab icon component with proper StyleSheet styling for web compatibility
-const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => (
-    <Text style={[styles.tabIcon, focused ? styles.tabIconFocused : styles.tabIconInactive]}>
-        {name}
-    </Text>
+import { Tabs } from "expo-router";
+import { View, StyleSheet, Platform } from "react-native";
+import { Home, Clock, Wallet, User } from "lucide-react-native";
+import { colors, spacing } from "../../theme/voltage-premium";
+
+// Tab Icon Component with Lucide icons
+const TabIcon = ({
+    icon: Icon,
+    focused
+}: {
+    icon: typeof Home;
+    focused: boolean
+}) => (
+    <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+        <Icon
+            size={22}
+            color={focused ? colors.voltage : colors.text.muted}
+            strokeWidth={focused ? 2.5 : 2}
+        />
+    </View>
 );
 
 export default function CustomerLayout() {
@@ -16,18 +29,22 @@ export default function CustomerLayout() {
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: colors.charcoal[800],
-                    borderTopColor: colors.charcoal[600],
+                    backgroundColor: colors.charcoal[900],
+                    borderTopColor: colors.charcoal[700],
                     borderTopWidth: 1,
-                    height: 70,
-                    paddingBottom: 10,
-                    paddingTop: 10,
+                    height: Platform.OS === 'ios' ? 88 : 70,
+                    paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+                    paddingTop: 8,
+                    elevation: 0,
+                    shadowOpacity: 0,
                 },
                 tabBarActiveTintColor: colors.voltage,
-                tabBarInactiveTintColor: 'rgba(255,255,255,0.5)',
+                tabBarInactiveTintColor: colors.text.muted,
                 tabBarLabelStyle: {
                     fontSize: 11,
-                    fontWeight: '500',
+                    fontWeight: '600',
+                    letterSpacing: 0.3,
+                    marginTop: 2,
                 },
             }}
         >
@@ -35,28 +52,29 @@ export default function CustomerLayout() {
                 name="index"
                 options={{
                     title: "Home",
-                    tabBarIcon: ({ focused }) => <TabIcon name="🏠" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon icon={Home} focused={focused} />,
+                    tabBarStyle: { display: 'none' },
                 }}
             />
             <Tabs.Screen
                 name="history"
                 options={{
                     title: "History",
-                    tabBarIcon: ({ focused }) => <TabIcon name="📋" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon icon={Clock} focused={focused} />,
                 }}
             />
             <Tabs.Screen
                 name="wallet"
                 options={{
                     title: "Wallet",
-                    tabBarIcon: ({ focused }) => <TabIcon name="💳" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon icon={Wallet} focused={focused} />,
                 }}
             />
             <Tabs.Screen
                 name="profile"
                 options={{
                     title: "Profile",
-                    tabBarIcon: ({ focused }) => <TabIcon name="👤" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon icon={User} focused={focused} />,
                 }}
             />
             {/* Hide request folder from tabs */}
@@ -92,13 +110,14 @@ export default function CustomerLayout() {
 }
 
 const styles = StyleSheet.create({
-    tabIcon: {
-        fontSize: 18,
+    iconContainer: {
+        width: 40,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    tabIconFocused: {
-        color: colors.voltage,
-    },
-    tabIconInactive: {
-        color: 'rgba(255, 255, 255, 0.5)',
+    iconContainerActive: {
+        backgroundColor: `${colors.voltage}20`,
     },
 });

@@ -1,14 +1,23 @@
 // ResQ Kenya - Provider Tab Layout
 import { Tabs } from "expo-router";
-import { View, Text } from "react-native";
-import { colors } from "../../theme/voltage-premium";
+import { View, StyleSheet } from "react-native";
+import { Home, ClipboardList, Wallet, Settings } from "lucide-react-native";
+import { colors, spacing } from "../../theme/voltage-premium";
 
-const TabIcon = ({ icon, label, focused }: { icon: string; label: string; focused: boolean }) => (
-    <View className="items-center pt-2">
-        <Text className={`text-xl ${focused ? '' : 'opacity-50'}`}>{icon}</Text>
-        <Text className={`text-xs mt-1 ${focused ? 'text-voltage font-semibold' : 'text-white/50'}`}>
-            {label}
-        </Text>
+// Lucide icon-based TabIcon component (replaces emoji icons per design system)
+const TabIcon = ({
+    IconComponent,
+    focused
+}: {
+    IconComponent: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+    focused: boolean;
+}) => (
+    <View style={styles.tabIconContainer}>
+        <IconComponent
+            size={24}
+            color={focused ? colors.voltage : colors.text.muted}
+            strokeWidth={focused ? 2.5 : 2}
+        />
     </View>
 );
 
@@ -22,43 +31,61 @@ export default function ProviderLayout() {
                     borderTopColor: colors.charcoal[600],
                     borderTopWidth: 1,
                     height: 70,
-                    paddingBottom: 10,
+                    paddingBottom: spacing.sm,
                 },
-                tabBarShowLabel: false,
+                tabBarShowLabel: true,
+                tabBarLabelStyle: {
+                    fontSize: 11,
+                    fontWeight: '600',
+                },
+                tabBarActiveTintColor: colors.voltage,
+                tabBarInactiveTintColor: colors.text.muted,
             }}
         >
             <Tabs.Screen
                 name="index"
                 options={{
+                    title: "Dashboard",
                     tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="🏠" label="Dashboard" focused={focused} />
+                        <TabIcon IconComponent={Home} focused={focused} />
                     ),
                 }}
             />
             <Tabs.Screen
                 name="requests"
                 options={{
+                    title: "Requests",
                     tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="📋" label="Requests" focused={focused} />
+                        <TabIcon IconComponent={ClipboardList} focused={focused} />
                     ),
                 }}
             />
             <Tabs.Screen
                 name="earnings"
                 options={{
+                    title: "Earnings",
                     tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="💰" label="Earnings" focused={focused} />
+                        <TabIcon IconComponent={Wallet} focused={focused} />
                     ),
                 }}
             />
             <Tabs.Screen
                 name="settings"
                 options={{
+                    title: "Settings",
                     tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="⚙️" label="Settings" focused={focused} />
+                        <TabIcon IconComponent={Settings} focused={focused} />
                     ),
                 }}
             />
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    tabIconContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: spacing.xs,
+    },
+});

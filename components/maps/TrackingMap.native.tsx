@@ -13,11 +13,15 @@ let Polyline: any;
 let PROVIDER_GOOGLE: any;
 
 if (Platform.OS !== 'web') {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default;
-    Marker = Maps.Marker;
-    Polyline = Maps.Polyline;
-    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+    try {
+        const Maps = require('react-native-maps');
+        MapView = Maps.default;
+        Marker = Maps.Marker;
+        Polyline = Maps.Polyline;
+        PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+    } catch (e) {
+        // react-native-maps not available (e.g. Expo Go without dev build)
+    }
 }
 
 // Type for Region
@@ -58,6 +62,10 @@ interface TrackingMapProps {
     serviceType?: string;
     isLoading?: boolean;
     onMapReady?: () => void;
+    /** Full route coordinates (remaining path from provider to customer) */
+    routeCoordinates?: { latitude: number; longitude: number }[];
+    /** Traveled route coordinates (path already covered by provider) */
+    traveledCoordinates?: { latitude: number; longitude: number }[];
 }
 
 export default function TrackingMap({
@@ -69,6 +77,8 @@ export default function TrackingMap({
     serviceType = 'towing',
     isLoading = false,
     onMapReady,
+    routeCoordinates,
+    traveledCoordinates,
 }: TrackingMapProps) {
     const mapRef = useRef<any>(null);
     const [region, setRegion] = useState<Region>({
@@ -117,40 +127,41 @@ export default function TrackingMap({
         return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
     };
 
-    // Web fallback - react-native-maps doesn't work on web
-    if (Platform.OS === 'web') {
+    // Fallback when MapView is not available (web or Expo Go without dev build)
+    if (Platform.OS === 'web' || !MapView) {
         return (
-            <View className="flex-1 bg-charcoal-800 items-center justify-center">
-                <Text style={{ fontSize: 48, marginBottom: 16 }}>{getProviderEmoji()}</Text>
-                <Text style={{ color: colors.voltage, fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>
+            <View style={styles.fallbackContainer}>
+                <Text style={styles.fallbackEmoji}>{getProviderEmoji()}</Text>
+                <Text style={styles.fallbackTitle}>
                     Live Tracking
                 </Text>
-                <Text style={{ color: 'rgba(255,255,255,0.6)', textAlign: 'center', paddingHorizontal: 32 }}>
-                    Map view is available on mobile devices.
-                    The provider is on their way!
+                <Text style={styles.fallbackSubtitle}>
+                    {Platform.OS === 'web'
+                        ? 'Map view is available on mobile devices. The provider is on their way!'
+                        : 'Map requires a development build. The provider is on their way!'}
                 </Text>
-                {(eta || distance) && (
+                {(eta != null && eta > 0) || (distance != null && distance > 0) ? (
                     <View style={styles.etaCard}>
-                        {eta && (
+                        {eta != null && eta > 0 ? (
                             <View style={styles.etaItem}>
                                 <Text style={styles.etaLabel}>ETA</Text>
                                 <Text style={styles.etaValue}>{formatETA(eta)}</Text>
                             </View>
-                        )}
-                        {distance && (
+                        ) : null}
+                        {distance != null && distance > 0 ? (
                             <View style={styles.etaItem}>
                                 <Text style={styles.etaLabel}>Distance</Text>
                                 <Text style={styles.etaValue}>{distance.toFixed(1)} km</Text>
                             </View>
-                        )}
+                        ) : null}
                     </View>
-                )}
+                ) : null}
             </View>
         );
     }
 
     return (
-        <View className="flex-1">
+        <View style={styles.mapContainer}>
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFillObject}
@@ -177,7 +188,7 @@ export default function TrackingMap({
                 </Marker>
 
                 {/* Provider Location Marker */}
-                {providerLocation && (
+                {providerLocation ? (
                     <Marker
                         coordinate={{
                             latitude: providerLocation.latitude,
@@ -190,10 +201,29 @@ export default function TrackingMap({
                             <Text style={styles.providerEmoji}>{getProviderEmoji()}</Text>
                         </View>
                     </Marker>
-                )}
+                ) : null}
 
-                {/* Route Line */}
-                {showRoute && providerLocation && (
+                {/* Road-following route: Traveled portion (solid line) */}
+                {showRoute && traveledCoordinates && traveledCoordinates.length >= 2 ? (
+                    <Polyline
+                        coordinates={traveledCoordinates}
+                        strokeColor={'#7C5CFC'}
+                        strokeWidth={5}
+                    />
+                ) : null}
+
+                {/* Road-following route: Remaining portion (dashed line) */}
+                {showRoute && routeCoordinates && routeCoordinates.length >= 2 ? (
+                    <Polyline
+                        coordinates={routeCoordinates}
+                        strokeColor={colors.voltage}
+                        strokeWidth={4}
+                        lineDashPattern={[12, 6]}
+                    />
+                ) : null}
+
+                {/* Fallback: straight line if no route coordinates provided */}
+                {showRoute && providerLocation && !routeCoordinates ? (
                     <Polyline
                         coordinates={[
                             { latitude: providerLocation.latitude, longitude: providerLocation.longitude },
@@ -203,41 +233,68 @@ export default function TrackingMap({
                         strokeWidth={3}
                         lineDashPattern={[10, 5]}
                     />
-                )}
+                ) : null}
             </MapView>
 
             {/* ETA Overlay */}
-            {providerLocation && (eta || distance) && (
+            {providerLocation && ((eta != null && eta > 0) || (distance != null && distance > 0)) ? (
                 <View style={styles.etaOverlay}>
                     <View style={styles.etaCard}>
-                        {eta && (
+                        {eta != null && eta > 0 ? (
                             <View style={styles.etaItem}>
                                 <Text style={styles.etaLabel}>ETA</Text>
                                 <Text style={styles.etaValue}>{formatETA(eta)}</Text>
                             </View>
-                        )}
-                        {distance && (
+                        ) : null}
+                        {distance != null && distance > 0 ? (
                             <View style={styles.etaItem}>
                                 <Text style={styles.etaLabel}>Distance</Text>
                                 <Text style={styles.etaValue}>{distance.toFixed(1)} km</Text>
                             </View>
-                        )}
+                        ) : null}
                     </View>
                 </View>
-            )}
+            ) : null}
 
             {/* Loading Overlay */}
-            {isLoading && (
+            {isLoading ? (
                 <View style={styles.loadingOverlay}>
                     <ActivityIndicator size="large" color={colors.voltage} />
                     <Text style={styles.loadingText}>Finding providers...</Text>
                 </View>
-            )}
+            ) : null}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
+    mapContainer: {
+        flex: 1,
+    },
+    fallbackContainer: {
+        flex: 1,
+        backgroundColor: colors.charcoal[800],
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    fallbackEmoji: {
+        fontSize: 48,
+        marginBottom: 16,
+    },
+    fallbackTitle: {
+        color: colors.voltage,
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 8,
+    },
+    fallbackSubtitle: {
+        color: 'rgba(255,255,255,0.6)',
+        textAlign: 'center',
+        paddingHorizontal: 32,
+        fontSize: 14,
+        lineHeight: 20,
+    },
     customerMarker: {
         width: 24,
         height: 24,

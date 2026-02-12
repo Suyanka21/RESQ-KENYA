@@ -1,7 +1,10 @@
-// ResQ Kenya - Provider Earnings Screen
+// ⚡ ResQ Kenya - Provider Earnings Screen
+// Converted from NativeWind to StyleSheet for consistency
+
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { colors } from '../../theme/voltage-premium';
+import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native';
+import { colors, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
+import { ServiceIcon } from '../../components/ui/ServiceIcon';
 
 // Mock earnings data
 const MOCK_EARNINGS = {
@@ -39,31 +42,35 @@ export default function ProviderEarningsScreen() {
         return `${Math.floor(diffHours / 24)}d ago`;
     };
 
-    const getServiceEmoji = (type: string) => {
-        const emojis: Record<string, string> = {
-            towing: '🚛', tire: '🔧', battery: '⚡',
-            fuel: '⛽', diagnostics: '🔍', ambulance: '🚑',
-        };
-        return emojis[type] || '🔧';
+    const getJobCount = () => {
+        switch (activePeriod) {
+            case 'today': return 3;
+            case 'week': return 12;
+            case 'month': return 45;
+        }
     };
 
     return (
-        <View className="flex-1 bg-charcoal-900">
+        <View style={styles.container}>
             {/* Header */}
-            <View className="px-6 pt-16 pb-6 bg-charcoal-800 border-b border-charcoal-600">
-                <Text className="text-white text-2xl font-bold mb-4">Earnings</Text>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Earnings</Text>
 
                 {/* Period Selector */}
-                <View className="flex-row bg-charcoal-700 rounded-xl p-1">
+                <View style={styles.periodSelector}>
                     {(['today', 'week', 'month'] as const).map(period => (
                         <Pressable
                             key={period}
-                            className={`flex-1 py-2 rounded-lg ${activePeriod === period ? 'bg-voltage' : ''
-                                }`}
+                            style={[
+                                styles.periodButton,
+                                activePeriod === period && styles.periodButtonActive
+                            ]}
                             onPress={() => setActivePeriod(period)}
                         >
-                            <Text className={`text-center text-sm font-medium capitalize ${activePeriod === period ? 'text-charcoal-900' : 'text-white/60'
-                                }`}>
+                            <Text style={[
+                                styles.periodButtonText,
+                                activePeriod === period && styles.periodButtonTextActive
+                            ]}>
                                 {period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'Today'}
                             </Text>
                         </Pressable>
@@ -71,59 +78,59 @@ export default function ProviderEarningsScreen() {
                 </View>
             </View>
 
-            <ScrollView className="flex-1 px-6 pt-6">
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {/* Main Earnings Card */}
-                <View className="bg-voltage rounded-2xl p-6 mb-6">
-                    <Text className="text-charcoal-900/60 text-sm mb-1">
+                <View style={styles.earningsCard}>
+                    <Text style={styles.earningsLabel}>
                         {activePeriod === 'today' ? "Today's" : activePeriod === 'week' ? "This Week's" : "This Month's"} Earnings
                     </Text>
-                    <Text className="text-charcoal-900 text-4xl font-bold">
+                    <Text style={styles.earningsValue}>
                         KES {getActiveEarnings().toLocaleString()}
                     </Text>
-                    <View className="flex-row mt-4 pt-4 border-t border-charcoal-900/20">
-                        <View className="flex-1">
-                            <Text className="text-charcoal-900/60 text-xs">Pending</Text>
-                            <Text className="text-charcoal-900 font-bold">
+                    <View style={styles.earningsStats}>
+                        <View style={styles.earningsStat}>
+                            <Text style={styles.earningsStatLabel}>Pending</Text>
+                            <Text style={styles.earningsStatValue}>
                                 KES {MOCK_EARNINGS.pending.toLocaleString()}
                             </Text>
                         </View>
-                        <View className="flex-1">
-                            <Text className="text-charcoal-900/60 text-xs">Jobs</Text>
-                            <Text className="text-charcoal-900 font-bold">
-                                {activePeriod === 'today' ? 3 : activePeriod === 'week' ? 12 : 45}
-                            </Text>
+                        <View style={styles.earningsStat}>
+                            <Text style={styles.earningsStatLabel}>Jobs</Text>
+                            <Text style={styles.earningsStatValue}>{getJobCount()}</Text>
                         </View>
-                        <View className="flex-1">
-                            <Text className="text-charcoal-900/60 text-xs">Rating</Text>
-                            <Text className="text-charcoal-900 font-bold">4.9 ⭐</Text>
+                        <View style={styles.earningsStat}>
+                            <Text style={styles.earningsStatLabel}>Rating</Text>
+                            <Text style={styles.earningsStatValue}>4.9 ★</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Withdraw Button */}
-                <Pressable className="bg-success py-4 rounded-xl mb-6">
-                    <Text className="text-white text-center font-bold text-lg">
-                        💳 Withdraw to M-Pesa
+                <Pressable style={styles.withdrawButton}>
+                    <Text style={styles.withdrawButtonText}>
+                        Withdraw to M-Pesa
                     </Text>
                 </Pressable>
 
                 {/* Transaction History */}
-                <Text className="text-white font-bold text-lg mb-3">Recent Transactions</Text>
-                <View className="bg-charcoal-800 rounded-xl border border-charcoal-600 mb-8">
+                <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                <View style={styles.transactionsList}>
                     {MOCK_TRANSACTIONS.map((tx, index) => (
                         <View
                             key={tx.id}
-                            className={`flex-row items-center p-4 ${index < MOCK_TRANSACTIONS.length - 1 ? 'border-b border-charcoal-600' : ''
-                                }`}
+                            style={[
+                                styles.transactionItem,
+                                index < MOCK_TRANSACTIONS.length - 1 && styles.transactionItemBorder
+                            ]}
                         >
-                            <View className="w-10 h-10 bg-charcoal-700 rounded-full items-center justify-center mr-3">
-                                <Text className="text-lg">{getServiceEmoji(tx.type)}</Text>
+                            <View style={styles.transactionIcon}>
+                                <ServiceIcon type={tx.type as any} size={18} color={colors.voltage} />
                             </View>
-                            <View className="flex-1">
-                                <Text className="text-white font-medium capitalize">{tx.type} Service</Text>
-                                <Text className="text-white/50 text-xs">{formatTime(tx.date)}</Text>
+                            <View style={styles.transactionInfo}>
+                                <Text style={styles.transactionType}>{tx.type.charAt(0).toUpperCase() + tx.type.slice(1)} Service</Text>
+                                <Text style={styles.transactionTime}>{formatTime(tx.date)}</Text>
                             </View>
-                            <Text className="text-success font-bold">
+                            <Text style={styles.transactionAmount}>
                                 +KES {tx.amount.toLocaleString()}
                             </Text>
                         </View>
@@ -133,3 +140,158 @@ export default function ProviderEarningsScreen() {
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: colors.charcoal[900],
+    },
+
+    // Header
+    header: {
+        paddingHorizontal: spacing.lg,
+        paddingTop: Platform.OS === 'ios' ? 70 : 50,
+        paddingBottom: spacing.lg,
+        backgroundColor: colors.charcoal[800],
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    headerTitle: {
+        color: colors.text.primary,
+        fontSize: 24,
+        fontWeight: '700',
+        marginBottom: spacing.md,
+    },
+    periodSelector: {
+        flexDirection: 'row',
+        backgroundColor: colors.charcoal[700],
+        borderRadius: borderRadius.xl,
+        padding: spacing.xs,
+    },
+    periodButton: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+        borderRadius: borderRadius.lg,
+    },
+    periodButtonActive: {
+        backgroundColor: colors.voltage,
+    },
+    periodButtonText: {
+        textAlign: 'center',
+        fontSize: 14,
+        fontWeight: '500',
+        color: colors.text.secondary,
+    },
+    periodButtonTextActive: {
+        color: colors.charcoal[900],
+    },
+
+    // Scroll
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: spacing.lg,
+        paddingBottom: 100,
+    },
+
+    // Earnings Card
+    earningsCard: {
+        backgroundColor: colors.voltage,
+        borderRadius: borderRadius['2xl'],
+        padding: spacing.lg,
+        marginBottom: spacing.lg,
+    },
+    earningsLabel: {
+        color: `${colors.charcoal[900]}99`,
+        fontSize: 14,
+        marginBottom: spacing.xs,
+    },
+    earningsValue: {
+        color: colors.charcoal[900],
+        fontSize: 36,
+        fontWeight: '700',
+    },
+    earningsStats: {
+        flexDirection: 'row',
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: `${colors.charcoal[900]}20`,
+    },
+    earningsStat: {
+        flex: 1,
+    },
+    earningsStatLabel: {
+        color: `${colors.charcoal[900]}99`,
+        fontSize: 12,
+    },
+    earningsStatValue: {
+        color: colors.charcoal[900],
+        fontWeight: '700',
+    },
+
+    // Withdraw Button
+    withdrawButton: {
+        backgroundColor: colors.success,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.xl,
+        marginBottom: spacing.lg,
+    },
+    withdrawButtonText: {
+        color: colors.text.primary,
+        textAlign: 'center',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+
+    // Section Title
+    sectionTitle: {
+        color: colors.text.primary,
+        fontWeight: '700',
+        fontSize: 18,
+        marginBottom: spacing.md,
+    },
+
+    // Transactions
+    transactionsList: {
+        backgroundColor: colors.charcoal[800],
+        borderRadius: borderRadius.xl,
+        borderWidth: 1,
+        borderColor: colors.charcoal[600],
+        marginBottom: spacing.xl,
+    },
+    transactionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: spacing.md,
+    },
+    transactionItemBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: colors.charcoal[600],
+    },
+    transactionIcon: {
+        width: 40,
+        height: 40,
+        backgroundColor: colors.charcoal[700],
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: spacing.md,
+    },
+    transactionInfo: {
+        flex: 1,
+    },
+    transactionType: {
+        color: colors.text.primary,
+        fontWeight: '500',
+    },
+    transactionTime: {
+        color: colors.text.muted,
+        fontSize: 12,
+    },
+    transactionAmount: {
+        color: colors.success,
+        fontWeight: '700',
+    },
+});

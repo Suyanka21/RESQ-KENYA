@@ -16,6 +16,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.geometryltd.resq",
+      "config": {
+        "googleMapsApiKey": "AIzaSyDaKUssEc7_4GV82De5dHkFw6i-Zf9IDfY"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "ResQ needs your location to connect you with nearby service providers.",
         "NSLocationAlwaysUsageDescription": "ResQ needs your location to track service providers on the way to help you."
@@ -28,6 +31,11 @@
       },
       "package": "com.geometryltd.resq",
       "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDaKUssEc7_4GV82De5dHkFw6i-Zf9IDfY"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"

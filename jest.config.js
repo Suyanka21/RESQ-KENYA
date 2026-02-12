@@ -3,6 +3,10 @@
 
 module.exports = {
     testEnvironment: "node",
+    roots: ["<rootDir>/__tests__"],
+    globals: {
+        __DEV__: true,  // React Native development flag
+    },
     testPathIgnorePatterns: [
         "/node_modules/",
         "/web-prototype-archive/",

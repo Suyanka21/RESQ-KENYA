@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // =============================================
+    // HELPER FUNCTIONS
+    // =============================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns this document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Check if user is the assigned provider
+    function isAssignedProvider(providerId) {
+      return request.auth.uid == providerId;
+    }
+    
+    // =============================================
+    // USERS COLLECTION
+    // =============================================
+    match /users/{userId} {
+      // Users can only read/write their own profile
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      
+      // Never allow direct deletion
+      allow delete: if false;
+    }
+    
+    // =============================================
+    // PROVIDERS COLLECTION
+    // =============================================
+    match /providers/{providerId} {
+      // Anyone authenticated can read providers (for matching)
+      allow read: if isAuthenticated();
+      
+      // Providers can only update their own profile
+      allow create: if isAuthenticated() && isOwner(providerId);
+      allow update: if isAuthenticated() && isOwner(providerId);
+      
+      // Never allow direct deletion
+      allow delete: if false;
+    }
+    
+    // =============================================
+    // REQUESTS COLLECTION
+    // =============================================
+    match /requests/{requestId} {
+      // Customers can read their own requests
+      // Providers can read requests assigned to them
+      // Providers can read pending requests (for matching)
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.providerId == request.auth.uid ||
+        resource.data.status == 'pending'
+      );
+      
+      // Only Cloud Functions should create requests
+      // But allow if user is creating their own
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // Customers can update their own pending requests (cancel)
+      // Providers can update assigned requests (status updates)
+      allow update: if isAuthenticated() && (
+        (resource.data.userId == request.auth.uid && resource.data.status == 'pending') ||
+        (resource.data.providerId == request.auth.uid)
+      );
+      
+      // Never allow direct deletion
+      allow delete: if false;
+    }
+    
+    // =============================================
+    // PAYMENT REQUESTS COLLECTION
+    // =============================================
+    match /payment_requests/{requestId} {
+      // Customers can read their own payment requests
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Only Cloud Functions should create/update payments
+      // Allow create if user is the authenticated user
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // Updates only from Cloud Functions (admin SDK bypasses rules)
+      allow update: if false;
+      
+      // Never allow deletion
+      allow delete: if false;
+    }
+    
+    // =============================================
+    // CORPORATE ACCOUNTS (B2B) - Future
+    // =============================================
+    match /corporate_accounts/{accountId} {
+      // Only corporate admins can access
+      allow read, write: if isAuthenticated() && 
+        get(/databases/$(database)/documents/corporate_accounts/$(accountId)).data.admins.hasAny([request.auth.uid]);
+    }
+    
+    // =============================================
+    // VEHICLES COLLECTION (Fleet Management)
+    // =============================================
+    match /vehicles/{vehicleId} {
+      allow read: if isAuthenticated();
+      
+      // Only owner or corporate admin can modify
+      allow write: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid
+      );
+    }
+  }
+}

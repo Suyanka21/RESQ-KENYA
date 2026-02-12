@@ -1,21 +1,35 @@
-// ⚡ ResQ Kenya - OTP Verification Screen (Voltage Premium)
-import { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet } from 'react-native';
+// ⚡ ResQ Kenya - OTP Verification Screen
+// Converted from: DESIGN RES Q/components/OTPScreen.tsx (Google Stitch)
+// Phase 2.5 UI Enhancement - Agent 2.5
+
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+    View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView,
+    Platform, Animated, Easing, ActivityIndicator
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, borderRadius, spacing } from '../../theme/voltage-premium';
+import { ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '../../services/AuthContext';
-import { verifyOTP, sendOTP } from '../../services/auth.service';
+import { verifyOTP } from '../../services/auth.service';
+import { colors, spacing, borderRadius, shadows, touchTargets, typography } from '../../theme/voltage-premium';
+import { StatusBar } from 'expo-status-bar';
+
+const OTP_LENGTH = 6;
 
 export default function VerifyOTPScreen() {
     const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
     const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-    const [otp, setOtp] = useState(['', '', '', '', '', '']);
+    const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [resendTimer, setResendTimer] = useState(60);
+    const [timeLeft, setTimeLeft] = useState(45);
+    const [isTimerActive, setIsTimerActive] = useState(true);
+    const [focusedIndex, setFocusedIndex] = useState(0);
 
-    const inputRefs = useRef<Array<TextInput | null>>([]);
+    const inputRef = useRef<TextInput>(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
 
     // Redirect if already authenticated
     useEffect(() => {
@@ -24,95 +38,80 @@ export default function VerifyOTPScreen() {
         }
     }, [isAuthenticated, authLoading]);
 
+    // Entrance animation
     useEffect(() => {
-        // Countdown timer for resend
-        if (resendTimer > 0) {
-            const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [resendTimer]);
+        Animated.parallel([
+            Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]).start();
+    }, []);
 
-    const handleOtpChange = (text: string, index: number) => {
-        if (text.length > 1) {
-            // Handle paste
-            const digits = text.replace(/\D/g, '').slice(0, 6).split('');
-            const newOtp = [...otp];
-            digits.forEach((digit, i) => {
-                if (index + i < 6) {
-                    newOtp[index + i] = digit;
-                }
-            });
-            setOtp(newOtp);
-            const nextIndex = Math.min(index + digits.length, 5);
-            inputRefs.current[nextIndex]?.focus();
-        } else {
-            const newOtp = [...otp];
-            newOtp[index] = text.replace(/\D/g, '');
-            setOtp(newOtp);
-
-            // Auto-focus next input
-            if (text && index < 5) {
-                inputRefs.current[index + 1]?.focus();
-            }
+    // Timer countdown
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        if (isTimerActive && timeLeft > 0) {
+            interval = setInterval(() => {
+                setTimeLeft((prev) => prev - 1);
+            }, 1000);
+        } else if (timeLeft === 0) {
+            setIsTimerActive(false);
         }
+        return () => clearInterval(interval);
+    }, [isTimerActive, timeLeft]);
+
+    // Auto-focus input
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
+
+    const handleOtpChange = useCallback((text: string) => {
+        const digits = text.replace(/\D/g, '').slice(0, OTP_LENGTH);
+        const newOtp = digits.split('').concat(Array(OTP_LENGTH).fill('')).slice(0, OTP_LENGTH);
+        setOtp(newOtp);
+        setFocusedIndex(Math.min(digits.length, OTP_LENGTH - 1));
         setError('');
-    };
+    }, []);
 
-    const handleKeyPress = (e: any, index: number) => {
-        if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-            inputRefs.current[index - 1]?.focus();
-        }
-    };
-
-    const isOtpComplete = otp.every(digit => digit !== '');
+    const isComplete = otp.every(digit => digit !== '');
 
     const handleVerify = async () => {
-        if (!isOtpComplete) return;
+        if (!isComplete) return;
 
         setIsLoading(true);
         setError('');
 
         try {
             const fullOtp = otp.join('');
-            console.log('Verifying OTP:', fullOtp, 'for', phoneNumber);
 
-            // Development mode: accept test code 123456
+            // Dev mode: accept test code
             if (fullOtp === '123456') {
-                console.log('Test OTP accepted - skipping Firebase auth in dev mode');
-                router.replace('/(customer)');
+                setTimeout(() => {
+                    router.replace('/(customer)');
+                }, 500);
                 return;
             }
 
-            // Production mode: use Firebase auth
+            // Production: Firebase verify
             const result = await verifyOTP(fullOtp);
-
             if (result.success && result.user) {
-                console.log('OTP verified successfully, user:', result.user.uid);
                 router.replace('/(customer)');
             } else {
                 setError(result.error || 'Invalid code. Please try again.');
             }
         } catch (err: any) {
-            console.error('Verification error:', err);
             setError(err.message || 'Verification failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleResend = async () => {
-        if (resendTimer > 0) return;
-
-        setResendTimer(60);
-        setOtp(['', '', '', '', '', '']);
+    const handleResend = () => {
+        setTimeLeft(45);
+        setIsTimerActive(true);
+        setOtp(new Array(OTP_LENGTH).fill(''));
+        setFocusedIndex(0);
         setError('');
-        console.log('Resending OTP to:', phoneNumber);
-
-        // Production mode: uncomment to use real OTP
-        // const result = await sendOTP(phoneNumber as string, 'recaptcha-container');
-        // if (!result.success) {
-        //     setError(result.error || 'Failed to resend code');
-        // }
+        inputRef.current?.focus();
     };
 
     if (authLoading) {
@@ -124,219 +123,263 @@ export default function VerifyOTPScreen() {
     }
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <View style={styles.content}>
-                {/* Back Button */}
-                <Pressable
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
-                    <Text style={styles.backText}>← Back</Text>
-                </Pressable>
+        <View style={styles.container}>
+            <StatusBar style="light" />
 
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.title}>Verify your number</Text>
-                    <Text style={styles.subtitle}>
-                        Enter the 6-digit code sent to{'\n'}
-                        <Text style={styles.phoneNumber}>{phoneNumber}</Text>
-                    </Text>
-                </View>
-
-                {/* Development Notice */}
-                <View style={styles.devNotice}>
-                    <Text style={styles.devText}>✅ Test Code: 123456</Text>
-                </View>
-
-                {/* OTP Input */}
-                <View style={styles.otpContainer}>
-                    {otp.map((digit, index) => (
-                        <TextInput
-                            key={index}
-                            ref={(ref) => { inputRefs.current[index] = ref; }}
-                            style={[
-                                styles.otpInput,
-                                digit ? styles.otpInputFilled : null
+            <KeyboardAvoidingView
+                style={styles.keyboardView}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <Pressable
+                            onPress={() => router.back()}
+                            style={({ pressed }) => [
+                                styles.backButton,
+                                pressed && { backgroundColor: colors.charcoal[800], transform: [{ scale: 0.9 }] },
                             ]}
-                            keyboardType="number-pad"
-                            maxLength={6}
-                            value={digit}
-                            onChangeText={(text) => handleOtpChange(text, index)}
-                            onKeyPress={(e) => handleKeyPress(e, index)}
-                            selectTextOnFocus
-                        />
-                    ))}
-                </View>
-
-                {/* Error */}
-                {error ? (
-                    <Text style={styles.errorText}>{error}</Text>
-                ) : null}
-
-                {/* Verify Button */}
-                <Pressable
-                    style={({ pressed }) => [
-                        styles.verifyButton,
-                        isOtpComplete ? styles.verifyButtonActive : styles.verifyButtonDisabled,
-                        pressed && isOtpComplete && styles.verifyButtonPressed
-                    ]}
-                    onPress={handleVerify}
-                    disabled={!isOtpComplete || isLoading}
-                >
-                    {isLoading ? (
-                        <ActivityIndicator color={colors.charcoal[900]} />
-                    ) : (
-                        <Text style={[
-                            styles.verifyButtonText,
-                            isOtpComplete ? styles.verifyButtonTextActive : styles.verifyButtonTextDisabled
-                        ]}>
-                            Verify
-                        </Text>
-                    )}
-                </Pressable>
-
-                {/* Resend */}
-                <View style={styles.resendContainer}>
-                    {resendTimer > 0 ? (
-                        <Text style={styles.resendTimerText}>
-                            Resend code in <Text style={styles.resendTimerHighlight}>{resendTimer}s</Text>
-                        </Text>
-                    ) : (
-                        <Pressable onPress={handleResend}>
-                            <Text style={styles.resendText}>Resend Code</Text>
+                            accessibilityLabel="Go back"
+                            accessibilityRole="button"
+                        >
+                            <ArrowLeft size={20} color={colors.voltage} strokeWidth={2} />
                         </Pressable>
-                    )}
-                </View>
-            </View>
-        </KeyboardAvoidingView>
+                        <Text style={styles.title}>Verify Phone Number</Text>
+                        <Text style={styles.subtitle}>Enter the 6-digit code sent to</Text>
+                        <Text style={styles.phoneDisplay}>{phoneNumber || '+254 712 345 678'}</Text>
+                    </View>
+
+                    {/* OTP Display Cells */}
+                    <Pressable
+                        style={styles.otpContainer}
+                        onPress={() => inputRef.current?.focus()}
+                        accessibilityLabel="OTP input area"
+                    >
+                        {otp.map((digit, index) => (
+                            <View
+                                key={index}
+                                style={[
+                                    styles.otpCell,
+                                    digit !== '' && styles.otpCellFilled,
+                                    focusedIndex === index && !isComplete && styles.otpCellFocused,
+                                ]}
+                            >
+                                <Text style={styles.otpCellText}>{digit}</Text>
+                            </View>
+                        ))}
+                    </Pressable>
+
+                    {/* Hidden TextInput for keyboard */}
+                    <TextInput
+                        ref={inputRef}
+                        style={styles.hiddenInput}
+                        keyboardType="number-pad"
+                        value={otp.join('')}
+                        onChangeText={handleOtpChange}
+                        maxLength={OTP_LENGTH}
+                        autoFocus
+                        accessibilityLabel="Enter OTP code"
+                    />
+
+                    {/* Timer / Resend */}
+                    <View style={styles.timerContainer}>
+                        <Text style={styles.timerLabel}>Didn't receive code?</Text>
+                        {timeLeft > 0 ? (
+                            <Text style={styles.timerText}>
+                                Resend in 0:{timeLeft.toString().padStart(2, '0')}
+                            </Text>
+                        ) : (
+                            <Pressable
+                                onPress={handleResend}
+                                accessibilityLabel="Resend verification code"
+                                accessibilityRole="button"
+                            >
+                                <Text style={styles.resendText}>Resend Code</Text>
+                            </Pressable>
+                        )}
+                    </View>
+
+                    {/* Error */}
+                    {error ? (
+                        <Text style={styles.errorText}>{error}</Text>
+                    ) : null}
+
+                    {/* Verify Button - 80px */}
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.verifyButton,
+                            pressed && isComplete && styles.verifyButtonPressed,
+                            !isComplete && styles.verifyButtonDisabled,
+                        ]}
+                        onPress={handleVerify}
+                        disabled={!isComplete || isLoading}
+                        accessibilityLabel="Verify and continue"
+                        accessibilityRole="button"
+                    >
+                        {isLoading ? (
+                            <ActivityIndicator color={colors.text.onBrand} />
+                        ) : (
+                            <Text style={[
+                                styles.verifyButtonText,
+                                !isComplete && styles.verifyButtonTextDisabled,
+                            ]}>
+                                Verify & Continue
+                            </Text>
+                        )}
+                    </Pressable>
+
+                    {/* Spacer for keyboard */}
+                    <View style={styles.bottomSpacer} />
+                </Animated.View>
+            </KeyboardAvoidingView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.charcoal[900],
+        backgroundColor: colors.background.primary,
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: colors.charcoal[900],
+        backgroundColor: colors.background.primary,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    keyboardView: {
+        flex: 1,
     },
     content: {
         flex: 1,
         paddingHorizontal: spacing.lg,
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
     },
-    backButton: {
-        marginBottom: spacing.xl,
-    },
-    backText: {
-        color: colors.voltage,
-        fontSize: 16,
-        fontWeight: '600',
-    },
+
+    // Header
     header: {
         marginBottom: spacing.xl,
     },
-    title: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: colors.text.primary,
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 16,
-        color: colors.text.secondary,
-        lineHeight: 24,
-    },
-    phoneNumber: {
-        color: colors.voltage,
-        fontWeight: '600',
-    },
-    devNotice: {
-        backgroundColor: `${colors.success}15`,
-        borderRadius: borderRadius.lg,
+    backButton: {
+        width: 40,
+        height: 40,
+        borderRadius: borderRadius.xl,
         borderWidth: 1,
-        borderColor: `${colors.success}30`,
-        padding: spacing.md,
+        borderColor: colors.background.border,
+        alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: spacing.lg,
     },
-    devText: {
-        color: colors.success,
-        fontSize: 14,
-        fontWeight: '600',
+    title: {
+        fontSize: typography.fontSize.xxl,
+        fontWeight: '700',
+        color: colors.text.primary,
+        marginBottom: spacing.sm,
     },
+    subtitle: {
+        fontSize: typography.fontSize.sm,
+        color: colors.text.secondary,
+    },
+    phoneDisplay: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '500',
+        color: colors.text.primary,
+        marginTop: spacing.xs,
+    },
+
+    // OTP Cells
     otpContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: spacing.lg,
+        gap: spacing.sm,
+        marginBottom: spacing.xl,
     },
-    otpInput: {
-        width: 48,
+    otpCell: {
+        flex: 1,
         height: 56,
-        backgroundColor: colors.charcoal[800],
         borderRadius: borderRadius.lg,
-        textAlign: 'center',
-        color: colors.text.primary,
-        fontSize: 24,
-        fontWeight: '700',
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-    },
-    otpInputFilled: {
-        borderColor: colors.voltage,
-    },
-    errorText: {
-        color: colors.emergency,
-        fontSize: 14,
-        marginBottom: spacing.md,
-    },
-    verifyButton: {
-        width: '100%',
-        paddingVertical: 16,
-        borderRadius: borderRadius.lg,
+        backgroundColor: colors.background.secondary,
+        borderWidth: 2,
+        borderColor: colors.background.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    verifyButtonActive: {
-        backgroundColor: colors.voltage,
+    otpCellFilled: {
+        borderColor: colors.voltage,
+        ...shadows.focusRing,
     },
-    verifyButtonDisabled: {
-        backgroundColor: colors.charcoal[600],
+    otpCellFocused: {
+        borderColor: colors.voltage,
     },
-    verifyButtonPressed: {
-        backgroundColor: colors.voltageDeep,
-        transform: [{ scale: 0.98 }],
-    },
-    verifyButtonText: {
-        fontSize: 18,
+    otpCellText: {
+        fontSize: typography.fontSize.xxl,
         fontWeight: '700',
+        color: colors.text.primary,
     },
-    verifyButtonTextActive: {
-        color: colors.charcoal[900],
+    hiddenInput: {
+        position: 'absolute',
+        opacity: 0,
+        height: 1,
+        width: 1,
     },
-    verifyButtonTextDisabled: {
-        color: colors.text.muted,
-    },
-    resendContainer: {
-        marginTop: spacing.lg,
+
+    // Timer
+    timerContainer: {
         alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.xl,
     },
-    resendTimerText: {
-        color: colors.text.muted,
-        fontSize: 14,
+    timerLabel: {
+        fontSize: typography.fontSize.sm,
+        color: colors.text.secondary,
     },
-    resendTimerHighlight: {
+    timerText: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
         color: colors.voltage,
-        fontWeight: '600',
     },
     resendText: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
         color: colors.voltage,
-        fontSize: 16,
-        fontWeight: '600',
+    },
+
+    // Error
+    errorText: {
+        color: colors.status.error,
+        fontSize: typography.fontSize.sm,
+        textAlign: 'center',
+        marginBottom: spacing.md,
+    },
+
+    // Verify Button
+    verifyButton: {
+        width: '100%',
+        height: touchTargets.sos, // 80px
+        backgroundColor: colors.interactive.default,
+        borderRadius: borderRadius.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...shadows.button,
+    },
+    verifyButtonPressed: {
+        backgroundColor: colors.interactive.pressed,
+        transform: [{ scale: 0.98 }],
+    },
+    verifyButtonDisabled: {
+        backgroundColor: colors.interactive.disabled,
+    },
+    verifyButtonText: {
+        fontSize: typography.fontSize.lg,
+        fontWeight: '700',
+        color: colors.text.onBrand,
+    },
+    verifyButtonTextDisabled: {
+        color: colors.text.disabled,
+    },
+
+    // Bottom spacer
+    bottomSpacer: {
+        height: spacing.xl,
     },
 });

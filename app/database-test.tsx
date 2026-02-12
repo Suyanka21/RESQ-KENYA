@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import { colors } from '../theme/voltage-premium';
 import {
     seedProviders,
     seedTestUser,
@@ -128,7 +129,7 @@ export default function DatabaseTestScreen() {
                 <Pressable className="mb-4" onPress={() => router.back()}>
                     <Text className="text-voltage">← Back</Text>
                 </Pressable>
-                <Text className="text-white text-2xl font-bold">Database Tools</Text>
+                <Text className="text-voltage text-2xl font-bold">Database Tools</Text>
                 <Text className="text-white/60 text-sm mt-1">Seed and test Firestore data</Text>
             </View>
 
@@ -155,7 +156,7 @@ export default function DatabaseTestScreen() {
                 {/* Loading Indicator */}
                 {isLoading && (
                     <View className="items-center py-4">
-                        <ActivityIndicator size="large" color="#FFD60A" />
+                        <ActivityIndicator size="large" color={colors.voltage} />
                         <Text className="text-white/60 mt-2">Processing...</Text>
                     </View>
                 )}
@@ -169,8 +170,8 @@ export default function DatabaseTestScreen() {
                                 <Text
                                     key={index}
                                     className={`text-sm font-mono ${result.includes('✅') ? 'text-success' :
-                                            result.includes('❌') ? 'text-emergency' :
-                                                'text-white/70'
+                                        result.includes('❌') ? 'text-emergency' :
+                                            'text-white/70'
                                         }`}
                                 >
                                     {result}

@@ -1,0 +1,6 @@
+{
+    "name": "eslint-plugin-resq-theme",
+    "version": "1.0.0",
+    "description": "ESLint rules to enforce ResQ theme token usage",
+    "main": "index.js"
+}

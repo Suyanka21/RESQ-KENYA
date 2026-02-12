@@ -15,6 +15,8 @@ interface TrackingMapProps {
     serviceType?: string;
     isLoading?: boolean;
     onMapReady?: () => void;
+    routeCoordinates?: { latitude: number; longitude: number }[];
+    traveledCoordinates?: { latitude: number; longitude: number }[];
 }
 
 export default function TrackingMap({
@@ -41,30 +43,29 @@ export default function TrackingMap({
             <Text style={styles.emoji}>{getProviderEmoji()}</Text>
             <Text style={styles.title}>Live Tracking</Text>
             <Text style={styles.subtitle}>
-                Map view is available on mobile devices.{'\n'}
-                Your provider is on the way!
+                {'Map view is available on mobile devices.\nYour provider is on the way!'}
             </Text>
 
-            {(eta || distance) && (
+            {(eta != null && eta > 0) || (distance != null && distance > 0) ? (
                 <View style={styles.infoCard}>
-                    {eta && (
+                    {eta != null && eta > 0 ? (
                         <View style={styles.infoItem}>
                             <Text style={styles.infoLabel}>ETA</Text>
                             <Text style={styles.infoValue}>{formatETA(eta)}</Text>
                         </View>
-                    )}
-                    {distance && (
+                    ) : null}
+                    {distance != null && distance > 0 ? (
                         <View style={styles.infoItem}>
                             <Text style={styles.infoLabel}>Distance</Text>
                             <Text style={styles.infoValue}>{distance.toFixed(1)} km</Text>
                         </View>
-                    )}
+                    ) : null}
                 </View>
-            )}
+            ) : null}
 
-            {isLoading && (
+            {isLoading ? (
                 <Text style={styles.loading}>Finding providers...</Text>
-            )}
+            ) : null}
         </View>
     );
 }

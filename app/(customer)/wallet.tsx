@@ -1,142 +1,251 @@
-// ⚡ ResQ Kenya - Wallet
-// M-Pesa wallet with balance and payment methods matching web prototype
+// ⚡ ResQ Kenya - Wallet Screen
+// Converted from: DESIGN RES Q/components/WalletScreen.tsx (Google Stitch)
+// Phase 2.5 UI Enhancement - Agent 2.5
 
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
-import { colors, shadows, borderRadius, spacing } from '../../theme/voltage-premium';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+    View, Text, StyleSheet, Pressable, ScrollView, Animated,
+    Easing, Platform, ActivityIndicator
+} from 'react-native';
+import { router } from 'expo-router';
+import {
+    ArrowLeft, Settings, Plus, ArrowUpRight, ChevronRight, Crown,
+    ArrowDownLeft, Wallet, CreditCard, Clock as HistoryIcon
+} from 'lucide-react-native';
+import { colors, spacing, borderRadius, shadows, typography } from '../../theme/voltage-premium';
+import { StatusBar } from 'expo-status-bar';
+
+// Mock transactions
+const TRANSACTIONS = [
+    { id: 'TXN-1234', title: 'Towing Service', date: 'Today, 2:45 PM', amount: -2750, type: 'debit', icon: '🚛' },
+    { id: 'TXN-1233', title: 'Wallet Top Up', date: 'Yesterday, 10:00 AM', amount: 1000, type: 'credit', icon: 'topup' },
+    { id: 'TXN-1232', title: 'Fuel Delivery', date: 'Oct 24, 4:30 PM', amount: -1500, type: 'debit', icon: '⛽' },
+    { id: 'TXN-1231', title: 'Refund Processed', date: 'Oct 22, 9:15 AM', amount: 500, type: 'pending', icon: 'refund' },
+    { id: 'TXN-1230', title: 'Monthly Subscription', date: 'Oct 01, 12:00 AM', amount: -2500, type: 'debit', icon: 'card' },
+];
 
 export default function WalletScreen() {
+    const [isLoading, setIsLoading] = useState(true);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+            Animated.timing(slideAnim, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]).start();
+
+        // Simulate loading
+        const timer = setTimeout(() => setIsLoading(false), 1500);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const renderTransactionIcon = (icon: string) => {
+        if (icon === 'topup') return <ArrowDownLeft size={20} color="#00E676" strokeWidth={2} />;
+        if (icon === 'refund') return <HistoryIcon size={20} color={colors.voltage} strokeWidth={2} />;
+        if (icon === 'card') return <CreditCard size={20} color={colors.text.secondary} strokeWidth={2} />;
+        return <Text style={styles.txnEmoji}>{icon}</Text>;
+    };
+
+    const getAmountColor = (type: string) => {
+        if (type === 'debit') return '#FF3D3D';
+        if (type === 'credit') return '#00E676';
+        return colors.voltage;
+    };
+
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerIcon}>
-                    <Text style={styles.headerIconText}>💰</Text>
-                </View>
-                <Text style={styles.headerTitle}>Wallet</Text>
-            </View>
+            <StatusBar style="light" />
 
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Balance Card */}
-                <View style={styles.balanceCard}>
-                    <View style={styles.balanceGlow} />
-                    <View style={styles.balanceContent}>
-                        <Text style={styles.balanceLabel}>M-Pesa Connected Balance</Text>
-                        <Text style={styles.balanceValue}>KES 4,500.00</Text>
-
-                        <View style={styles.balanceActions}>
-                            <Pressable style={styles.topUpButton}>
-                                <Text style={styles.topUpButtonText}>Top Up</Text>
-                            </Pressable>
-                            <Pressable style={styles.historyButton}>
-                                <Text style={styles.historyButtonText}>History</Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Quick Stats */}
-                <View style={styles.statsRow}>
-                    <View style={styles.quickStat}>
-                        <Text style={styles.quickStatValue}>12</Text>
-                        <Text style={styles.quickStatLabel}>Rescues</Text>
-                    </View>
-                    <View style={styles.quickStatDivider} />
-                    <View style={styles.quickStat}>
-                        <Text style={styles.quickStatValue}>KES 28K</Text>
-                        <Text style={styles.quickStatLabel}>Saved</Text>
-                    </View>
-                    <View style={styles.quickStatDivider} />
-                    <View style={styles.quickStat}>
-                        <Text style={styles.quickStatValue}>⭐ Gold</Text>
-                        <Text style={styles.quickStatLabel}>Member</Text>
-                    </View>
-                </View>
-
-                {/* Payment Methods */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Payment Methods</Text>
-
-                    {/* M-Pesa - Primary */}
-                    <View style={styles.paymentMethod}>
-                        <View style={styles.paymentMethodIcon}>
-                            <Text style={styles.mpesaText}>M-PESA</Text>
-                        </View>
-                        <View style={styles.paymentMethodDetails}>
-                            <Text style={styles.paymentMethodName}>Safaricom M-Pesa</Text>
-                            <Text style={styles.paymentMethodInfo}>Connected: 07** *** 892</Text>
-                        </View>
-                        <View style={styles.primaryBadge}>
-                            <Text style={styles.primaryBadgeText}>PRIMARY</Text>
-                        </View>
-                    </View>
-
-                    {/* Add Payment Method */}
-                    <Pressable style={styles.addPaymentMethod}>
-                        <View style={styles.addPaymentIcon}>
-                            <Text style={styles.addPaymentIconText}>+</Text>
-                        </View>
-                        <Text style={styles.addPaymentText}>Add Payment Method</Text>
+            <Animated.View style={[styles.wrapper, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Pressable
+                        onPress={() => router.back()}
+                        style={styles.headerButton}
+                        accessibilityLabel="Go back"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={20} color={colors.text.secondary} strokeWidth={2} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Wallet</Text>
+                    <Pressable
+                        style={styles.headerButton}
+                        accessibilityLabel="Wallet settings"
+                        accessibilityRole="button"
+                    >
+                        <Settings size={24} color={colors.text.secondary} strokeWidth={2} />
                     </Pressable>
                 </View>
 
-                {/* Membership Card */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Membership</Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    {/* Balance Card */}
+                    <View style={styles.balanceCard}>
+                        <View style={styles.balanceCardInner}>
+                            <View style={styles.balanceTop}>
+                                <Text style={styles.balanceLabel}>Available Balance</Text>
+                                <Wallet size={20} color={colors.voltage} style={{ opacity: 0.5 }} strokeWidth={2} />
+                            </View>
+                            <Text style={styles.balanceAmount}>KES 4,500</Text>
+                            <View style={styles.updatedRow}>
+                                <View style={styles.liveDot} />
+                                <Text style={styles.updatedText}>Updated 2 min ago</Text>
+                            </View>
+                        </View>
+                    </View>
 
-                    <View style={styles.membershipCard}>
-                        <View style={styles.membershipHeader}>
-                            <Text style={styles.membershipBadge}>⚡ GOLD MEMBER</Text>
-                            <Text style={styles.membershipExpiry}>Exp: Dec 2025</Text>
-                        </View>
-                        <View style={styles.membershipBenefits}>
-                            <View style={styles.benefit}>
-                                <Text style={styles.benefitCheck}>✓</Text>
-                                <Text style={styles.benefitText}>Priority dispatch</Text>
-                            </View>
-                            <View style={styles.benefit}>
-                                <Text style={styles.benefitCheck}>✓</Text>
-                                <Text style={styles.benefitText}>15% off all services</Text>
-                            </View>
-                            <View style={styles.benefit}>
-                                <Text style={styles.benefitCheck}>✓</Text>
-                                <Text style={styles.benefitText}>Free diagnostics (2/month)</Text>
-                            </View>
-                        </View>
-                        <Pressable style={styles.upgradeButton}>
-                            <Text style={styles.upgradeButtonText}>Upgrade to Platinum</Text>
+                    {/* Action Buttons */}
+                    <View style={styles.actionRow}>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.topUpButton,
+                                pressed && { transform: [{ scale: 0.98 }] }
+                            ]}
+                            accessibilityLabel="Top up wallet"
+                            accessibilityRole="button"
+                        >
+                            <Plus size={20} color={colors.background.primary} strokeWidth={2.5} />
+                            <Text style={styles.topUpText}>Top Up</Text>
+                        </Pressable>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.withdrawButton,
+                                pressed && { transform: [{ scale: 0.98 }] }
+                            ]}
+                            accessibilityLabel="Withdraw funds"
+                            accessibilityRole="button"
+                        >
+                            <ArrowUpRight size={20} color={colors.voltage} strokeWidth={2.5} />
+                            <Text style={styles.withdrawText}>Withdraw</Text>
                         </Pressable>
                     </View>
-                </View>
 
-                {/* Recent Transactions */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Recent Transactions</Text>
-
-                    {[
-                        { type: 'Towing Service', date: 'Today, 12:30 PM', amount: -5000 },
-                        { type: 'M-Pesa Top Up', date: 'Yesterday', amount: +10000 },
-                        { type: 'Battery Jump', date: '12 Oct 2024', amount: -1500 },
-                    ].map((tx, index) => (
-                        <View key={index} style={styles.transaction}>
-                            <View style={styles.transactionDetails}>
-                                <Text style={styles.transactionType}>{tx.type}</Text>
-                                <Text style={styles.transactionDate}>{tx.date}</Text>
+                    {/* Payment Methods */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeaderRow}>
+                            <View>
+                                <Text style={styles.sectionTitle}>Payment Methods</Text>
+                                <Text style={styles.sectionSubtitle}>Manage your payment options</Text>
                             </View>
-                            <Text style={[
-                                styles.transactionAmount,
-                                { color: tx.amount > 0 ? colors.success : colors.text.primary }
-                            ]}>
-                                {tx.amount > 0 ? '+' : ''}KES {Math.abs(tx.amount).toLocaleString()}
-                            </Text>
                         </View>
-                    ))}
-                </View>
-            </ScrollView>
+
+                        {/* M-Pesa Card */}
+                        <View style={styles.paymentCard}>
+                            <View style={styles.paymentCardLeft}>
+                                <View style={styles.mpesaBadge}>
+                                    <Text style={styles.mpesaText}>M-PESA</Text>
+                                </View>
+                                <View>
+                                    <View style={styles.paymentNameRow}>
+                                        <Text style={styles.paymentName}>M-Pesa</Text>
+                                        <View style={styles.defaultBadge}>
+                                            <Text style={styles.defaultBadgeText}>Default</Text>
+                                        </View>
+                                    </View>
+                                    <Text style={styles.paymentNumber}>+254 712 *** 678</Text>
+                                </View>
+                            </View>
+                            <View style={styles.paymentCheck}>
+                                <View style={styles.paymentCheckMark} />
+                            </View>
+                        </View>
+
+                        {/* Add Payment Button */}
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.addPaymentButton,
+                                pressed && { backgroundColor: colors.background.secondary }
+                            ]}
+                            accessibilityLabel="Add payment method"
+                            accessibilityRole="button"
+                        >
+                            <Plus size={20} color={colors.voltage} strokeWidth={2.5} />
+                            <Text style={styles.addPaymentText}>Add Payment Method</Text>
+                        </Pressable>
+                    </View>
+
+                    {/* Transaction History */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                            <Pressable accessibilityLabel="View all transactions" accessibilityRole="button">
+                                <Text style={styles.viewAllText}>View All</Text>
+                            </Pressable>
+                        </View>
+
+                        <View style={styles.transactionList}>
+                            {isLoading ? (
+                                // Loading skeletons
+                                [...Array(5)].map((_, i) => (
+                                    <View key={i} style={styles.skeletonRow}>
+                                        <View style={styles.skeletonCircle} />
+                                        <View style={styles.skeletonTextBlock}>
+                                            <View style={styles.skeletonLine1} />
+                                            <View style={styles.skeletonLine2} />
+                                        </View>
+                                        <View style={styles.skeletonAmount} />
+                                    </View>
+                                ))
+                            ) : (
+                                TRANSACTIONS.map((txn, idx) => (
+                                    <Pressable
+                                        key={txn.id}
+                                        style={[
+                                            styles.transactionRow,
+                                            idx < TRANSACTIONS.length - 1 && styles.transactionBorder
+                                        ]}
+                                        accessibilityLabel={`${txn.title}, ${txn.type === 'debit' ? 'minus' : 'plus'} KES ${Math.abs(txn.amount)}`}
+                                        accessibilityRole="button"
+                                    >
+                                        <View style={styles.txnLeft}>
+                                            <View style={styles.txnIconWrap}>
+                                                {renderTransactionIcon(txn.icon)}
+                                            </View>
+                                            <View>
+                                                <Text style={styles.txnTitle}>{txn.title}</Text>
+                                                <View style={styles.txnMetaRow}>
+                                                    <Text style={styles.txnDate}>{txn.date}</Text>
+                                                    <View style={styles.txnDot} />
+                                                    <Text style={styles.txnId}>{txn.id}</Text>
+                                                </View>
+                                            </View>
+                                        </View>
+                                        <View style={styles.txnRight}>
+                                            <Text style={[styles.txnAmount, { color: getAmountColor(txn.type) }]}>
+                                                {txn.type === 'debit' ? '-' : txn.type === 'credit' ? '+' : ''} KES {Math.abs(txn.amount).toLocaleString()}
+                                            </Text>
+                                            <ChevronRight size={16} color={colors.text.tertiary} strokeWidth={2} />
+                                        </View>
+                                    </Pressable>
+                                ))
+                            )}
+                        </View>
+                    </View>
+
+                    {/* Membership Upsell */}
+                    <View style={styles.membershipCard}>
+                        <View style={styles.membershipLeft}>
+                            <View style={styles.membershipIconWrap}>
+                                <Crown size={20} color={colors.voltage} strokeWidth={2} />
+                            </View>
+                            <View style={styles.membershipTextBlock}>
+                                <Text style={styles.membershipTitle}>Current Plan: Basic</Text>
+                                <Text style={styles.membershipDesc}>Upgrade to Gold for 10% off all services</Text>
+                            </View>
+                        </View>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.upgradeButton,
+                                pressed && { backgroundColor: colors.interactive.pressed }
+                            ]}
+                            accessibilityLabel="Upgrade membership plan"
+                            accessibilityRole="button"
+                        >
+                            <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
+                        </Pressable>
+                    </View>
+                </ScrollView>
+            </Animated.View>
         </View>
     );
 }
@@ -144,310 +253,414 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.charcoal[900],
+        backgroundColor: colors.background.primary,
     },
+    wrapper: { flex: 1 },
 
     // Header
     header: {
+        height: 60,
+        paddingHorizontal: spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingTop: Platform.OS === 'ios' ? 70 : 50,
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.lg,
-        backgroundColor: colors.charcoal[800],
+        justifyContent: 'space-between',
         borderBottomWidth: 1,
-        borderBottomColor: colors.charcoal[600],
+        borderBottomColor: colors.charcoal[700],
     },
-    headerIcon: {
+    headerButton: {
         width: 40,
         height: 40,
-        borderRadius: 20,
-        backgroundColor: `${colors.voltage}20`,
-        justifyContent: 'center',
+        borderRadius: borderRadius.xl,
         alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    headerIconText: {
-        fontSize: 20,
+        justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 24,
+        fontSize: typography.fontSize.xl,
         fontWeight: '700',
         color: colors.text.primary,
     },
-
-    // Scroll
-    scrollView: {
-        flex: 1,
-    },
     scrollContent: {
         padding: spacing.lg,
-        paddingBottom: 120,
+        paddingBottom: spacing.xl * 2,
     },
 
     // Balance Card
     balanceCard: {
-        backgroundColor: colors.charcoal[800],
         borderRadius: borderRadius['2xl'],
         borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        padding: spacing.xl,
-        marginBottom: spacing.lg,
+        borderColor: colors.background.border,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.voltage,
         overflow: 'hidden',
-        position: 'relative',
-        ...shadows.cardElevated,
+        marginBottom: spacing.xl,
+        ...shadows.card,
     },
-    balanceGlow: {
-        position: 'absolute',
-        top: -50,
-        right: -50,
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        backgroundColor: `${colors.success}10`,
+    balanceCardInner: {
+        padding: spacing.lg,
+        backgroundColor: colors.background.secondary,
     },
-    balanceContent: {
-        position: 'relative',
-        zIndex: 1,
+    balanceTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: spacing.xs,
     },
     balanceLabel: {
-        fontSize: 14,
+        fontSize: typography.fontSize.sm,
+        fontWeight: '500',
         color: colors.text.secondary,
-        marginBottom: 8,
     },
-    balanceValue: {
-        fontSize: 36,
+    balanceAmount: {
+        fontSize: 40,
         fontWeight: '700',
         color: colors.text.primary,
-        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-        marginBottom: spacing.lg,
+        letterSpacing: -1,
+        marginBottom: spacing.sm,
     },
-    balanceActions: {
+    updatedRow: {
         flexDirection: 'row',
-        gap: spacing.md,
+        alignItems: 'center',
+        gap: 6,
     },
-    topUpButton: {
-        backgroundColor: colors.success,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: 12,
-        borderRadius: borderRadius.md,
+    liveDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#00E676',
     },
-    topUpButtonText: {
-        color: colors.charcoal[900],
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    historyButton: {
-        backgroundColor: colors.charcoal[700],
-        paddingHorizontal: spacing.lg,
-        paddingVertical: 12,
-        borderRadius: borderRadius.md,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-    },
-    historyButtonText: {
-        color: colors.text.secondary,
-        fontSize: 14,
-        fontWeight: '600',
+    updatedText: {
+        fontSize: typography.fontSize.xs,
+        color: colors.text.tertiary,
     },
 
-    // Quick Stats
-    statsRow: {
+    // Action buttons
+    actionRow: {
         flexDirection: 'row',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        padding: spacing.md,
+        gap: spacing.sm,
         marginBottom: spacing.xl,
     },
-    quickStat: {
+    topUpButton: {
         flex: 1,
+        height: 48,
+        backgroundColor: colors.voltage,
+        borderRadius: borderRadius.xl,
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.sm,
+        justifyContent: 'center',
+        gap: spacing.sm,
+        ...shadows.button,
     },
-    quickStatDivider: {
-        width: 1,
-        backgroundColor: colors.charcoal[600],
-    },
-    quickStatValue: {
-        fontSize: 18,
+    topUpText: {
+        fontSize: typography.fontSize.base,
         fontWeight: '700',
-        color: colors.text.primary,
-        marginBottom: 4,
+        color: colors.background.primary,
     },
-    quickStatLabel: {
-        fontSize: 12,
-        color: colors.text.secondary,
+    withdrawButton: {
+        flex: 1,
+        height: 48,
+        borderWidth: 2,
+        borderColor: colors.voltage,
+        backgroundColor: 'transparent',
+        borderRadius: borderRadius.xl,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+    },
+    withdrawText: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
+        color: colors.voltage,
     },
 
-    // Sections
+    // Section
     section: {
         marginBottom: spacing.xl,
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: colors.text.primary,
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        paddingHorizontal: spacing.xs,
         marginBottom: spacing.md,
     },
+    sectionTitle: {
+        fontSize: typography.fontSize.lg,
+        fontWeight: '700',
+        color: colors.text.primary,
+    },
+    sectionSubtitle: {
+        fontSize: typography.fontSize.sm,
+        color: colors.text.secondary,
+        marginTop: 2,
+    },
+    viewAllText: {
+        fontSize: typography.fontSize.sm,
+        fontWeight: '500',
+        color: colors.voltage,
+    },
 
-    // Payment Methods
-    paymentMethod: {
+    // Payment card
+    paymentCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
+        justifyContent: 'space-between',
+        backgroundColor: colors.background.secondary,
         borderWidth: 1,
-        borderColor: `${colors.success}30`,
+        borderColor: colors.background.border,
+        borderLeftWidth: 3,
+        borderLeftColor: '#4CAF50',
+        borderRadius: borderRadius.xl,
         padding: spacing.md,
         marginBottom: spacing.sm,
     },
-    paymentMethodIcon: {
+    paymentCardLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+    },
+    mpesaBadge: {
         width: 48,
         height: 32,
-        backgroundColor: colors.success,
+        backgroundColor: '#FFFFFF',
         borderRadius: borderRadius.sm,
-        justifyContent: 'center',
         alignItems: 'center',
-        marginRight: spacing.md,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
     },
     mpesaText: {
+        fontSize: 8,
+        fontWeight: '900',
+        color: '#4CAF50',
+        letterSpacing: -0.5,
+    },
+    paymentNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    paymentName: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
         color: colors.text.primary,
+    },
+    defaultBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: borderRadius.sm,
+        backgroundColor: 'rgba(0, 230, 118, 0.2)',
+        borderWidth: 1,
+        borderColor: 'rgba(0, 230, 118, 0.3)',
+    },
+    defaultBadgeText: {
         fontSize: 10,
         fontWeight: '700',
+        color: '#00E676',
     },
-    paymentMethodDetails: {
-        flex: 1,
-    },
-    paymentMethodName: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: colors.text.primary,
-    },
-    paymentMethodInfo: {
-        fontSize: 12,
+    paymentNumber: {
+        fontSize: typography.fontSize.sm,
         color: colors.text.secondary,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
         marginTop: 2,
     },
-    primaryBadge: {
-        backgroundColor: `${colors.success}15`,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: borderRadius.sm,
-    },
-    primaryBadgeText: {
-        color: colors.success,
-        fontSize: 10,
-        fontWeight: '700',
-    },
-    addPaymentMethod: {
-        flexDirection: 'row',
+    paymentCheck: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#00E676',
         alignItems: 'center',
-        backgroundColor: colors.charcoal[800],
-        borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: colors.charcoal[600],
-        borderStyle: 'dashed',
-        padding: spacing.md,
-    },
-    addPaymentIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: colors.charcoal[700],
         justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: spacing.md,
     },
-    addPaymentIconText: {
-        color: colors.text.secondary,
-        fontSize: 20,
-    },
-    addPaymentText: {
-        color: colors.text.secondary,
-        fontSize: 14,
-        fontWeight: '600',
+    paymentCheckMark: {
+        width: 10,
+        height: 6,
+        borderBottomWidth: 2,
+        borderRightWidth: 2,
+        borderColor: colors.background.primary,
+        transform: [{ rotate: '45deg' }],
+        marginBottom: 2,
     },
 
-    // Membership Card
-    membershipCard: {
-        backgroundColor: colors.charcoal[800],
+    // Add payment
+    addPaymentButton: {
+        width: '100%',
+        height: 56,
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        borderColor: colors.background.border,
         borderRadius: borderRadius.xl,
-        borderWidth: 1,
-        borderColor: `${colors.voltage}30`,
-        padding: spacing.lg,
-    },
-    membershipHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: spacing.md,
-    },
-    membershipBadge: {
-        color: colors.voltage,
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    membershipExpiry: {
-        color: colors.text.muted,
-        fontSize: 12,
-    },
-    membershipBenefits: {
-        marginBottom: spacing.lg,
-    },
-    benefit: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
+        justifyContent: 'center',
+        gap: spacing.sm,
     },
-    benefitCheck: {
-        color: colors.success,
-        fontSize: 14,
-        marginRight: 8,
-    },
-    benefitText: {
-        color: colors.text.secondary,
-        fontSize: 14,
-    },
-    upgradeButton: {
-        borderWidth: 1,
-        borderColor: colors.voltage,
-        borderRadius: borderRadius.md,
-        paddingVertical: 12,
-        alignItems: 'center',
-    },
-    upgradeButtonText: {
-        color: colors.voltage,
-        fontSize: 14,
+    addPaymentText: {
+        fontSize: typography.fontSize.base,
         fontWeight: '700',
+        color: colors.voltage,
     },
 
     // Transactions
-    transaction: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.charcoal[700],
+    transactionList: {
+        backgroundColor: colors.background.secondary,
+        borderWidth: 1,
+        borderColor: colors.background.border,
+        borderRadius: borderRadius.xl,
+        overflow: 'hidden',
     },
-    transactionDetails: {
+    transactionRow: {
+        height: 72,
+        paddingHorizontal: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    transactionBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: colors.background.border,
+    },
+    txnLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
         flex: 1,
     },
-    transactionType: {
-        color: colors.text.primary,
-        fontSize: 14,
-        fontWeight: '600',
+    txnIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: colors.charcoal[800],
+        borderWidth: 1,
+        borderColor: colors.charcoal[700],
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    transactionDate: {
-        color: colors.text.muted,
-        fontSize: 12,
+    txnEmoji: {
+        fontSize: 18,
+    },
+    txnTitle: {
+        fontSize: typography.fontSize.sm,
+        fontWeight: '500',
+        color: colors.text.primary,
+    },
+    txnMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
         marginTop: 2,
     },
-    transactionAmount: {
-        fontSize: 14,
-        fontWeight: '700',
+    txnDate: {
+        fontSize: typography.fontSize.xs,
+        color: colors.text.tertiary,
+    },
+    txnDot: {
+        width: 2,
+        height: 10,
+        backgroundColor: colors.background.border,
+    },
+    txnId: {
+        fontSize: 10,
         fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+        color: colors.text.tertiary,
+    },
+    txnRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    txnAmount: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
+    },
+
+    // Skeleton
+    skeletonRow: {
+        height: 72,
+        paddingHorizontal: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.background.border,
+    },
+    skeletonCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: colors.charcoal[800],
+    },
+    skeletonTextBlock: {
+        flex: 1,
+        marginLeft: spacing.sm,
+        gap: spacing.sm,
+    },
+    skeletonLine1: {
+        width: 96,
+        height: 12,
+        borderRadius: 4,
+        backgroundColor: colors.charcoal[800],
+    },
+    skeletonLine2: {
+        width: 64,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: colors.charcoal[800],
+    },
+    skeletonAmount: {
+        width: 80,
+        height: 16,
+        borderRadius: 4,
+        backgroundColor: colors.charcoal[800],
+    },
+
+    // Membership
+    membershipCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: `${colors.voltage}08`,
+        borderWidth: 1,
+        borderColor: colors.voltage,
+        borderRadius: borderRadius.xl,
+        padding: spacing.md,
+    },
+    membershipLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        flex: 1,
+    },
+    membershipIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: `${colors.voltage}33`,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    membershipTextBlock: {
+        flex: 1,
+    },
+    membershipTitle: {
+        fontSize: typography.fontSize.sm,
+        fontWeight: '700',
+        color: colors.text.primary,
+    },
+    membershipDesc: {
+        fontSize: typography.fontSize.xs,
+        color: colors.text.secondary,
+        marginTop: 2,
+    },
+    upgradeButton: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 6,
+        backgroundColor: colors.voltage,
+        borderRadius: borderRadius.md,
+    },
+    upgradeButtonText: {
+        fontSize: typography.fontSize.xs,
+        fontWeight: '700',
+        color: colors.background.primary,
     },
 });
