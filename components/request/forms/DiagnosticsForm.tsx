@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import {
-    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform
+    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform, ActivityIndicator
 } from 'react-native';
 import {
     MapPin, ChevronRight, ChevronLeft, Activity, Wrench, Building2, Clock, Zap, CheckCircle
@@ -43,6 +43,7 @@ export const DiagnosticsForm: React.FC<DiagnosticsFormProps> = ({ onSubmit, onBa
     const [vehicleYear, setVehicleYear] = useState('');
     const [errorCodes, setErrorCodes] = useState('');
     const [notes, setNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const basePrice = serviceType === 'onsite' ? PRICES.DIAGNOSTIC_BASE_ONSITE : PRICES.DIAGNOSTIC_BASE_WORKSHOP;
     const urgencyFee = urgency === 'urgent' ? PRICES.DIAGNOSTIC_URGENCY_FEE : 0;
@@ -207,8 +208,12 @@ export const DiagnosticsForm: React.FC<DiagnosticsFormProps> = ({ onSubmit, onBa
                         <ChevronRight size={20} color={colors.voltage} strokeWidth={2.5} />
                     </Pressable>
                 ) : (
-                    <Pressable style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => onSubmit({ serviceType, selectedSymptoms, vehicleMake, vehicleModel, vehicleYear, urgency, location, totalCost, service: 'diagnostics' })}>
-                        <Text style={styles.submitText}>Request Diagnostics</Text>
+                    <Pressable style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }, isSubmitting && styles.buttonDisabled]} onPress={() => { setIsSubmitting(true); onSubmit({ serviceType, selectedSymptoms, vehicleMake, vehicleModel, vehicleYear, urgency, location, totalCost, service: 'diagnostics' }); }} disabled={isSubmitting}>
+                        {isSubmitting ? (
+                            <ActivityIndicator color={colors.charcoal[900]} />
+                        ) : (
+                            <Text style={styles.submitText}>Request Diagnostics</Text>
+                        )}
                     </Pressable>
                 )}
             </View>

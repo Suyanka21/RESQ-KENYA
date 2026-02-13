@@ -4,10 +4,23 @@
     "strict": true,
     "types": [
       "jest"
-    ]
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
   },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
   "exclude": [
     "node_modules",
-    "web-prototype-archive"
+    "web-prototype-archive",
+    "functions",
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js"
   ]
 }

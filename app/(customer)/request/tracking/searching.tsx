@@ -11,6 +11,7 @@ import { Search, MapPin, ChevronDown, ChevronUp, X, ChevronLeft, Wrench } from '
 import { StatusBar } from 'expo-status-bar';
 import TrackingMap from '../../../../components/maps/TrackingMap';
 import { colors } from '../../../../theme/voltage-premium';
+import { ErrorState } from '../../../../components/ui/ErrorState';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ export default function SearchingScreen() {
     // --- State ---
     const [messageIdx, setMessageIdx] = useState(0);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [hasTimedOut, setHasTimedOut] = useState(false);
 
     // --- Animations ---
     const ring1 = useRef(new Animated.Value(0.5)).current;
@@ -113,6 +115,31 @@ export default function SearchingScreen() {
         }, 9000);
         return () => clearTimeout(timer);
     }, []);
+
+    // 60-second timeout fallback
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            setHasTimedOut(true);
+        }, 60000);
+        return () => clearTimeout(timeout);
+    }, []);
+
+    if (hasTimedOut) {
+        return (
+            <View style={styles.root}>
+                <StatusBar style="light" />
+                <ErrorState
+                    title="Search Timed Out"
+                    message="We couldn't find a provider in your area. Please try again or try a different service."
+                    icon="offline"
+                    onRetry={() => {
+                        setHasTimedOut(false);
+                    }}
+                    retryLabel="Search Again"
+                />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.root}>

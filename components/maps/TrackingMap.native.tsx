@@ -68,6 +68,35 @@ interface TrackingMapProps {
     traveledCoordinates?: { latitude: number; longitude: number }[];
 }
 
+// ---------- Error Boundary ----------
+// Catches native MapView crashes (during render or unmount)
+// and displays a graceful fallback instead of crashing the app.
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+}
+
+class MapErrorBoundary extends React.Component<
+    { children: React.ReactNode; fallback: React.ReactNode },
+    ErrorBoundaryState
+> {
+    state: ErrorBoundaryState = { hasError: false };
+
+    static getDerivedStateFromError(_error: Error): ErrorBoundaryState {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error: Error, info: React.ErrorInfo) {
+        console.warn('[TrackingMap] MapView error caught by boundary:', error.message);
+    }
+
+    render() {
+        if (this.state.hasError) return this.props.fallback;
+        return this.props.children;
+    }
+}
+
+
 export default function TrackingMap({
     customerLocation,
     providerLocation,
@@ -160,110 +189,138 @@ export default function TrackingMap({
         );
     }
 
-    return (
-        <View style={styles.mapContainer}>
-            <MapView
-                ref={mapRef}
-                style={StyleSheet.absoluteFillObject}
-                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                customMapStyle={DARK_MAP_STYLE}
-                initialRegion={region}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                showsCompass={false}
-                onMapReady={onMapReady}
-            >
-                {/* Customer Location Marker */}
-                <Marker
-                    coordinate={{
-                        latitude: customerLocation.latitude,
-                        longitude: customerLocation.longitude,
-                    }}
-                    title="Your Location"
-                    anchor={{ x: 0.5, y: 0.5 }}
-                >
-                    <View style={styles.customerMarker}>
-                        <View style={styles.customerMarkerInner} />
-                    </View>
-                </Marker>
-
-                {/* Provider Location Marker */}
-                {providerLocation ? (
-                    <Marker
-                        coordinate={{
-                            latitude: providerLocation.latitude,
-                            longitude: providerLocation.longitude,
-                        }}
-                        title="Service Provider"
-                        anchor={{ x: 0.5, y: 0.5 }}
-                    >
-                        <View style={styles.providerMarker}>
-                            <Text style={styles.providerEmoji}>{getProviderEmoji()}</Text>
+    // Fallback UI for error boundary recovery
+    const mapFallback = (
+        <View style={styles.fallbackContainer}>
+            <Text style={styles.fallbackEmoji}>{getProviderEmoji()}</Text>
+            <Text style={styles.fallbackTitle}>Live Tracking</Text>
+            <Text style={styles.fallbackSubtitle}>Map could not load. The provider is on their way!</Text>
+            {(eta != null && eta > 0) || (distance != null && distance > 0) ? (
+                <View style={styles.etaCard}>
+                    {eta != null && eta > 0 ? (
+                        <View style={styles.etaItem}>
+                            <Text style={styles.etaLabel}>ETA</Text>
+                            <Text style={styles.etaValue}>{formatETA(eta)}</Text>
                         </View>
-                    </Marker>
-                ) : null}
-
-                {/* Road-following route: Traveled portion (solid line) */}
-                {showRoute && traveledCoordinates && traveledCoordinates.length >= 2 ? (
-                    <Polyline
-                        coordinates={traveledCoordinates}
-                        strokeColor={'#7C5CFC'}
-                        strokeWidth={5}
-                    />
-                ) : null}
-
-                {/* Road-following route: Remaining portion (dashed line) */}
-                {showRoute && routeCoordinates && routeCoordinates.length >= 2 ? (
-                    <Polyline
-                        coordinates={routeCoordinates}
-                        strokeColor={colors.voltage}
-                        strokeWidth={4}
-                        lineDashPattern={[12, 6]}
-                    />
-                ) : null}
-
-                {/* Fallback: straight line if no route coordinates provided */}
-                {showRoute && providerLocation && !routeCoordinates ? (
-                    <Polyline
-                        coordinates={[
-                            { latitude: providerLocation.latitude, longitude: providerLocation.longitude },
-                            { latitude: customerLocation.latitude, longitude: customerLocation.longitude },
-                        ]}
-                        strokeColor={colors.voltage}
-                        strokeWidth={3}
-                        lineDashPattern={[10, 5]}
-                    />
-                ) : null}
-            </MapView>
-
-            {/* ETA Overlay */}
-            {providerLocation && ((eta != null && eta > 0) || (distance != null && distance > 0)) ? (
-                <View style={styles.etaOverlay}>
-                    <View style={styles.etaCard}>
-                        {eta != null && eta > 0 ? (
-                            <View style={styles.etaItem}>
-                                <Text style={styles.etaLabel}>ETA</Text>
-                                <Text style={styles.etaValue}>{formatETA(eta)}</Text>
-                            </View>
-                        ) : null}
-                        {distance != null && distance > 0 ? (
-                            <View style={styles.etaItem}>
-                                <Text style={styles.etaLabel}>Distance</Text>
-                                <Text style={styles.etaValue}>{distance.toFixed(1)} km</Text>
-                            </View>
-                        ) : null}
-                    </View>
-                </View>
-            ) : null}
-
-            {/* Loading Overlay */}
-            {isLoading ? (
-                <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color={colors.voltage} />
-                    <Text style={styles.loadingText}>Finding providers...</Text>
+                    ) : null}
+                    {distance != null && distance > 0 ? (
+                        <View style={styles.etaItem}>
+                            <Text style={styles.etaLabel}>Distance</Text>
+                            <Text style={styles.etaValue}>{distance.toFixed(1)} km</Text>
+                        </View>
+                    ) : null}
                 </View>
             ) : null}
         </View>
+    );
+
+    return (
+        <MapErrorBoundary fallback={mapFallback}>
+            <View style={styles.mapContainer}>
+                <MapView
+                    ref={mapRef}
+                    style={StyleSheet.absoluteFillObject}
+                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                    customMapStyle={DARK_MAP_STYLE}
+                    initialRegion={region}
+                    showsUserLocation={false}
+                    showsMyLocationButton={false}
+                    showsCompass={false}
+                    onMapReady={onMapReady}
+                    moveOnMarkerPress={false}
+                >
+                    {/* Customer Location Marker */}
+                    <Marker
+                        coordinate={{
+                            latitude: customerLocation.latitude,
+                            longitude: customerLocation.longitude,
+                        }}
+                        title="Your Location"
+                        anchor={{ x: 0.5, y: 0.5 }}
+                    >
+                        <View style={styles.customerMarker}>
+                            <View style={styles.customerMarkerInner} />
+                        </View>
+                    </Marker>
+
+                    {/* Provider Location Marker */}
+                    {providerLocation ? (
+                        <Marker
+                            coordinate={{
+                                latitude: providerLocation.latitude,
+                                longitude: providerLocation.longitude,
+                            }}
+                            title="Service Provider"
+                            anchor={{ x: 0.5, y: 0.5 }}
+                        >
+                            <View style={styles.providerMarker}>
+                                <Text style={styles.providerEmoji}>{getProviderEmoji()}</Text>
+                            </View>
+                        </Marker>
+                    ) : null}
+
+                    {/* Road-following route: Traveled portion (solid line) */}
+                    {showRoute && traveledCoordinates && traveledCoordinates.length >= 2 ? (
+                        <Polyline
+                            coordinates={traveledCoordinates}
+                            strokeColor={'#7C5CFC'}
+                            strokeWidth={5}
+                        />
+                    ) : null}
+
+                    {/* Road-following route: Remaining portion (dashed line) */}
+                    {showRoute && routeCoordinates && routeCoordinates.length >= 2 ? (
+                        <Polyline
+                            coordinates={routeCoordinates}
+                            strokeColor={colors.voltage}
+                            strokeWidth={4}
+                            lineDashPattern={[12, 6]}
+                        />
+                    ) : null}
+
+                    {/* Fallback: straight line if no route coordinates provided */}
+                    {showRoute && providerLocation && !routeCoordinates ? (
+                        <Polyline
+                            coordinates={[
+                                { latitude: providerLocation.latitude, longitude: providerLocation.longitude },
+                                { latitude: customerLocation.latitude, longitude: customerLocation.longitude },
+                            ]}
+                            strokeColor={colors.voltage}
+                            strokeWidth={3}
+                            lineDashPattern={[10, 5]}
+                        />
+                    ) : null}
+                </MapView>
+
+                {/* ETA Overlay */}
+                {providerLocation && ((eta != null && eta > 0) || (distance != null && distance > 0)) ? (
+                    <View style={styles.etaOverlay}>
+                        <View style={styles.etaCard}>
+                            {eta != null && eta > 0 ? (
+                                <View style={styles.etaItem}>
+                                    <Text style={styles.etaLabel}>ETA</Text>
+                                    <Text style={styles.etaValue}>{formatETA(eta)}</Text>
+                                </View>
+                            ) : null}
+                            {distance != null && distance > 0 ? (
+                                <View style={styles.etaItem}>
+                                    <Text style={styles.etaLabel}>Distance</Text>
+                                    <Text style={styles.etaValue}>{distance.toFixed(1)} km</Text>
+                                </View>
+                            ) : null}
+                        </View>
+                    </View>
+                ) : null}
+
+                {/* Loading Overlay */}
+                {isLoading ? (
+                    <View style={styles.loadingOverlay}>
+                        <ActivityIndicator size="large" color={colors.voltage} />
+                        <Text style={styles.loadingText}>Finding providers...</Text>
+                    </View>
+                ) : null}
+            </View>
+        </MapErrorBoundary>
     );
 }
 

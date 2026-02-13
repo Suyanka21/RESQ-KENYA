@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import {
-    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform
+    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform, ActivityIndicator
 } from 'react-native';
 import {
     MapPin, ChevronRight, ChevronLeft, HeartPulse, Phone, AlertTriangle,
@@ -39,6 +39,7 @@ export const AmbulanceForm: React.FC<AmbulanceFormProps> = ({ onSubmit, onBack }
     const [medicalHistory, setMedicalHistory] = useState('');
     const [emergencyContact, setEmergencyContact] = useState('');
     const [preferredHospital, setPreferredHospital] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const triageOption = TRIAGE_OPTIONS.find(t => t.id === triage)!;
     const totalCost = PRICES.AMBULANCE_BASE + triageOption.fee;
@@ -219,9 +220,15 @@ export const AmbulanceForm: React.FC<AmbulanceFormProps> = ({ onSubmit, onBack }
                         <ChevronRight size={20} color={colors.voltage} strokeWidth={2.5} />
                     </Pressable>
                 ) : (
-                    <Pressable style={({ pressed }) => [styles.submitButtonEmergency, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => onSubmit({ triage, patientName, patientAge, condition, location, emergencyContact, preferredHospital, totalCost, service: 'medical' })}>
-                        <HeartPulse size={20} color="#FFF" strokeWidth={2.5} />
-                        <Text style={styles.submitTextEmergency}>Request Ambulance Now</Text>
+                    <Pressable style={({ pressed }) => [styles.submitButtonEmergency, pressed && { transform: [{ scale: 0.98 }] }, isSubmitting && styles.buttonDisabled]} onPress={() => { setIsSubmitting(true); onSubmit({ triage, patientName, patientAge, condition, location, emergencyContact, preferredHospital, totalCost, service: 'medical' }); }} disabled={isSubmitting}>
+                        {isSubmitting ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <>
+                                <HeartPulse size={20} color="#FFF" strokeWidth={2.5} />
+                                <Text style={styles.submitTextEmergency}>Request Ambulance Now</Text>
+                            </>
+                        )}
                     </Pressable>
                 )}
             </View>

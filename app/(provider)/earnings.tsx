@@ -2,7 +2,7 @@
 // Converted from NativeWind to StyleSheet for consistency
 
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { colors, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
 import { ServiceIcon } from '../../components/ui/ServiceIcon';
 
@@ -24,6 +24,7 @@ const MOCK_TRANSACTIONS = [
 
 export default function ProviderEarningsScreen() {
     const [activePeriod, setActivePeriod] = useState<'today' | 'week' | 'month'>('today');
+    const [isWithdrawing, setIsWithdrawing] = useState(false);
 
     const getActiveEarnings = () => {
         switch (activePeriod) {
@@ -106,10 +107,22 @@ export default function ProviderEarningsScreen() {
                 </View>
 
                 {/* Withdraw Button */}
-                <Pressable style={styles.withdrawButton}>
-                    <Text style={styles.withdrawButtonText}>
-                        Withdraw to M-Pesa
-                    </Text>
+                <Pressable
+                    style={[styles.withdrawButton, isWithdrawing && styles.withdrawButtonDisabled]}
+                    disabled={isWithdrawing}
+                    onPress={() => {
+                        setIsWithdrawing(true);
+                        // Simulate API call
+                        setTimeout(() => setIsWithdrawing(false), 2000);
+                    }}
+                >
+                    {isWithdrawing ? (
+                        <ActivityIndicator color={colors.text.primary} />
+                    ) : (
+                        <Text style={styles.withdrawButtonText}>
+                            Withdraw to M-Pesa
+                        </Text>
+                    )}
                 </Pressable>
 
                 {/* Transaction History */}
@@ -243,6 +256,9 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontWeight: '700',
         fontSize: 16,
+    },
+    withdrawButtonDisabled: {
+        opacity: 0.6,
     },
 
     // Section Title

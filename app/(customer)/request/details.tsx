@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
     View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView,
-    Platform, StyleSheet, Animated, Dimensions, Image
+    Platform, StyleSheet, Animated, Dimensions, Image, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -177,7 +177,10 @@ export default function ServiceDetailsScreen() {
         }
     };
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const handleProceed = () => {
+        setIsSubmitting(true);
         router.push({
             pathname: '/(customer)/request/tracking',
             params: {
@@ -696,21 +699,27 @@ export default function ServiceDetailsScreen() {
                         style={({ pressed }) => [
                             styles.proceedButton,
                             serviceType === 'ambulance' && styles.proceedButtonEmergency,
-                            !isFormValid() && styles.proceedButtonDisabled,
-                            pressed && isFormValid() && styles.proceedButtonPressed
+                            (!isFormValid() || isSubmitting) && styles.proceedButtonDisabled,
+                            pressed && isFormValid() && !isSubmitting && styles.proceedButtonPressed
                         ]}
                         onPress={handleProceed}
-                        disabled={!isFormValid()}
+                        disabled={!isFormValid() || isSubmitting}
                     >
-                        <Text style={[
-                            styles.proceedButtonText,
-                            !isFormValid() && styles.proceedButtonTextDisabled
-                        ]}>
-                            {serviceType === 'ambulance' ? 'REQUEST AMBULANCE NOW' :
-                                serviceType === 'battery' ? 'CONFIRM JUMPSTART' :
-                                    'CONFIRM REQUEST'}
-                        </Text>
-                        <ChevronRight size={22} color={isFormValid() ? (serviceType === 'ambulance' ? '#FFF' : colors.charcoal[900]) : colors.text.muted} />
+                        {isSubmitting ? (
+                            <ActivityIndicator color={serviceType === 'ambulance' ? '#FFF' : colors.charcoal[900]} />
+                        ) : (
+                            <>
+                                <Text style={[
+                                    styles.proceedButtonText,
+                                    !isFormValid() && styles.proceedButtonTextDisabled
+                                ]}>
+                                    {serviceType === 'ambulance' ? 'REQUEST AMBULANCE NOW' :
+                                        serviceType === 'battery' ? 'CONFIRM JUMPSTART' :
+                                            'CONFIRM REQUEST'}
+                                </Text>
+                                <ChevronRight size={22} color={isFormValid() ? (serviceType === 'ambulance' ? '#FFF' : colors.charcoal[900]) : colors.text.muted} />
+                            </>
+                        )}
                     </Pressable>
                 </View>
             </KeyboardAvoidingView>

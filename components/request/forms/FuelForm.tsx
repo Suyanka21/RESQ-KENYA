@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import {
-    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform
+    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform, ActivityIndicator
 } from 'react-native';
 import {
     MapPin, ChevronRight, ChevronLeft, Fuel, Droplets, CheckCircle
@@ -28,6 +28,7 @@ export const FuelForm: React.FC<FuelFormProps> = ({ onSubmit, onBack }) => {
     const [amount, setAmount] = useState<number>(20);
     const [location, setLocation] = useState('');
     const [notes, setNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const pricePerLiter = fuelType === 'petrol' ? PRICES.FUEL_PETROL : PRICES.FUEL_DIESEL;
     const fuelCost = amount * pricePerLiter;
@@ -189,8 +190,12 @@ export const FuelForm: React.FC<FuelFormProps> = ({ onSubmit, onBack }) => {
                         <ChevronRight size={20} color={colors.voltage} strokeWidth={2.5} />
                     </Pressable>
                 ) : (
-                    <Pressable style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => onSubmit({ fuelType, amount, location, totalCost, service: 'fuel' })}>
-                        <Text style={styles.submitText}>Request Fuel Delivery</Text>
+                    <Pressable style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }, isSubmitting && styles.buttonDisabled]} onPress={() => { setIsSubmitting(true); onSubmit({ fuelType, amount, location, totalCost, service: 'fuel' }); }} disabled={isSubmitting}>
+                        {isSubmitting ? (
+                            <ActivityIndicator color={colors.charcoal[900]} />
+                        ) : (
+                            <Text style={styles.submitText}>Request Fuel Delivery</Text>
+                        )}
                     </Pressable>
                 )}
             </View>

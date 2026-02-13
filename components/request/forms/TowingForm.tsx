@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import {
-    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform
+    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform, ActivityIndicator
 } from 'react-native';
 import {
     MapPin, ChevronRight, ChevronLeft, Car, Key, AlertTriangle,
@@ -40,6 +40,7 @@ export const TowingForm: React.FC<TowingFormProps> = ({ onSubmit, onBack }) => {
     const [problemDescription, setProblemDescription] = useState('');
     const [isDrivable, setIsDrivable] = useState(false);
     const [hasKeys, setHasKeys] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const estimatedDistance = 12;
     const totalCost = PRICES.TOWING_BASE + (estimatedDistance * PRICES.TOWING_PER_KM);
@@ -263,10 +264,15 @@ export const TowingForm: React.FC<TowingFormProps> = ({ onSubmit, onBack }) => {
                     </Pressable>
                 ) : (
                     <Pressable
-                        style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }]}
-                        onPress={() => onSubmit({ pickupLocation, dropoffLocation, vehiclePlate, vehicleType, totalCost, service: 'towing' })}
+                        style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }, isSubmitting && styles.buttonDisabled]}
+                        onPress={() => { setIsSubmitting(true); onSubmit({ pickupLocation, dropoffLocation, vehiclePlate, vehicleType, totalCost, service: 'towing' }); }}
+                        disabled={isSubmitting}
                     >
-                        <Text style={styles.submitText}>Request Towing Service</Text>
+                        {isSubmitting ? (
+                            <ActivityIndicator color={colors.charcoal[900]} />
+                        ) : (
+                            <Text style={styles.submitText}>Request Towing Service</Text>
+                        )}
                     </Pressable>
                 )}
             </View>

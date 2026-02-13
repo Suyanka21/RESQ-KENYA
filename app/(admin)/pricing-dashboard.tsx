@@ -2,11 +2,14 @@
 // Phase 4: Admin dashboard for surge pricing management
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { voltageColors, voltageSpacing, typography } from '../../theme/voltage-premium';
-import { getAllDemandZones, getActiveSurgeZones, type DemandZone } from '../../services/surge-pricing.service';
+import { getAllDemandZones, getActiveSurgeZones } from '../../services/surge-pricing.service';
+import type { DemandZone } from '../../types/pricing';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 interface ZoneCardProps {
     zone: DemandZone;
@@ -100,12 +103,14 @@ export default function PricingDashboard() {
     const [refreshing, setRefreshing] = useState(false);
     const [totalRevenue, setTotalRevenue] = useState(0);
     const [surgeRevenue, setSurgeRevenue] = useState(0);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
+        setError(null);
         try {
             const allZones = await getAllDemandZones();
             setZones(allZones);
@@ -114,8 +119,9 @@ export default function PricingDashboard() {
             const activeZones = allZones.filter(z => z.surgeActive);
             setTotalRevenue(245000);
             setSurgeRevenue(activeZones.length * 12500);
-        } catch (error) {
-            console.error('Error loading zones:', error);
+        } catch (err) {
+            setError('Failed to load pricing data');
+            console.error('Error loading zones:', err);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -134,6 +140,26 @@ export default function PricingDashboard() {
 
     const activeSurgeCount = zones.filter(z => z.surgeActive).length;
     const avgMultiplier = zones.reduce((sum, z) => sum + z.surgeMultiplier, 0) / (zones.length || 1);
+
+    if (loading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={voltageColors.primary} />
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.container}>
+                <ErrorState
+                    title="Pricing Data Unavailable"
+                    message={error}
+                    onRetry={() => { setLoading(true); loadData(); }}
+                />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -183,9 +209,18 @@ export default function PricingDashboard() {
                     </View>
 
                     <View style={styles.zonesGrid}>
-                        {zones.map(zone => (
-                            <ZoneCard key={zone.zoneId} zone={zone} onPress={handleZonePress} />
-                        ))}
+                        {zones.length > 0 ? (
+                            zones.map(zone => (
+                                <ZoneCard key={zone.zoneId} zone={zone} onPress={handleZonePress} />
+                            ))
+                        ) : (
+                            <EmptyState
+                                title="No demand zones"
+                                subtitle="Demand zones will appear here once data is available."
+                                icon="location"
+                                compact
+                            />
+                        )}
                     </View>
 
                     {/* Quick Actions */}
@@ -298,7 +333,7 @@ const styles = StyleSheet.create({
         marginBottom: voltageSpacing.sm,
     },
     zoneName: {
-        fontSize: typography.sizes.md,
+        fontSize: typography.sizes.base,
         fontWeight: typography.weights.semibold as any,
         color: voltageColors.textPrimary,
     },
@@ -370,7 +405,7 @@ const styles = StyleSheet.create({
     },
     actionText: {
         flex: 1,
-        fontSize: typography.sizes.md,
+        fontSize: typography.sizes.base,
         color: voltageColors.textPrimary,
     },
 });

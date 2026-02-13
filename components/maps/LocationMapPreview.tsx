@@ -46,42 +46,77 @@ interface LocationMapPreviewProps {
     height?: number;
 }
 
+// ---------- Error Boundary ----------
+// Catches native MapView crashes (during render or unmount)
+// and displays a graceful fallback instead of crashing the app.
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+}
+
+class MapErrorBoundary extends React.Component<
+    { children: React.ReactNode; fallback: React.ReactNode },
+    ErrorBoundaryState
+> {
+    state: ErrorBoundaryState = { hasError: false };
+
+    static getDerivedStateFromError(_error: Error): ErrorBoundaryState {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error: Error, info: React.ErrorInfo) {
+        console.warn('[LocationMapPreview] MapView error caught by boundary:', error.message);
+    }
+
+    render() {
+        if (this.state.hasError) return this.props.fallback;
+        return this.props.children;
+    }
+}
+
+// ---------- Main Component ----------
+
 export default function LocationMapPreview({ height = 180 }: LocationMapPreviewProps) {
-    // Web fallback
+    const fallbackUI = (
+        <View style={[styles.fallback, { height }]}>
+            <MapPin size={32} color={colors.voltage} strokeWidth={2} />
+            <Text style={styles.fallbackText}>Map preview unavailable</Text>
+        </View>
+    );
+
+    // Web fallback or maps unavailable
     if (Platform.OS === 'web' || !MapView) {
-        return (
-            <View style={[styles.fallback, { height }]}>
-                <MapPin size={32} color={colors.voltage} strokeWidth={2} />
-                <Text style={styles.fallbackText}>Map view available on mobile</Text>
-            </View>
-        );
+        return fallbackUI;
     }
 
     return (
-        <View style={[styles.container, { height }]}>
-            <MapView
-                style={StyleSheet.absoluteFillObject}
-                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-                customMapStyle={DARK_MAP_STYLE}
-                initialRegion={DEFAULT_REGION}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                rotateEnabled={false}
-                pitchEnabled={false}
-                showsUserLocation
-                showsMyLocationButton={false}
-                showsCompass={false}
-            >
-                <Marker
-                    coordinate={{ latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude }}
-                    title="Your Location"
+        <MapErrorBoundary fallback={fallbackUI}>
+            <View style={[styles.container, { height }]}>
+                <MapView
+                    style={StyleSheet.absoluteFillObject}
+                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                    customMapStyle={DARK_MAP_STYLE}
+                    initialRegion={DEFAULT_REGION}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    rotateEnabled={false}
+                    pitchEnabled={false}
+                    showsMyLocationButton={false}
+                    showsCompass={false}
+                    liteMode={Platform.OS === 'android'}
+                    moveOnMarkerPress={false}
                 >
-                    <View style={styles.marker}>
-                        <View style={styles.markerInner} />
-                    </View>
-                </Marker>
-            </MapView>
-        </View>
+                    <Marker
+                        coordinate={{ latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude }}
+                        title="Your Location"
+                    >
+                        <View style={styles.marker}>
+                            <View style={styles.markerInner} />
+                        </View>
+                    </Marker>
+                </MapView>
+            </View>
+        </MapErrorBoundary>
     );
 }
 
@@ -123,3 +158,4 @@ const styles = StyleSheet.create({
         backgroundColor: colors.charcoal[900],
     },
 });
+

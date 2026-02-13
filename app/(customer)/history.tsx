@@ -15,6 +15,9 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, shadows, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
+import { SkeletonCard, SkeletonStatRow } from '../../components/ui/SkeletonLoader';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 const { width } = Dimensions.get('window');
 
@@ -107,6 +110,8 @@ export default function HistoryScreen() {
     const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(20)).current;
@@ -116,6 +121,10 @@ export default function HistoryScreen() {
             Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
             Animated.timing(slideAnim, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         ]).start();
+
+        // Simulate data loading
+        const timer = setTimeout(() => setIsLoading(false), 800);
+        return () => clearTimeout(timer);
     }, []);
 
     const filteredHistory = filter === 'all'
@@ -202,207 +211,219 @@ export default function HistoryScreen() {
                         />
                     }
                 >
-                    {/* Stats Summary Card */}
-                    <View style={styles.statsCard}>
-                        <Pressable
-                            style={styles.statsHeader}
-                            onPress={() => setIsStatsCollapsed(!isStatsCollapsed)}
-                            accessibilityLabel="Toggle summary"
-                            accessibilityRole="button"
-                        >
-                            <Text style={styles.statsTitle}>Summary</Text>
-                            {isStatsCollapsed
-                                ? <ChevronDown size={16} color={colors.text.tertiary} />
-                                : <ChevronUp size={16} color={colors.text.tertiary} />
-                            }
-                        </Pressable>
-
-                        {!isStatsCollapsed && (
-                            <View style={styles.statsGrid}>
-                                <View style={styles.statItem}>
-                                    <Text style={styles.statLabel}>TOTAL</Text>
-                                    <Text style={styles.statValue}>24</Text>
-                                </View>
-                                <View style={styles.statItem}>
-                                    <Text style={styles.statLabel}>THIS MONTH</Text>
-                                    <Text style={[styles.statValue, { color: colors.voltage }]}>3</Text>
-                                </View>
-                                <View style={styles.statItem}>
-                                    <Text style={styles.statLabel}>SPENT</Text>
-                                    <Text style={styles.statValueSmall}>KES 52k</Text>
-                                </View>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Empty State */}
-                    {filteredHistory.length === 0 && (
-                        <View style={styles.emptyState}>
-                            <View style={styles.emptyIconWrap}>
-                                <FileText size={40} color={colors.text.tertiary} strokeWidth={1.5} />
-                            </View>
-                            <Text style={styles.emptyTitle}>No Service History</Text>
-                            <Text style={styles.emptySubtitle}>Your completed service requests will appear here</Text>
-                            <Pressable
-                                style={styles.emptyButton}
-                                onPress={() => router.push('/(customer)')}
-                                accessibilityLabel="Request a service"
-                                accessibilityRole="button"
-                            >
-                                <Text style={styles.emptyButtonText}>Request a Service</Text>
-                            </Pressable>
+                    {/* Loading State */}
+                    {isLoading ? (
+                        <View style={{ padding: spacing.md }}>
+                            <SkeletonStatRow count={3} />
+                            <SkeletonCard />
+                            <SkeletonCard />
+                            <SkeletonCard />
                         </View>
-                    )}
+                    ) : error ? (
+                        <ErrorState
+                            title="Couldn't Load History"
+                            message={error}
+                            onRetry={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 800); }}
+                            compact
+                            style={{ margin: spacing.md }}
+                        />
+                    ) : (
+                        <>
+                            {/* Stats Summary Card */}
+                            <View style={styles.statsCard}>
+                                <Pressable
+                                    style={styles.statsHeader}
+                                    onPress={() => setIsStatsCollapsed(!isStatsCollapsed)}
+                                    accessibilityLabel="Toggle summary"
+                                    accessibilityRole="button"
+                                >
+                                    <Text style={styles.statsTitle}>Summary</Text>
+                                    {isStatsCollapsed
+                                        ? <ChevronDown size={16} color={colors.text.tertiary} />
+                                        : <ChevronUp size={16} color={colors.text.tertiary} />
+                                    }
+                                </Pressable>
 
-                    {/* Grouped History List */}
-                    {groupOrder.map((group) => {
-                        const items = groupedHistory[group];
-                        if (!items || items.length === 0) return null;
+                                {!isStatsCollapsed && (
+                                    <View style={styles.statsGrid}>
+                                        <View style={styles.statItem}>
+                                            <Text style={styles.statLabel}>TOTAL</Text>
+                                            <Text style={styles.statValue}>24</Text>
+                                        </View>
+                                        <View style={styles.statItem}>
+                                            <Text style={styles.statLabel}>THIS MONTH</Text>
+                                            <Text style={[styles.statValue, { color: colors.voltage }]}>3</Text>
+                                        </View>
+                                        <View style={styles.statItem}>
+                                            <Text style={styles.statLabel}>SPENT</Text>
+                                            <Text style={styles.statValueSmall}>KES 52k</Text>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
 
-                        return (
-                            <View key={group} style={styles.historyGroup}>
-                                <Text style={styles.groupTitle}>{group}</Text>
+                            {/* Empty State */}
+                            {filteredHistory.length === 0 && (
+                                <EmptyState
+                                    icon="history"
+                                    title="No Service History"
+                                    subtitle="Your completed service requests will appear here"
+                                    actionLabel="Request a Service"
+                                    onAction={() => router.push('/(customer)')}
+                                />
+                            )}
 
-                                {items.map((item) => {
-                                    const isExpanded = expandedCardId === item.id;
-                                    const statusStyle = getStatusStyle(item.status);
+                            {/* Grouped History List */}
+                            {groupOrder.map((group) => {
+                                const items = groupedHistory[group];
+                                if (!items || items.length === 0) return null;
 
-                                    return (
-                                        <Pressable
-                                            key={item.id}
-                                            style={[styles.historyCard, isExpanded && styles.historyCardExpanded]}
-                                            onPress={() => setExpandedCardId(isExpanded ? null : item.id)}
-                                            accessibilityLabel={`${item.type} service by ${item.provider}`}
-                                            accessibilityRole="button"
-                                        >
-                                            {/* Collapsed Header */}
-                                            <View style={styles.cardHeader}>
-                                                <View style={[styles.cardIcon, { borderColor: getServiceColor(item.type) }]}>
-                                                    {getServiceIcon(item.type)}
-                                                </View>
-                                                <View style={styles.cardDetails}>
-                                                    <View style={styles.cardTopRow}>
-                                                        <Text style={styles.cardTitle} numberOfLines={1}>
-                                                            {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
-                                                        </Text>
-                                                        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                                                            <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                                                                {statusStyle.label}
-                                                            </Text>
+                                return (
+                                    <View key={group} style={styles.historyGroup}>
+                                        <Text style={styles.groupTitle}>{group}</Text>
+
+                                        {items.map((item) => {
+                                            const isExpanded = expandedCardId === item.id;
+                                            const statusStyle = getStatusStyle(item.status);
+
+                                            return (
+                                                <Pressable
+                                                    key={item.id}
+                                                    style={[styles.historyCard, isExpanded && styles.historyCardExpanded]}
+                                                    onPress={() => setExpandedCardId(isExpanded ? null : item.id)}
+                                                    accessibilityLabel={`${item.type} service by ${item.provider}`}
+                                                    accessibilityRole="button"
+                                                >
+                                                    {/* Collapsed Header */}
+                                                    <View style={styles.cardHeader}>
+                                                        <View style={[styles.cardIcon, { borderColor: getServiceColor(item.type) }]}>
+                                                            {getServiceIcon(item.type)}
                                                         </View>
-                                                    </View>
-                                                    <Text style={styles.cardProvider}>{item.provider}</Text>
-                                                    <View style={styles.cardMetaRow}>
-                                                        <Clock size={12} color={colors.text.tertiary} strokeWidth={2} />
-                                                        <Text style={styles.cardMetaText}>{item.displayDate}, {item.displayTime}</Text>
-                                                    </View>
-                                                    <View style={styles.cardMetaRow}>
-                                                        <MapPin size={12} color={colors.text.tertiary} strokeWidth={2} />
-                                                        <Text style={styles.cardMetaText} numberOfLines={1}>{item.location}</Text>
-                                                    </View>
-                                                </View>
-                                                <View style={styles.cardRight}>
-                                                    {item.status !== 'cancelled' ? (
-                                                        <Text style={styles.cardPrice}>KES {item.price.toLocaleString()}</Text>
-                                                    ) : (
-                                                        <Text style={styles.cardPriceCancelled}>--</Text>
-                                                    )}
-                                                    {isExpanded
-                                                        ? <ChevronUp size={16} color={colors.text.tertiary} />
-                                                        : <ChevronDown size={16} color={colors.text.tertiary} />
-                                                    }
-                                                </View>
-                                            </View>
-
-                                            {/* Expanded details */}
-                                            {isExpanded && (
-                                                <View style={styles.expandedSection}>
-                                                    <View style={styles.expandedDivider} />
-
-                                                    {/* Detail tiles */}
-                                                    <View style={styles.detailGrid}>
-                                                        {item.duration && (
-                                                            <View style={styles.detailTile}>
-                                                                <Text style={styles.detailTileLabel}>Duration</Text>
-                                                                <Text style={styles.detailTileValue}>{item.duration} mins</Text>
-                                                            </View>
-                                                        )}
-                                                        {item.distance && (
-                                                            <View style={styles.detailTile}>
-                                                                <Text style={styles.detailTileLabel}>Distance</Text>
-                                                                <Text style={styles.detailTileValue}>{item.distance} km</Text>
-                                                            </View>
-                                                        )}
-                                                        {item.rating && (
-                                                            <View style={styles.detailTile}>
-                                                                <Text style={styles.detailTileLabel}>Your Rating</Text>
-                                                                <View style={styles.ratingRow}>
-                                                                    <Text style={styles.detailTileValue}>{item.rating}</Text>
-                                                                    <Star size={12} color={colors.voltage} fill={colors.voltage} strokeWidth={2} />
+                                                        <View style={styles.cardDetails}>
+                                                            <View style={styles.cardTopRow}>
+                                                                <Text style={styles.cardTitle} numberOfLines={1}>
+                                                                    {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                                                                </Text>
+                                                                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                                                                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                                                                        {statusStyle.label}
+                                                                    </Text>
                                                                 </View>
                                                             </View>
-                                                        )}
-                                                        <View style={styles.detailTile}>
-                                                            <Text style={styles.detailTileLabel}>Service ID</Text>
-                                                            <Text style={styles.detailTileValueMono}>{item.id.split('-')[2]}</Text>
+                                                            <Text style={styles.cardProvider}>{item.provider}</Text>
+                                                            <View style={styles.cardMetaRow}>
+                                                                <Clock size={12} color={colors.text.tertiary} strokeWidth={2} />
+                                                                <Text style={styles.cardMetaText}>{item.displayDate}, {item.displayTime}</Text>
+                                                            </View>
+                                                            <View style={styles.cardMetaRow}>
+                                                                <MapPin size={12} color={colors.text.tertiary} strokeWidth={2} />
+                                                                <Text style={styles.cardMetaText} numberOfLines={1}>{item.location}</Text>
+                                                            </View>
+                                                        </View>
+                                                        <View style={styles.cardRight}>
+                                                            {item.status !== 'cancelled' ? (
+                                                                <Text style={styles.cardPrice}>KES {item.price.toLocaleString()}</Text>
+                                                            ) : (
+                                                                <Text style={styles.cardPriceCancelled}>--</Text>
+                                                            )}
+                                                            {isExpanded
+                                                                ? <ChevronUp size={16} color={colors.text.tertiary} />
+                                                                : <ChevronDown size={16} color={colors.text.tertiary} />
+                                                            }
                                                         </View>
                                                     </View>
 
-                                                    {/* Price breakdown */}
-                                                    {item.status !== 'cancelled' && (
-                                                        <View style={styles.breakdownCard}>
-                                                            <View style={styles.breakdownRow}>
-                                                                <Text style={styles.breakdownLabel}>Service Fee</Text>
-                                                                <Text style={styles.breakdownValue}>KES {item.breakdown.service.toLocaleString()}</Text>
+                                                    {/* Expanded details */}
+                                                    {isExpanded && (
+                                                        <View style={styles.expandedSection}>
+                                                            <View style={styles.expandedDivider} />
+
+                                                            {/* Detail tiles */}
+                                                            <View style={styles.detailGrid}>
+                                                                {item.duration && (
+                                                                    <View style={styles.detailTile}>
+                                                                        <Text style={styles.detailTileLabel}>Duration</Text>
+                                                                        <Text style={styles.detailTileValue}>{item.duration} mins</Text>
+                                                                    </View>
+                                                                )}
+                                                                {item.distance && (
+                                                                    <View style={styles.detailTile}>
+                                                                        <Text style={styles.detailTileLabel}>Distance</Text>
+                                                                        <Text style={styles.detailTileValue}>{item.distance} km</Text>
+                                                                    </View>
+                                                                )}
+                                                                {item.rating && (
+                                                                    <View style={styles.detailTile}>
+                                                                        <Text style={styles.detailTileLabel}>Your Rating</Text>
+                                                                        <View style={styles.ratingRow}>
+                                                                            <Text style={styles.detailTileValue}>{item.rating}</Text>
+                                                                            <Star size={12} color={colors.voltage} fill={colors.voltage} strokeWidth={2} />
+                                                                        </View>
+                                                                    </View>
+                                                                )}
+                                                                <View style={styles.detailTile}>
+                                                                    <Text style={styles.detailTileLabel}>Service ID</Text>
+                                                                    <Text style={styles.detailTileValueMono}>{item.id.split('-')[2]}</Text>
+                                                                </View>
                                                             </View>
-                                                            <View style={styles.breakdownRow}>
-                                                                <Text style={styles.breakdownLabel}>Platform Fee</Text>
-                                                                <Text style={styles.breakdownValue}>KES {item.breakdown.platform.toLocaleString()}</Text>
-                                                            </View>
-                                                            <View style={styles.breakdownDivider} />
-                                                            <View style={styles.breakdownRow}>
-                                                                <Text style={styles.breakdownTotal}>Total Paid</Text>
-                                                                <Text style={styles.breakdownTotalValue}>KES {item.price.toLocaleString()}</Text>
+
+                                                            {/* Price breakdown */}
+                                                            {item.status !== 'cancelled' && (
+                                                                <View style={styles.breakdownCard}>
+                                                                    <View style={styles.breakdownRow}>
+                                                                        <Text style={styles.breakdownLabel}>Service Fee</Text>
+                                                                        <Text style={styles.breakdownValue}>KES {item.breakdown.service.toLocaleString()}</Text>
+                                                                    </View>
+                                                                    <View style={styles.breakdownRow}>
+                                                                        <Text style={styles.breakdownLabel}>Platform Fee</Text>
+                                                                        <Text style={styles.breakdownValue}>KES {item.breakdown.platform.toLocaleString()}</Text>
+                                                                    </View>
+                                                                    <View style={styles.breakdownDivider} />
+                                                                    <View style={styles.breakdownRow}>
+                                                                        <Text style={styles.breakdownTotal}>Total Paid</Text>
+                                                                        <Text style={styles.breakdownTotalValue}>KES {item.price.toLocaleString()}</Text>
+                                                                    </View>
+                                                                </View>
+                                                            )}
+
+                                                            {/* Action buttons */}
+                                                            <View style={styles.actionRow}>
+                                                                <Pressable
+                                                                    style={({ pressed }) => [
+                                                                        styles.actionPrimary,
+                                                                        pressed && { backgroundColor: colors.interactive.pressed }
+                                                                    ]}
+                                                                    onPress={() => router.push({
+                                                                        pathname: '/(customer)/request/[service]',
+                                                                        params: { service: item.type }
+                                                                    })}
+                                                                    accessibilityLabel="Request this service again"
+                                                                    accessibilityRole="button"
+                                                                >
+                                                                    <Text style={styles.actionPrimaryText}>Request Again</Text>
+                                                                </Pressable>
+                                                                <Pressable
+                                                                    style={({ pressed }) => [
+                                                                        styles.actionSecondary,
+                                                                        pressed && { backgroundColor: colors.charcoal[800] }
+                                                                    ]}
+                                                                    accessibilityLabel="View receipt"
+                                                                    accessibilityRole="button"
+                                                                >
+                                                                    <FileText size={16} color={colors.text.primary} strokeWidth={2} />
+                                                                    <Text style={styles.actionSecondaryText}>Receipt</Text>
+                                                                </Pressable>
                                                             </View>
                                                         </View>
                                                     )}
-
-                                                    {/* Action buttons */}
-                                                    <View style={styles.actionRow}>
-                                                        <Pressable
-                                                            style={({ pressed }) => [
-                                                                styles.actionPrimary,
-                                                                pressed && { backgroundColor: colors.interactive.pressed }
-                                                            ]}
-                                                            onPress={() => router.push({
-                                                                pathname: '/(customer)/request/[service]',
-                                                                params: { service: item.type }
-                                                            })}
-                                                            accessibilityLabel="Request this service again"
-                                                            accessibilityRole="button"
-                                                        >
-                                                            <Text style={styles.actionPrimaryText}>Request Again</Text>
-                                                        </Pressable>
-                                                        <Pressable
-                                                            style={({ pressed }) => [
-                                                                styles.actionSecondary,
-                                                                pressed && { backgroundColor: colors.charcoal[800] }
-                                                            ]}
-                                                            accessibilityLabel="View receipt"
-                                                            accessibilityRole="button"
-                                                        >
-                                                            <FileText size={16} color={colors.text.primary} strokeWidth={2} />
-                                                            <Text style={styles.actionSecondaryText}>Receipt</Text>
-                                                        </Pressable>
-                                                    </View>
-                                                </View>
-                                            )}
-                                        </Pressable>
-                                    );
-                                })}
-                            </View>
-                        );
-                    })}
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                );
+                            })}
+                        </>
+                    )}
                 </ScrollView>
 
                 {/* FAB: New Request */}

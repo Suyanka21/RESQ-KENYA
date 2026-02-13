@@ -14,6 +14,7 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, shadows, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
+import { SkeletonListItem } from '../../components/ui/SkeletonLoader';
 
 // Mock transactions
 const TRANSACTIONS = [
@@ -177,14 +178,7 @@ export default function WalletScreen() {
                             {isLoading ? (
                                 // Loading skeletons
                                 [...Array(5)].map((_, i) => (
-                                    <View key={i} style={styles.skeletonRow}>
-                                        <View style={styles.skeletonCircle} />
-                                        <View style={styles.skeletonTextBlock}>
-                                            <View style={styles.skeletonLine1} />
-                                            <View style={styles.skeletonLine2} />
-                                        </View>
-                                        <View style={styles.skeletonAmount} />
-                                    </View>
+                                    <SkeletonListItem key={i} />
                                 ))
                             ) : (
                                 TRANSACTIONS.map((txn, idx) => (

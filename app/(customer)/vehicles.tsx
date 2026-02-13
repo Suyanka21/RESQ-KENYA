@@ -1,11 +1,14 @@
 // ⚡ ResQ Kenya - Vehicles Management Screen
 // Converted from NativeWind to StyleSheet for consistency
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Car } from 'lucide-react-native';
 import { colors, spacing, borderRadius } from '../../theme/voltage-premium';
+import { SkeletonCard } from '../../components/ui/SkeletonLoader';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 interface Vehicle {
     id: string;
@@ -46,6 +49,13 @@ export default function VehiclesScreen() {
     const [vehicles, setVehicles] = useState<Vehicle[]>(INITIAL_VEHICLES);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setIsLoading(false), 600);
+        return () => clearTimeout(timer);
+    }, []);
 
     // Form state
     const [make, setMake] = useState('');
@@ -150,7 +160,20 @@ export default function VehiclesScreen() {
             </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-                {vehicles.length > 0 ? (
+                {isLoading ? (
+                    <View style={{ padding: spacing.md }}>
+                        <SkeletonCard />
+                        <SkeletonCard />
+                    </View>
+                ) : error ? (
+                    <ErrorState
+                        title="Couldn't Load Vehicles"
+                        message={error}
+                        onRetry={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 600); }}
+                        compact
+                        style={{ margin: spacing.md }}
+                    />
+                ) : vehicles.length > 0 ? (
                     vehicles.map(vehicle => (
                         <Pressable
                             key={vehicle.id}
@@ -202,16 +225,13 @@ export default function VehiclesScreen() {
                         </Pressable>
                     ))
                 ) : (
-                    <View style={styles.emptyState}>
-                        <Car size={48} color={colors.text.muted} strokeWidth={1.5} />
-                        <Text style={styles.emptyTitle}>No Vehicles Added</Text>
-                        <Text style={styles.emptyText}>
-                            Add your vehicle to get faster service
-                        </Text>
-                        <Pressable style={styles.emptyButton} onPress={openAddModal}>
-                            <Text style={styles.emptyButtonText}>Add Your First Vehicle</Text>
-                        </Pressable>
-                    </View>
+                    <EmptyState
+                        icon="vehicle"
+                        title="No Vehicles Added"
+                        subtitle="Add your vehicle to get faster service"
+                        actionLabel="Add Your First Vehicle"
+                        onAction={openAddModal}
+                    />
                 )}
 
                 {/* Info Card */}

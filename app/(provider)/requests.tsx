@@ -6,6 +6,7 @@ import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet
 import { router } from 'expo-router';
 import { colors, SERVICE_TYPES, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
 import { ServiceIcon } from '../../components/ui/ServiceIcon';
+import { EmptyState } from '../../components/ui/EmptyState';
 import {
     acceptRequest,
     subscribeToNearbyRequests,
@@ -64,6 +65,7 @@ const MOCK_REQUESTS: ServiceRequest[] = [
 export default function ProviderRequestsScreen() {
     const [requests, setRequests] = useState<ServiceRequest[]>(MOCK_REQUESTS);
     const [isLoading, setIsLoading] = useState(false);
+    const [acceptingId, setAcceptingId] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'accepted'>('all');
     const [providerLocation, setProviderLocation] = useState<GeoLocation | null>(null);
 
@@ -73,7 +75,7 @@ export default function ProviderRequestsScreen() {
     }, []);
 
     const handleAccept = async (requestId: string) => {
-        setIsLoading(true);
+        setAcceptingId(requestId);
 
         try {
             // Call Cloud Function to accept request
@@ -94,7 +96,7 @@ export default function ProviderRequestsScreen() {
         } catch (error) {
             Alert.alert('Error', 'Something went wrong. Please try again.');
         } finally {
-            setIsLoading(false);
+            setAcceptingId(null);
         }
     };
 
@@ -150,14 +152,20 @@ export default function ProviderRequestsScreen() {
                     <Pressable
                         style={styles.declineButton}
                         onPress={() => handleDecline(request.id)}
+                        disabled={acceptingId === request.id}
                     >
                         <Text style={styles.declineButtonText}>Decline</Text>
                     </Pressable>
                     <Pressable
-                        style={styles.acceptButton}
+                        style={[styles.acceptButton, acceptingId === request.id && styles.buttonDisabled]}
                         onPress={() => handleAccept(request.id)}
+                        disabled={acceptingId !== null}
                     >
-                        <Text style={styles.acceptButtonText}>Accept</Text>
+                        {acceptingId === request.id ? (
+                            <ActivityIndicator size="small" color={colors.text.primary} />
+                        ) : (
+                            <Text style={styles.acceptButtonText}>Accept</Text>
+                        )}
                     </Pressable>
                 </View>
             </View>
@@ -207,17 +215,11 @@ export default function ProviderRequestsScreen() {
                         <RequestCard key={request.id} request={request} />
                     ))
                 ) : (
-                    <View style={styles.emptyState}>
-                        <View style={styles.emptyIconContainer}>
-                            <Text style={styles.emptyIcon}>📭</Text>
-                        </View>
-                        <Text style={styles.emptyText}>
-                            No {activeFilter !== 'all' ? activeFilter : ''} requests available
-                        </Text>
-                        <Text style={styles.emptySubtext}>
-                            Stay online to receive new requests
-                        </Text>
-                    </View>
+                    <EmptyState
+                        title={`No ${activeFilter !== 'all' ? activeFilter : ''} requests`}
+                        subtitle="Stay online to receive new requests from customers nearby."
+                        icon="inbox"
+                    />
                 )}
             </ScrollView>
         </View>
@@ -382,6 +384,9 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
         textAlign: 'center',
         fontWeight: '700',
+    },
+    buttonDisabled: {
+        opacity: 0.6,
     },
 
     // Loading

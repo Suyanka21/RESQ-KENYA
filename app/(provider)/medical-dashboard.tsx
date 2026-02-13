@@ -34,7 +34,7 @@ const colors = {
     textPrimary: _colors.text.primary,
     textSecondary: _colors.text.secondary,
     textMuted: _colors.text.muted,
-    textOnPrimary: _colors.text.onVoltage,
+    textOnPrimary: _colors.text.onBrand,
 };
 
 const typo = {

@@ -2,12 +2,13 @@
 // Phase 4: Admin dashboard for predictive analytics and metrics
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Dimensions, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { voltageColors, voltageSpacing, spacing, typography } from '../../theme/voltage-premium';
-import { getAllChurnAlerts, type ChurnRisk, type RiskLevel } from '../../types/analytics';
+import { type ChurnRisk, type RiskLevel } from '../../types/analytics';
 import { getActiveCoverageAlerts, type CoverageAlert } from '../../services/demand-forecast.service';
+import { ErrorState } from '../../components/ui/ErrorState';
 
 const { width } = Dimensions.get('window');
 
@@ -110,6 +111,7 @@ export default function AnalyticsDashboard() {
     const [churnAlerts, setChurnAlerts] = useState<ChurnRisk[]>([]);
     const [coverageAlerts, setCoverageAlerts] = useState<CoverageAlert[]>([]);
     const [period, setPeriod] = useState<'day' | 'week' | 'month'>('week');
+    const [error, setError] = useState<string | null>(null);
     const [metrics, setMetrics] = useState({
         totalRequests: 1247,
         completionRate: 94.2,
@@ -126,6 +128,7 @@ export default function AnalyticsDashboard() {
     }, [period]);
 
     const loadData = async () => {
+        setError(null);
         try {
             // Load coverage alerts
             const coverage = await getActiveCoverageAlerts();
@@ -164,8 +167,9 @@ export default function AnalyticsDashboard() {
                     assessedAt: new Date(),
                 },
             ]);
-        } catch (error) {
-            console.error('Error loading analytics:', error);
+        } catch (err) {
+            setError('Failed to load analytics data');
+            console.error('Error loading analytics:', err);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -180,6 +184,26 @@ export default function AnalyticsDashboard() {
     const handleChurnAlertPress = (risk: ChurnRisk) => {
         console.log('Churn alert pressed:', risk.userId);
     };
+
+    if (loading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={voltageColors.primary} />
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.container}>
+                <ErrorState
+                    title="Analytics Unavailable"
+                    message={error}
+                    onRetry={() => { setLoading(true); loadData(); }}
+                />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -332,7 +356,7 @@ export default function AnalyticsDashboard() {
                     <View style={styles.bottomPadding} />
                 </ScrollView>
             </LinearGradient>
-        </View>
+        </View >
     );
 }
 
@@ -433,7 +457,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     revenueTitle: {
-        fontSize: typography.sizes.md,
+        fontSize: typography.sizes.base,
         color: voltageColors.textOpacity80,
     },
     revenueBadge: {
@@ -529,7 +553,7 @@ const styles = StyleSheet.create({
         textTransform: 'capitalize',
     },
     alertName: {
-        fontSize: typography.sizes.md,
+        fontSize: typography.sizes.base,
         fontWeight: typography.weights.semibold as any,
         color: voltageColors.textPrimary,
     },
@@ -566,7 +590,7 @@ const styles = StyleSheet.create({
         marginBottom: voltageSpacing.xs,
     },
     coverageZone: {
-        fontSize: typography.sizes.md,
+        fontSize: typography.sizes.base,
         fontWeight: typography.weights.semibold as any,
         color: voltageColors.textPrimary,
         textTransform: 'uppercase',

@@ -13,6 +13,7 @@ import {
     type CoverageAlert,
     validateHourlyPrediction,
 } from '../types/analytics';
+export type { CoverageAlert } from '../types/analytics';
 
 // ============================================
 // Historical Data Cache

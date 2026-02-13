@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import {
-    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform
+    View, Text, ScrollView, Pressable, TextInput, StyleSheet, Dimensions, Platform, ActivityIndicator
 } from 'react-native';
 import {
     MapPin, ChevronRight, ChevronLeft, Battery, Zap, Clock, AlertTriangle, CheckCircle
@@ -34,6 +34,7 @@ export const BatteryForm: React.FC<BatteryFormProps> = ({ onSubmit, onBack }) =>
     const [location, setLocation] = useState('');
     const [vehicleInfo, setVehicleInfo] = useState('');
     const [additionalNotes, setAdditionalNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const urgencyFee = URGENCY_OPTIONS.find(o => o.id === urgency)?.fee || 0;
     const totalCost = PRICES.JUMPSTART_BASE + urgencyFee;
@@ -195,8 +196,12 @@ export const BatteryForm: React.FC<BatteryFormProps> = ({ onSubmit, onBack }) =>
                         <ChevronRight size={20} color={colors.voltage} strokeWidth={2.5} />
                     </Pressable>
                 ) : (
-                    <Pressable style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }]} onPress={() => onSubmit({ urgency, location, vehicleInfo, totalCost, service: 'battery' })}>
-                        <Text style={styles.submitText}>Request Jumpstart Now</Text>
+                    <Pressable style={({ pressed }) => [styles.submitButton, pressed && { transform: [{ scale: 0.98 }] }, isSubmitting && styles.buttonDisabled]} onPress={() => { setIsSubmitting(true); onSubmit({ urgency, location, vehicleInfo, totalCost, service: 'battery' }); }} disabled={isSubmitting}>
+                        {isSubmitting ? (
+                            <ActivityIndicator color={colors.charcoal[900]} />
+                        ) : (
+                            <Text style={styles.submitText}>Request Jumpstart Now</Text>
+                        )}
                     </Pressable>
                 )}
             </View>
