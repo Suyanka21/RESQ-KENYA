@@ -122,7 +122,11 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
         };
 
         // HMAC verification. Skipped only when no secret is configured at all
-        // (development emulator with empty mpesa config) — never in production.
+        // (Cloud Functions emulator with empty mpesa config) — never in real
+        // deployments. We rely on FUNCTIONS_EMULATOR rather than NODE_ENV
+        // because Firebase docs warn NODE_ENV is not a guaranteed signal.
+        // https://firebase.google.com/docs/emulator-suite/connect_functions
+        const isEmulator = process.env['FUNCTIONS_EMULATOR'] === 'true';
         if (tokenReceived) {
             const ok = verifyCallbackToken(paymentData.idempotencyKey, paymentData.amount, tokenReceived);
             if (!ok) {
@@ -130,8 +134,8 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
                 res.status(401).json({ ResultCode: 1, ResultDesc: 'Invalid token' });
                 return;
             }
-        } else if (process.env.NODE_ENV === 'production') {
-            console.warn('Rejecting callback missing HMAC token in production', { idemp: idempReceived });
+        } else if (!isEmulator) {
+            console.warn('Rejecting callback missing HMAC token outside emulator', { idemp: idempReceived });
             res.status(401).json({ ResultCode: 1, ResultDesc: 'Missing token' });
             return;
         }
@@ -164,6 +168,15 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
                 return;
             }
 
+            // Read the (optional) request doc up front. The payment row may
+            // outlive the request (e.g. request was deleted), so we treat
+            // the request update as best-effort and never abort the whole
+            // transaction on a missing requests/{id} doc (CodeRabbit
+            // PR #3, comment 7).
+            const requestSnap = await tx.get(requestRef);
+            const requestExists = requestSnap.exists;
+            const requestData = requestSnap.data() as { providerId?: string } | undefined;
+
             tx.update(paymentRef, {
                 status: newStatus,
                 resultCode: ResultCode,
@@ -173,35 +186,35 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
                 completedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
-            tx.update(requestRef, {
-                'payment.status': newStatus,
-                ...(mpesaReceiptNumber ? {
-                    'payment.mpesaReceiptNumber': mpesaReceiptNumber,
-                    'payment.transactionId': mpesaReceiptNumber,
-                } : {}),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-
-            if (isSuccess) {
+            if (requestExists) {
+                // Mirror the payment outcome onto the request payment subdoc,
+                // but DO NOT touch `request.status` here. Marking the request
+                // 'completed' is the job-lifecycle handler's responsibility
+                // (provider clicks 'Mark complete'); a paid-but-not-yet-
+                // delivered job must remain in its current status
+                // (CodeRabbit PR #3, comment 6).
                 tx.update(requestRef, {
-                    status: 'completed',
-                    'timeline.completedAt': admin.firestore.FieldValue.serverTimestamp(),
+                    'payment.status': newStatus,
+                    ...(mpesaReceiptNumber ? {
+                        'payment.mpesaReceiptNumber': mpesaReceiptNumber,
+                        'payment.transactionId': mpesaReceiptNumber,
+                    } : {}),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
+            }
 
-                // Award provider earnings — read the request doc inside the
-                // transaction to ensure we use the assigned providerId.
-                const requestSnap = await tx.get(requestRef);
-                const requestData = requestSnap.data() as { providerId?: string } | undefined;
-                if (requestData?.providerId) {
-                    const providerRef = db.collection('providers').doc(requestData.providerId);
-                    const share = paymentData.amount * 0.75;
-                    tx.update(providerRef, {
-                        'earnings.today': admin.firestore.FieldValue.increment(share),
-                        'earnings.thisWeek': admin.firestore.FieldValue.increment(share),
-                        'earnings.thisMonth': admin.firestore.FieldValue.increment(share),
-                        'earnings.allTime': admin.firestore.FieldValue.increment(share),
-                    });
-                }
+            if (isSuccess && requestData?.providerId) {
+                // Provider earnings credit. Idempotent because the
+                // outer status guard ensures we run this exactly once
+                // per `pending → completed` transition.
+                const providerRef = db.collection('providers').doc(requestData.providerId);
+                const share = paymentData.amount * 0.75;
+                tx.update(providerRef, {
+                    'earnings.today': admin.firestore.FieldValue.increment(share),
+                    'earnings.thisWeek': admin.firestore.FieldValue.increment(share),
+                    'earnings.thisMonth': admin.firestore.FieldValue.increment(share),
+                    'earnings.allTime': admin.firestore.FieldValue.increment(share),
+                });
             }
         });
 

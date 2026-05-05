@@ -23,20 +23,24 @@ const functions = getFunctions(app, 'us-central1');
 
 /**
  * Demo mode toggle. Phase 2: gate behind a runtime flag so production builds
- * never accidentally simulate. Override via `setDemoMode(false)` at startup,
- * or by setting `EXPO_PUBLIC_DEMO_MODE=false` and reading it through a
- * runtime accessor (we avoid direct `process.env.EXPO_PUBLIC_*` reads here
- * because `babel-preset-expo` constant-folds them through
- * `expo/virtual/env`, which breaks the unit-test transform).
+ * never accidentally simulate. Default is `false` (talk to real backend);
+ * opt in to demo mode by setting `EXPO_PUBLIC_DEMO_MODE='true'` at build
+ * time, or call `setDemoMode(true)` at startup for ad-hoc local testing.
  *
- * Default `true` preserves the previous prototype behaviour.
+ * We read the env var through a runtime accessor (not a direct
+ * `process.env.EXPO_PUBLIC_*`) because `babel-preset-expo` constant-folds
+ * those through `expo/virtual/env`, which breaks the unit-test transform.
+ *
+ * Default-OFF posture is intentional: a missing or undefined env var must
+ * never silently bypass the production backend (CodeRabbit PR #3, comment
+ * 15).
  */
 let USE_DEMO_MODE: boolean = (() => {
     // Indirect access avoids babel-preset-expo's `process.env.EXPO_PUBLIC_*`
     // constant-folding while still picking up the value at runtime.
     const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
     const flag = env ? env['EXPO_PUBLIC_DEMO_MODE'] : undefined;
-    return flag !== 'false';
+    return flag === 'true' || flag === '1';
 })();
 
 /**

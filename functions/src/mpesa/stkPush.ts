@@ -52,18 +52,46 @@ export function getMpesaConfig(): MpesaConfig {
 }
 
 /**
+ * Detect the Firebase Cloud Functions emulator the way the official docs
+ * recommend: the runtime injects `FUNCTIONS_EMULATOR='true'` in the function
+ * process. Production runtimes never set this.
+ * https://firebase.google.com/docs/emulator-suite/connect_functions
+ */
+function isEmulator(): boolean {
+    return process.env['FUNCTIONS_EMULATOR'] === 'true';
+}
+
+/**
  * Read the HMAC secret used to sign callback URL tokens. Defaults to a
  * deterministic combination of consumerSecret + passkey when no dedicated
- * `callback_secret` is configured. We fail closed if neither is available
- * and the caller is in production.
+ * `callback_secret` is configured.
+ *
+ * Fails CLOSED in production: when no explicit secret is configured AND the
+ * fallback components are missing/empty, this throws so signing/verifying
+ * cannot succeed against an attacker-known empty key (CodeRabbit PR #3,
+ * comment 8). In the emulator we still allow an empty secret so local
+ * sandbox flows keep working.
  */
 export function getCallbackHmacSecret(): string {
     const config = functions.config().mpesa;
-    const explicit = config?.callback_secret || process.env.MPESA_CALLBACK_SECRET;
-    if (explicit) return explicit;
-    const fallback = `${getMpesaConfig().consumerSecret}|${getMpesaConfig().passkey}`;
-    if (!fallback || fallback === '|') return '';
-    return fallback;
+    const explicit = config?.callback_secret || process.env['MPESA_CALLBACK_SECRET'];
+    if (explicit && typeof explicit === 'string' && explicit.length > 0) {
+        return explicit;
+    }
+    const mpesa = getMpesaConfig();
+    if (mpesa.consumerSecret && mpesa.passkey) {
+        return `${mpesa.consumerSecret}|${mpesa.passkey}`;
+    }
+    if (isEmulator()) {
+        // Emulator without secrets: stable but obviously-non-secret value
+        // so dev tooling keeps working without HMAC verification.
+        return 'emulator-callback-secret';
+    }
+    throw new Error(
+        'M-Pesa callback HMAC secret is not configured. Set '
+        + 'functions:config:mpesa.callback_secret (or both '
+        + 'mpesa.consumer_secret and mpesa.passkey) before deploying.'
+    );
 }
 
 /**

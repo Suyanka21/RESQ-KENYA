@@ -34,15 +34,25 @@ service cloud.firestore {
       allow delete: if false;
 
       // ---- Vehicles subcollection (Phase 5) ----
-      // Per-user fleet. Reads/writes restricted to the owning user only.
+      // Owner can READ. All writes (create/update/delete) MUST go through
+      // the addVehicle / updateVehicle / deleteVehicle callables so the
+      // single-primary invariant + plate validation are enforced server-
+      // side. Direct client writes would let a malicious client bypass
+      // those callable checks (CodeRabbit PR #3, comment 2).
       match /vehicles/{vehicleId} {
-        allow read, write: if isAuthenticated() && isOwner(userId);
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow create, update, delete: if false;
       }
 
       // ---- Emergency contacts subcollection (Phase 5) ----
-      // Per-user contacts. Reads/writes restricted to the owning user only.
+      // Owner can READ. All writes (create/update/delete) MUST go
+      // through the addEmergencyContact / updateEmergencyContact /
+      // deleteEmergencyContact callables so MAX_CONTACTS=5 and phone
+      // normalisation are enforced server-side (CodeRabbit PR #3,
+      // comment 2).
       match /emergency_contacts/{contactId} {
-        allow read, write: if isAuthenticated() && isOwner(userId);
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow create, update, delete: if false;
       }
     }
 
@@ -138,13 +148,14 @@ service cloud.firestore {
     // LEGACY TOP-LEVEL VEHICLES COLLECTION (deprecated in Phase 5)
     // =============================================
     // Phase 5 migrated to users/{uid}/vehicles. This rule remains for
-    // legacy reads while migration scripts move data over. New writes
-    // should go through the addVehicle callable.
+    // legacy READS while migration scripts move data over. All writes
+    // are blocked from clients; new writes must go through the
+    // addVehicle callable. Allowing client writes here would re-create
+    // the split-brain vehicle data the Phase 5 migration was meant to
+    // eliminate (CodeRabbit PR #3, comment 3).
     match /vehicles/{vehicleId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (
-        resource.data.ownerId == request.auth.uid
-      );
+      allow create, update, delete: if false;
     }
   }
 }

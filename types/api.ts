@@ -20,7 +20,22 @@
  *      cost (creating a request, charging a wallet, debiting M-Pesa).
  */
 
-import type { ServiceType } from '../theme/voltage-premium';
+/**
+ * The service catalogue. The contract layer (this file) owns this enum so
+ * a UI-only edit in `theme/voltage-premium.ts` can never silently change
+ * the client API surface (CodeRabbit PR #3, comment 16). The theme layer
+ * imports `ServiceType` from here.
+ *
+ * The runtime allow-list lives further down as `VALID_SERVICE_TYPES`,
+ * paired with `isValidServiceType`. Both must agree with this union.
+ */
+export type ServiceType =
+    | 'towing'
+    | 'tire'
+    | 'battery'
+    | 'fuel'
+    | 'diagnostics'
+    | 'ambulance';
 
 /* ──────────────────────────── Envelope ──────────────────────────── */
 

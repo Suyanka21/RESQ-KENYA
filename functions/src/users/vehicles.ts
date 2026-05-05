@@ -47,6 +47,10 @@ type VehicleErrorCode =
     | 'not_found'
     | 'internal';
 
+/**
+ * Validate a full vehicle payload for `addVehicle`. plate / make / model
+ * are required.
+ */
 function validateVehicleInput(data: unknown): VehicleInput | { errorCode: 'invalid_input'; message: string } {
     if (!data || typeof data !== 'object') {
         return { errorCode: 'invalid_input', message: 'Vehicle data is required' };
@@ -78,6 +82,62 @@ function validateVehicleInput(data: unknown): VehicleInput | { errorCode: 'inval
         color: v.color as string | undefined,
         isPrimary: v.isPrimary as boolean | undefined,
     };
+}
+
+/**
+ * Validate a partial vehicle patch for `updateVehicle`. Only the fields
+ * the caller explicitly sent are validated and forwarded; nothing else
+ * is written. CodeRabbit PR #3, comment 14 — callers should be able to
+ * just flip `isPrimary` without re-sending the whole record.
+ */
+function validateVehiclePatch(
+    data: unknown
+): Partial<VehicleInput> | { errorCode: 'invalid_input'; message: string } {
+    if (!data || typeof data !== 'object') {
+        return { errorCode: 'invalid_input', message: 'Vehicle patch is required' };
+    }
+    const v = data as Record<string, unknown>;
+    const patch: Partial<VehicleInput> = {};
+    if (v.plate !== undefined) {
+        if (typeof v.plate !== 'string' || v.plate.length < 3 || v.plate.length > 16) {
+            return { errorCode: 'invalid_input', message: 'plate must be 3-16 characters' };
+        }
+        patch.plate = v.plate.toUpperCase().replace(/\s+/g, '');
+    }
+    if (v.make !== undefined) {
+        if (typeof v.make !== 'string' || !v.make) {
+            return { errorCode: 'invalid_input', message: 'make must be a non-empty string' };
+        }
+        patch.make = v.make;
+    }
+    if (v.model !== undefined) {
+        if (typeof v.model !== 'string' || !v.model) {
+            return { errorCode: 'invalid_input', message: 'model must be a non-empty string' };
+        }
+        patch.model = v.model;
+    }
+    if (v.year !== undefined) {
+        if (typeof v.year !== 'number' || v.year < 1980 || v.year > 2100) {
+            return { errorCode: 'invalid_input', message: 'year must be between 1980 and 2100' };
+        }
+        patch.year = v.year;
+    }
+    if (v.color !== undefined) {
+        if (typeof v.color !== 'string') {
+            return { errorCode: 'invalid_input', message: 'color must be a string' };
+        }
+        patch.color = v.color;
+    }
+    if (v.isPrimary !== undefined) {
+        if (typeof v.isPrimary !== 'boolean') {
+            return { errorCode: 'invalid_input', message: 'isPrimary must be boolean' };
+        }
+        patch.isPrimary = v.isPrimary;
+    }
+    if (Object.keys(patch).length === 0) {
+        return { errorCode: 'invalid_input', message: 'no updatable fields supplied' };
+    }
+    return patch;
 }
 
 export const addVehicle = functions.https.onCall(
@@ -117,7 +177,8 @@ export const updateVehicle = functions.https.onCall(
             return err('invalid_input', 'vehicleId is required');
         }
         const { vehicleId, ...rest } = data as { vehicleId: string } & Record<string, unknown>;
-        const validated = validateVehicleInput(rest);
+        // Partial updates: validate only the keys the caller sent.
+        const validated = validateVehiclePatch(rest);
         if ('errorCode' in validated) return err(validated.errorCode, validated.message);
         const uid = context.auth.uid;
         try {
@@ -125,7 +186,8 @@ export const updateVehicle = functions.https.onCall(
             await db.runTransaction(async (tx) => {
                 const snap = await tx.get(vehicleRef);
                 if (!snap.exists) throw new Error('not_found');
-                if (validated.isPrimary) {
+                if (validated.isPrimary === true) {
+                    // Maintain the single-primary invariant.
                     const others = await tx.get(
                         db.collection('users').doc(uid).collection('vehicles').where('isPrimary', '==', true)
                     );

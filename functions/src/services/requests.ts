@@ -452,8 +452,17 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
         }
 
         return { success: true };
-    } catch (error: any) {
-        console.error('Update status error:', error);
+    } catch (error: unknown) {
+        // Preserve specific HttpsError codes raised inside the transaction
+        // (not-found, permission-denied, failed-precondition) so the
+        // client can branch on them. Only mask truly-unknown errors as
+        // 'internal' (CodeRabbit PR #3, review comment).
+        if (error instanceof functions.https.HttpsError) {
+            console.error('Update status error:', error.code, error.message);
+            throw error;
+        }
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Update status error:', message);
         throw new functions.https.HttpsError('internal', 'Failed to update status');
     }
 });

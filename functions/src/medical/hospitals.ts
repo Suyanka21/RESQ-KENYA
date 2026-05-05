@@ -122,7 +122,15 @@ export const findNearestHospitals = functions.https.onCall(
         // here so callers can already pass it without a contract change.
         void (data as { emergencyType?: unknown }).emergencyType;
 
-        if (!latitude || !longitude) {
+        // Treat null/undefined/non-numeric as missing, but do NOT reject 0.
+        // Kenya straddles the equator (latitude 0 is valid) and 0,0 in
+        // longitude space sits in the middle of the Atlantic but the
+        // user-facing failure mode here is a false-rejection of valid
+        // coordinates near the equator (CodeRabbit PR #3, comment 4).
+        if (
+            typeof latitude !== 'number' || Number.isNaN(latitude)
+            || typeof longitude !== 'number' || Number.isNaN(longitude)
+        ) {
             throw new functions.https.HttpsError('invalid-argument', 'Location required');
         }
 
