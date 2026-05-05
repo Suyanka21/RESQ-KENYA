@@ -29,9 +29,36 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isOwner(userId);
       allow create: if isAuthenticated() && isOwner(userId);
       allow update: if isAuthenticated() && isOwner(userId);
-      
+
       // Never allow direct deletion
       allow delete: if false;
+
+      // ---- Vehicles subcollection (Phase 5) ----
+      // Per-user fleet. Reads/writes restricted to the owning user only.
+      match /vehicles/{vehicleId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
+      // ---- Emergency contacts subcollection (Phase 5) ----
+      // Per-user contacts. Reads/writes restricted to the owning user only.
+      match /emergency_contacts/{contactId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+
+    // =============================================
+    // WALLETS COLLECTION (Phase 5)
+    // =============================================
+    // Users can read their own wallet doc and ledger.
+    // Writes go through the wallet callables (admin SDK bypasses rules).
+    match /wallets/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create, update, delete: if false;
+
+      match /ledger/{entryId} {
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow create, update, delete: if false;
+      }
     }
     
     // =============================================
@@ -108,12 +135,13 @@ service cloud.firestore {
     }
     
     // =============================================
-    // VEHICLES COLLECTION (Fleet Management)
+    // LEGACY TOP-LEVEL VEHICLES COLLECTION (deprecated in Phase 5)
     // =============================================
+    // Phase 5 migrated to users/{uid}/vehicles. This rule remains for
+    // legacy reads while migration scripts move data over. New writes
+    // should go through the addVehicle callable.
     match /vehicles/{vehicleId} {
       allow read: if isAuthenticated();
-      
-      // Only owner or corporate admin can modify
       allow write: if isAuthenticated() && (
         resource.data.ownerId == request.auth.uid
       );

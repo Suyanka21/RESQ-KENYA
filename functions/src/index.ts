@@ -21,6 +21,15 @@ export {
 // Phase 3: Real-time tracking trigger + daily earnings reset
 export { onRequestStatusChange, resetDailyEarnings } from './services/triggers';
 
+// Phase 5: Vehicles, emergency contacts, wallet
+export { addVehicle, updateVehicle, deleteVehicle } from './users/vehicles';
+export {
+    addEmergencyContact,
+    updateEmergencyContact,
+    deleteEmergencyContact,
+} from './users/emergencyContacts';
+export { topupWallet, deductWallet, getWalletBalance } from './wallet/wallet';
+
 // Provider Functions
 export {
     updateProviderLocation,
