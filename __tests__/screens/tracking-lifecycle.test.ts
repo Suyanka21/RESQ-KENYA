@@ -96,17 +96,20 @@ describe('Searching Screen — Loading Messages', () => {
 
 describe('Searching Screen — Default Service Fallback', () => {
     test('defaults to "Service Request" when no param', () => {
-        const serviceType = undefined || 'Service Request';
+        const param: string | undefined = undefined;
+        const serviceType = param ?? 'Service Request';
         expect(serviceType).toBe('Service Request');
     });
 
     test('uses param when provided', () => {
-        const serviceType = 'Towing' || 'Service Request';
+        const param: string | undefined = 'Towing';
+        const serviceType = param ?? 'Service Request';
         expect(serviceType).toBe('Towing');
     });
 
     test('price defaults to 0 when no param', () => {
-        const price = undefined ? parseInt(undefined as any, 10) : 0;
+        const param: string | undefined = undefined;
+        const price = param ? parseInt(param, 10) : 0;
         expect(price).toBe(0);
     });
 });
@@ -379,7 +382,8 @@ describe('Complete Screen — Confetti', () => {
 
 describe('Complete Screen — Default Price', () => {
     test('price defaults to 0 when param missing', () => {
-        const price = undefined ? parseInt(undefined as any, 10) : 0;
+        const param: string | undefined = undefined;
+        const price = param ? parseInt(param, 10) : 0;
         expect(price).toBe(0);
     });
 

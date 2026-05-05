@@ -223,9 +223,9 @@ export const colors = {
     // SERVICE CATEGORY COLORS
     // -------------------------------------------------------------------------
     service: {
-        towing: '#FFA500',       // Voltage Orange
+        towing: '#FFA500',       // Voltage Orange (brand)
         fuel: '#4CAF50',         // Green
-        battery: '#FFA500',      // Voltage Orange
+        battery: '#FFCA28',      // Amber (Phase 4: distinct from towing orange)
         tire: '#9C27B0',         // Purple
         diagnostic: '#2196F3',   // Blue
         medical: '#DC143C',      // Medical Red
@@ -234,7 +234,7 @@ export const colors = {
     // Legacy service tokens (for backward compatibility)
     serviceTowing: '#FFA500',
     serviceTire: '#9C27B0',
-    serviceBattery: '#FFA500',
+    serviceBattery: '#FFCA28',
     serviceFuel: '#4CAF50',
     serviceDiagnostics: '#2196F3',
     serviceAmbulance: '#DC143C',
@@ -580,7 +580,10 @@ export const SERVICE_TYPES = {
     },
 } as const;
 
-export type ServiceType = keyof typeof SERVICE_TYPES;
+// `ServiceType` lives in the contract layer (types/api.ts) so a UI-only
+// change here can never silently change the client API surface. We re-
+// export it for backwards-compatible imports (CodeRabbit PR #3, comment 16).
+export type { ServiceType } from '../types/api';
 
 // =============================================================================
 // MEMBERSHIP TIERS - PRESERVED

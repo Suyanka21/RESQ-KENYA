@@ -14,7 +14,9 @@ module.exports = {
     ],
     modulePathIgnorePatterns: [
         "<rootDir>/web-prototype-archive/",
-        "<rootDir>/functions/"
+        // Note: functions/src/shared/* is intentionally not ignored — the
+        // pure helpers there (crypto, phone, status) are imported by root
+        // unit tests. testPathIgnorePatterns still skips functions/__tests__.
     ],
     transform: {
         "^.+\\.(ts|tsx)$": ["babel-jest", { presets: ["@babel/preset-typescript"] }]

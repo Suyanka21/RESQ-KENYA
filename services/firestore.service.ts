@@ -234,11 +234,27 @@ export async function getOnlineProviderCount(serviceType?: string): Promise<numb
 // ============================================
 
 /**
- * Create a new service request
+ * Create a new service request directly via Firestore.
+ *
+ * @deprecated Phase 2 (Contract Stabilization): the canonical write path is
+ *   the `createServiceRequest` Cloud Function. This function bypasses
+ *   authorization, idempotency, and price-quote validation. Use
+ *   `services/customer.service.ts:createServiceRequest` instead, which calls
+ *   the canonical function. This shim is retained only for legacy admin /
+ *   seed scripts and prints a one-time deprecation warning.
  */
+let _legacyCreateWarned = false;
 export async function createServiceRequest(
     requestData: Omit<ServiceRequest, 'id' | 'timeline'>
 ): Promise<string> {
+    if (!_legacyCreateWarned) {
+        _legacyCreateWarned = true;
+        console.warn(
+            '[deprecation] services/firestore.service.ts:createServiceRequest is deprecated. '
+                + 'Use services/customer.service.ts:createServiceRequest (calls the canonical Cloud Function).'
+        );
+    }
+
     const requestRef = doc(collection(db, COLLECTIONS.REQUESTS));
 
     // Generate geohash for customer location

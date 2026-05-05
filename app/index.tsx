@@ -26,7 +26,7 @@ function SplashScreen() {
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const opacityAnim = useRef(new Animated.Value(1)).current;
-    const { isAuthenticated, userRole } = useAuth();
+    const { isAuthenticated, isLoading, userRole } = useAuth();
     const [hasNavigated, setHasNavigated] = useState(false);
 
     // Pulse animation on logo
@@ -49,12 +49,15 @@ function SplashScreen() {
         ).start();
     }, []);
 
-    // Navigate after 1.5s delay with spring exit
+    // Phase 4 fix: navigate only AFTER auth has settled (`isLoading === false`)
+    // and the splash has shown for at least 1.5s. The previous version fired
+    // a fixed 1.5s timer which could navigate before `userRole` resolved,
+    // sending authenticated providers to the customer stack momentarily.
     useEffect(() => {
         if (hasNavigated) return;
+        if (isLoading) return;
 
         const timer = setTimeout(() => {
-            // Spring transition out (scale down + fade)
             Animated.parallel([
                 Animated.spring(scaleAnim, {
                     toValue: 0,
@@ -72,14 +75,17 @@ function SplashScreen() {
                 setHasNavigated(true);
                 if (isAuthenticated && userRole === 'provider') {
                     router.replace('/(provider)');
-                } else {
+                } else if (isAuthenticated) {
                     router.replace('/(customer)');
+                } else {
+                    // Auth resolved as logged-out while splash was visible.
+                    router.replace('/(auth)/login');
                 }
             });
         }, 1500);
 
         return () => clearTimeout(timer);
-    }, [isAuthenticated, userRole]);
+    }, [isAuthenticated, isLoading, userRole, hasNavigated, scaleAnim, opacityAnim]);
 
     return (
         <View style={styles.splashContainer}>

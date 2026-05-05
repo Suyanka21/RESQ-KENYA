@@ -1,7 +1,7 @@
 // ResQ Kenya - Medical Provider Types
 // Kenya health authority compliance for ambulance/medical services
 
-import type { GeoLocation, ServiceRequest } from './index';
+import type { ServiceRequest } from './index';
 
 // ============================================================================
 // KENYA EMT CERTIFICATION LEVELS
