@@ -4,15 +4,22 @@
  */
 
 // M-Pesa Payment Functions
-export { initiateStkPush, queryStkStatus } from './mpesa/stkPush';
+export {
+    initiateStkPush,
+    queryStkStatus,
+    cleanupStaleInitiatingPayments,
+} from './mpesa/stkPush';
 export { mpesaCallback } from './mpesa/callback';
 
 // Service Request Functions
 export {
     createServiceRequest,
     acceptServiceRequest,
-    updateRequestStatus
+    updateRequestStatus,
 } from './services/requests';
+
+// Phase 3: Real-time tracking trigger + daily earnings reset
+export { onRequestStatusChange, resetDailyEarnings } from './services/triggers';
 
 // Provider Functions
 export {

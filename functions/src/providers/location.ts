@@ -60,6 +60,23 @@ export const updateProviderLocation = functions.https.onCall(async (data, contex
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 },
             });
+
+            // Phase 3: mirror to RTDB so the customer subscription gets a
+            // sub-second update without a Firestore listener.
+            try {
+                await admin.database()
+                    .ref(`activeRequests/${currentRequestId}/providerLocation`)
+                    .set({ latitude, longitude, heading: heading || null });
+                await admin.database()
+                    .ref(`activeRequests/${currentRequestId}/providerStale`)
+                    .set(false);
+                await admin.database()
+                    .ref(`activeRequests/${currentRequestId}/updatedAt`)
+                    .set(admin.database.ServerValue.TIMESTAMP);
+            } catch (rtdbError) {
+                const message = rtdbError instanceof Error ? rtdbError.message : 'Unknown error';
+                console.warn('RTDB mirror failed (non-fatal):', message);
+            }
         }
 
         return { success: true };
