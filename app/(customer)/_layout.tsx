@@ -1,10 +1,15 @@
 // ResQ Kenya - Customer Layout
-// Premium tab bar with Lucide icons
+// Premium tab bar with Lucide icons.
+// Phase 4: mounts EmergencySOS as a layout-level FAB so the button is
+// available on every customer screen without each screen having to
+// instantiate it.
 
+import React from "react";
 import { Tabs } from "expo-router";
 import { View, StyleSheet, Platform } from "react-native";
 import { Home, Clock, Wallet, User } from "lucide-react-native";
 import { colors, spacing } from "../../theme/voltage-premium";
+import EmergencySOS from "../../components/EmergencySOS";
 
 // Tab Icon Component with Lucide icons
 const TabIcon = ({
@@ -23,8 +28,16 @@ const TabIcon = ({
     </View>
 );
 
+function handleSosTrigger(type: 'medical' | 'fire' | 'police') {
+    // Logging only here — EmergencySOS itself dials the configured emergency
+    // line via `Linking.openURL`. Higher-level screens may also subscribe
+    // through analytics/server logging in the future.
+    console.log('[SOS] triggered:', type);
+}
+
 export default function CustomerLayout() {
     return (
+        <View style={styles.layoutRoot}>
         <Tabs
             screenOptions={{
                 headerShown: false,
@@ -106,10 +119,17 @@ export default function CustomerLayout() {
                 }}
             />
         </Tabs>
+        <View style={styles.sosFabWrapper} pointerEvents="box-none">
+            <EmergencySOS onEmergencyTrigger={handleSosTrigger} />
+        </View>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    layoutRoot: {
+        flex: 1,
+    },
     iconContainer: {
         width: 40,
         height: 32,
@@ -119,5 +139,10 @@ const styles = StyleSheet.create({
     },
     iconContainerActive: {
         backgroundColor: `${colors.voltage}20`,
+    },
+    sosFabWrapper: {
+        position: 'absolute',
+        right: spacing.md,
+        bottom: Platform.OS === 'ios' ? 110 : 90,
     },
 });
