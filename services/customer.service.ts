@@ -1,20 +1,67 @@
 // ResQ Kenya - Customer Service (Cloud Functions Integration)
 // Handles customer-side operations via Firebase Cloud Functions
+//
+// Phase 2 (Contract Stabilization): all writes go through the canonical
+// Cloud Functions and the shared `CallResult<T,E>` envelope from `types/api`.
+// The legacy `{ success, requestId }` shape is preserved at the boundary so
+// existing call-sites do not break — the new shape is layered on top.
 
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import app from '../config/firebase';
 import type { ServiceRequest, GeoLocation } from '../types';
+import type {
+    CallResult,
+    CreateServiceRequestErrorCode,
+    CreateServiceRequestInput,
+    PricingInput,
+} from '../types/api';
 
 // Initialize Firebase Functions
 const functions = getFunctions(app, 'us-central1');
 
-// Demo mode flag - set to true to use simulations instead of real API
-const USE_DEMO_MODE = true;
+/**
+ * Demo mode toggle. Phase 2: gate behind a runtime flag so production builds
+ * never accidentally simulate. Override via `setDemoMode(false)` at startup,
+ * or by setting `EXPO_PUBLIC_DEMO_MODE=false` and reading it through a
+ * runtime accessor (we avoid direct `process.env.EXPO_PUBLIC_*` reads here
+ * because `babel-preset-expo` constant-folds them through
+ * `expo/virtual/env`, which breaks the unit-test transform).
+ *
+ * Default `true` preserves the previous prototype behaviour.
+ */
+let USE_DEMO_MODE: boolean = (() => {
+    // Indirect access avoids babel-preset-expo's `process.env.EXPO_PUBLIC_*`
+    // constant-folding while still picking up the value at runtime.
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+    const flag = env ? env['EXPO_PUBLIC_DEMO_MODE'] : undefined;
+    return flag !== 'false';
+})();
 
 /**
- * Create a service request (calls Cloud Function)
+ * Generate a client-side idempotency key safe for the canonical
+ * `createServiceRequest` contract (16-64 char alphanumeric/underscore/dash).
+ * Falls back to `Math.random` in environments without `crypto.randomUUID`.
+ */
+export function generateIdempotencyKey(): string {
+    type CryptoLike = { randomUUID?: () => string };
+    const cryptoApi: CryptoLike | undefined =
+        (globalThis as unknown as { crypto?: CryptoLike }).crypto;
+    if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+        return cryptoApi.randomUUID();
+    }
+    const ts = Date.now().toString(36);
+    const rnd = Math.random().toString(36).slice(2, 14);
+    return `idem_${ts}_${rnd}`;
+}
+
+/**
+ * Create a service request (calls the canonical Cloud Function).
+ *
+ * Returns the legacy `{ success, requestId, error }` shape for backwards
+ * compatibility with existing call-sites; new code should prefer
+ * `createServiceRequestV2` which returns the typed `CallResult` envelope.
  */
 export async function createServiceRequest(data: {
     serviceType: string;
@@ -25,13 +72,10 @@ export async function createServiceRequest(data: {
         instructions?: string;
     };
     serviceDetails?: Record<string, any>;
-    pricing?: {
-        baseServiceFee: number;
-        distanceFee?: number;
-        additionalCharges?: number;
-        platformFee?: number;
-        total: number;
-    };
+    pricing?: PricingInput;
+    quoteId?: string;
+    /** Optional client-supplied idempotency key. Auto-generated if absent. */
+    idempotencyKey?: string;
 }): Promise<{ success: boolean; requestId?: string; error?: string }> {
     // Demo mode - simulate request creation
     if (USE_DEMO_MODE) {
@@ -43,13 +87,63 @@ export async function createServiceRequest(data: {
         };
     }
 
+    const result = await createServiceRequestV2({
+        ...data,
+        // Cast: the server validates `serviceType` against the allow-list.
+        serviceType: data.serviceType as CreateServiceRequestInput['serviceType'],
+        idempotencyKey: data.idempotencyKey ?? generateIdempotencyKey(),
+        // Strip undefined to match `CustomerLocationInput`.
+        customerLocation: {
+            coordinates: {
+                latitude: data.customerLocation.coordinates.latitude,
+                longitude: data.customerLocation.coordinates.longitude,
+            },
+            address: data.customerLocation.address,
+            ...(data.customerLocation.landmark !== undefined && {
+                landmark: data.customerLocation.landmark,
+            }),
+            ...(data.customerLocation.instructions !== undefined && {
+                instructions: data.customerLocation.instructions,
+            }),
+        },
+    });
+
+    if (result.ok) {
+        return { success: true, requestId: result.data.requestId };
+    }
+    return { success: false, error: result.message };
+}
+
+/**
+ * Phase 2 typed wrapper: returns the discriminated `CallResult` envelope.
+ * Prefer this in new code so callers can branch on `result.errorCode`.
+ */
+export async function createServiceRequestV2(
+    input: CreateServiceRequestInput
+): Promise<CallResult<{ requestId: string }, CreateServiceRequestErrorCode>> {
     try {
-        const createRequest = httpsCallable(functions, 'createServiceRequest');
-        const result = await createRequest(data);
-        return result.data as { success: boolean; requestId?: string };
-    } catch (error: any) {
-        console.error('Create request error:', error);
-        return { success: false, error: error.message };
+        const callable = httpsCallable<CreateServiceRequestInput, unknown>(
+            functions,
+            'createServiceRequest'
+        );
+        const response = await callable(input);
+        const data = response.data as
+            | CallResult<{ requestId: string }, CreateServiceRequestErrorCode>
+            | { success: boolean; requestId?: string };
+
+        // Forward-compat: server already returns `CallResult` shape.
+        if (data && typeof data === 'object' && 'ok' in data) {
+            return data as CallResult<{ requestId: string }, CreateServiceRequestErrorCode>;
+        }
+        // Backwards-compat: server may still be on the old shape during rollout.
+        if (data && (data as { success?: boolean }).success && (data as { requestId?: string }).requestId) {
+            return { ok: true, data: { requestId: (data as { requestId: string }).requestId } };
+        }
+        return { ok: false, errorCode: 'internal', message: 'Unexpected server response shape' };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('createServiceRequestV2 error:', message);
+        return { ok: false, errorCode: 'internal', message };
     }
 }
 
@@ -296,9 +390,15 @@ function simulateDelay(ms: number): Promise<void> {
 }
 
 /**
- * Toggle demo mode (for testing)
+ * Toggle demo mode at runtime. Useful for tests and for staging builds that
+ * want to flip between live Cloud Functions and the in-memory simulation
+ * without rebuilding.
  */
 export function setDemoMode(enabled: boolean): void {
-    // Note: In TypeScript, we can't modify const. In production, use env variable
-    console.log(`Demo mode: ${enabled ? 'enabled' : 'disabled'}`);
+    USE_DEMO_MODE = enabled;
+}
+
+/** Read the current demo-mode flag (mainly for tests). */
+export function isDemoMode(): boolean {
+    return USE_DEMO_MODE;
 }

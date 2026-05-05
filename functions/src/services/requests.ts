@@ -1,11 +1,30 @@
 /**
  * ResQ Kenya - Service Request Cloud Functions
  * Handles service request creation, matching, and lifecycle
+ *
+ * Phase 2: Contract Stabilization. `createServiceRequest` now validates the
+ * shared `CreateServiceRequestInput` contract, enforces an `idempotencyKey`
+ * for de-duplication, and consumes `quoteId` (when provided) atomically so
+ * pricing cannot drift.
+ *
+ * Skills: API-and-Interface-Design (single canonical write path,
+ * `CallResult` envelope), Security-and-Hardening (boundary validation,
+ * authorization on status transitions), Test-Driven Development (helpers
+ * are pure and unit-testable).
  */
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import * as geofire from 'geofire-common';
+import {
+    type CreateServiceRequestInput,
+    type CreateServiceRequestOutput,
+    err,
+    isValidCoordinates,
+    isValidIdempotencyKey,
+    isValidServiceType,
+    ok,
+} from '../shared/api';
 
 // Initialize if not already done
 if (!admin.apps.length) {
@@ -14,69 +33,193 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+/* ───────────────────── Pure validation helpers ───────────────────── */
+
+/** Allowed status transitions; reject anything outside this graph. */
+export const VALID_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
+    pending: ['accepted', 'cancelled'],
+    accepted: ['enroute', 'cancelled'],
+    enroute: ['arrived', 'cancelled'],
+    arrived: ['inProgress', 'cancelled'],
+    inProgress: ['completed', 'cancelled'],
+    completed: [],
+    cancelled: [],
+};
+
+export function isAllowedStatusTransition(from: string, to: string): boolean {
+    const allowed = VALID_STATUS_TRANSITIONS[from];
+    return Array.isArray(allowed) && allowed.includes(to);
+}
+
+/** Shape-check the create-request input. Returns null if valid. */
+export function validateCreateRequestInput(
+    data: unknown
+): null | { errorCode: 'invalid_argument'; message: string } {
+    if (!data || typeof data !== 'object') {
+        return { errorCode: 'invalid_argument', message: 'Missing payload' };
+    }
+    const input = data as Partial<CreateServiceRequestInput>;
+    if (!isValidServiceType(input.serviceType)) {
+        return { errorCode: 'invalid_argument', message: 'Invalid serviceType' };
+    }
+    if (!input.customerLocation || typeof input.customerLocation !== 'object') {
+        return { errorCode: 'invalid_argument', message: 'Missing customerLocation' };
+    }
+    if (!isValidCoordinates(input.customerLocation.coordinates)) {
+        return { errorCode: 'invalid_argument', message: 'Invalid coordinates' };
+    }
+    if (typeof input.customerLocation.address !== 'string' || input.customerLocation.address.length === 0) {
+        return { errorCode: 'invalid_argument', message: 'Missing address' };
+    }
+    if (!isValidIdempotencyKey(input.idempotencyKey)) {
+        return { errorCode: 'invalid_argument', message: 'Invalid or missing idempotencyKey' };
+    }
+    if (input.quoteId !== undefined && (typeof input.quoteId !== 'string' || input.quoteId.length === 0)) {
+        return { errorCode: 'invalid_argument', message: 'Invalid quoteId' };
+    }
+    return null;
+}
+
 /**
  * Cloud Function: Create Service Request
- * Called when a customer submits a new service request
+ *
+ * Single canonical write path for service requests. Returns a discriminated
+ * `CallResult<T,E>` envelope (Phase 2 contract). Enforces an
+ * `idempotencyKey` so client retries cannot create duplicate requests, and
+ * consumes `price_quotes/{quoteId}` atomically when supplied so pricing
+ * cannot drift from the server quote.
+ *
+ * @returns {Promise<CreateServiceRequestOutput>} `{ ok: true, data: { requestId } }`
+ *   on success, or `{ ok: false, errorCode, message }` on rejection.
  */
-export const createServiceRequest = functions.https.onCall(async (data, context) => {
-    // Verify authentication
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-    }
+export const createServiceRequest = functions.https.onCall(
+    async (data: unknown, context): Promise<CreateServiceRequestOutput> => {
+        if (!context.auth) {
+            return err('unauthenticated', 'User must be authenticated');
+        }
 
-    const {
-        serviceType,
-        customerLocation,
-        serviceDetails,
-        pricing,
-    } = data;
+        const validationError = validateCreateRequestInput(data);
+        if (validationError) {
+            return err(validationError.errorCode, validationError.message);
+        }
 
-    // Validate required fields
-    if (!serviceType || !customerLocation) {
-        throw new functions.https.HttpsError('invalid-argument', 'Missing required fields');
-    }
-
-    try {
+        const input = data as CreateServiceRequestInput;
         const userId = context.auth.uid;
 
-        // Generate geohash for location
-        const { latitude, longitude } = customerLocation.coordinates;
-        const geohash = geofire.geohashForLocation([latitude, longitude]);
+        try {
+            const { latitude, longitude } = input.customerLocation.coordinates;
+            const geohash = geofire.geohashForLocation([latitude, longitude]);
 
-        // Create the request document
-        const requestRef = db.collection('requests').doc();
+            // Idempotency: hash of (idempotencyKey, uid) becomes the document id
+            // so retries return the same request rather than creating a new one.
+            const requestId = idempotencyDocId(userId, input.idempotencyKey);
+            const requestRef = db.collection('requests').doc(requestId);
+            const quoteRef = input.quoteId
+                ? db.collection('price_quotes').doc(input.quoteId)
+                : null;
 
-        await requestRef.set({
-            id: requestRef.id,
-            userId,
-            serviceType,
-            status: 'pending',
-            customerLocation,
-            serviceDetails: serviceDetails || {},
-            pricing: pricing || {},
-            geohash,
-            payment: {
-                method: 'mpesa',
-                status: 'pending',
-            },
-            timeline: {
-                requestedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+            const txResult = await db.runTransaction<
+                | { kind: 'created' }
+                | { kind: 'duplicate' }
+                | { kind: 'invalid_quote' }
+                | { kind: 'quote_expired' }
+            >(async (transaction) => {
+                const existing = await transaction.get(requestRef);
+                if (existing.exists) {
+                    return { kind: 'duplicate' };
+                }
 
-        // Find and notify nearby providers
-        await notifyNearbyProviders(requestRef.id, serviceType, latitude, longitude);
+                let resolvedPricing = input.pricing ?? {};
+                if (quoteRef) {
+                    const quoteSnap = await transaction.get(quoteRef);
+                    if (!quoteSnap.exists) {
+                        return { kind: 'invalid_quote' };
+                    }
+                    const quote = quoteSnap.data() as {
+                        used?: boolean;
+                        validUntil?: admin.firestore.Timestamp;
+                        breakdown?: Record<string, unknown>;
+                        userId?: string;
+                    };
+                    if (quote.used) {
+                        return { kind: 'invalid_quote' };
+                    }
+                    if (quote.userId && quote.userId !== userId) {
+                        return { kind: 'invalid_quote' };
+                    }
+                    if (quote.validUntil && quote.validUntil.toMillis() < Date.now()) {
+                        return { kind: 'quote_expired' };
+                    }
+                    if (quote.breakdown) {
+                        resolvedPricing = quote.breakdown as Record<string, unknown>;
+                    }
+                    transaction.update(quoteRef, {
+                        used: true,
+                        usedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        usedBy: requestId,
+                    });
+                }
 
-        return {
-            success: true,
-            requestId: requestRef.id,
-        };
-    } catch (error: any) {
-        console.error('Create request error:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to create request');
+                transaction.set(requestRef, {
+                    id: requestId,
+                    userId,
+                    serviceType: input.serviceType,
+                    status: 'pending',
+                    customerLocation: input.customerLocation,
+                    serviceDetails: input.serviceDetails ?? {},
+                    pricing: resolvedPricing,
+                    quoteId: input.quoteId ?? null,
+                    idempotencyKey: input.idempotencyKey,
+                    geohash,
+                    payment: { method: 'mpesa', status: 'pending' },
+                    timeline: {
+                        requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                return { kind: 'created' };
+            });
+
+            if (txResult.kind === 'duplicate') {
+                // Idempotent retry: return the same id without re-notifying.
+                return ok({ requestId });
+            }
+            if (txResult.kind === 'invalid_quote') {
+                return err('invalid_quote', 'Quote is invalid, used, or not yours');
+            }
+            if (txResult.kind === 'quote_expired') {
+                return err('quote_expired', 'Quote has expired; request a new one');
+            }
+
+            await notifyNearbyProviders(requestId, input.serviceType, latitude, longitude);
+
+            return ok({ requestId });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.error('Create request error:', message);
+            return err('internal', 'Failed to create request');
+        }
     }
-});
+);
+
+/**
+ * Build a deterministic doc id from a per-user idempotency key.
+ *
+ * Using a deterministic id means two concurrent callers with the same key
+ * race on `transaction.set()` rather than producing two distinct docs.
+ */
+export function idempotencyDocId(userId: string, idempotencyKey: string): string {
+    // Firestore doc ids cannot contain `/` and have a 1500-byte limit. We
+    // hash here using a stable hex digest so the resulting id is short and
+    // safe for any input.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const crypto = require('crypto') as typeof import('crypto');
+    return crypto
+        .createHash('sha256')
+        .update(`${userId}:${idempotencyKey}`)
+        .digest('hex')
+        .slice(0, 32);
+}
 
 /**
  * Find and notify nearby available providers
@@ -238,14 +381,22 @@ export const acceptServiceRequest = functions.https.onCall(async (data, context)
 
 /**
  * Cloud Function: Update Request Status
- * Called by provider to update request lifecycle
+ * Called by provider to update request lifecycle.
+ *
+ * Phase 3 hardening:
+ * - Authorize: only the assigned provider (or the customer for `cancelled`)
+ *   may transition the request.
+ * - Validate the transition graph via `VALID_STATUS_TRANSITIONS`.
+ * - Run the read+update in a transaction so concurrent transitions cannot
+ *   skip states.
  */
 export const updateRequestStatus = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const { requestId, status } = data;
+    const { requestId, status } = data ?? {};
+    const callerUid = context.auth.uid;
 
     if (!requestId || !status) {
         throw new functions.https.HttpsError('invalid-argument', 'requestId and status are required');
@@ -257,16 +408,40 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
     }
 
     try {
-        const updates: Record<string, any> = {
-            status,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
+        const requestRef = db.collection('requests').doc(requestId);
 
-        // Add timeline updates
-        const timelineKey = `timeline.${status}At`;
-        updates[timelineKey] = admin.firestore.FieldValue.serverTimestamp();
+        await db.runTransaction(async (transaction) => {
+            const snap = await transaction.get(requestRef);
+            if (!snap.exists) {
+                throw new functions.https.HttpsError('not-found', 'Request not found');
+            }
+            const current = snap.data() as { status: string; providerId?: string; userId?: string };
 
-        await db.collection('requests').doc(requestId).update(updates);
+            // Authorization: provider for non-cancel transitions; customer
+            // may only cancel their own request.
+            if (status === 'cancelled') {
+                if (current.userId !== callerUid && current.providerId !== callerUid) {
+                    throw new functions.https.HttpsError('permission-denied', 'Not your request');
+                }
+            } else {
+                if (current.providerId !== callerUid) {
+                    throw new functions.https.HttpsError('permission-denied', 'Only the assigned provider may update status');
+                }
+            }
+
+            if (!isAllowedStatusTransition(current.status, status)) {
+                throw new functions.https.HttpsError(
+                    'failed-precondition',
+                    `Cannot transition from ${current.status} to ${status}`
+                );
+            }
+
+            transaction.update(requestRef, {
+                status,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                [`timeline.${status}At`]: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        });
 
         // Notify customer of status change
         const requestDoc = await db.collection('requests').doc(requestId).get();
