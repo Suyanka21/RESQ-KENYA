@@ -77,13 +77,19 @@ const DEFAULT_DISPATCH_WEIGHTS: DispatchWeights = {
     recentActivity: 0.10,
 };
 
-// Nairobi zones for geofencing
-const NAIROBI_ZONES = [
-    { id: 'cbd', name: 'CBD', centerLat: -1.2864, centerLng: 36.8172, radiusKm: 2.5 },
-    { id: 'westlands', name: 'Westlands', centerLat: -1.2674, centerLng: 36.8048, radiusKm: 3 },
-    { id: 'kilimani', name: 'Kilimani', centerLat: -1.2921, centerLng: 36.7821, radiusKm: 3 },
-    { id: 'upperhill', name: 'Upper Hill', centerLat: -1.2974, centerLng: 36.8167, radiusKm: 2 },
-];
+/*
+ * Nairobi zones for geofencing — referenced by zone-aware dispatch tests
+ * but not yet wired into the live `intelligentMatch` runtime selector.
+ * Kept here for the upcoming zone-priority pass; commented out to keep
+ * the strict `noUnusedLocals` build clean.
+ *
+ * const NAIROBI_ZONES = [
+ *  { id: 'cbd', name: 'CBD', centerLat: -1.2864, centerLng: 36.8172, radiusKm: 2.5 },
+ *  { id: 'westlands', name: 'Westlands', centerLat: -1.2674, centerLng: 36.8048, radiusKm: 3 },
+ *  { id: 'kilimani', name: 'Kilimani', centerLat: -1.2921, centerLng: 36.7821, radiusKm: 3 },
+ *  { id: 'upperhill', name: 'Upper Hill', centerLat: -1.2974, centerLng: 36.8167, radiusKm: 2 },
+ * ];
+ */
 
 // ============================================
 // Helper Functions

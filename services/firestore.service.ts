@@ -249,7 +249,6 @@ export async function createServiceRequest(
 ): Promise<string> {
     if (!_legacyCreateWarned) {
         _legacyCreateWarned = true;
-        // eslint-disable-next-line no-console
         console.warn(
             '[deprecation] services/firestore.service.ts:createServiceRequest is deprecated. '
                 + 'Use services/customer.service.ts:createServiceRequest (calls the canonical Cloud Function).'

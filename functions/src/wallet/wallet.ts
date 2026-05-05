@@ -33,6 +33,7 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { ok, err, CallResult, isValidIdempotencyKey } from '../shared/api';
+import { applyDelta as sharedApplyDelta } from '../shared/wallet';
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -64,13 +65,10 @@ function validateAmount(amount: unknown): amount is number {
 
 /**
  * Pure helper. Given the current balance and a delta, return the new
- * balance or `null` if the operation would overdraw.
+ * balance or `null` if the operation would overdraw. Re-exported from
+ * `../shared/wallet` so unit tests can import it without firebase-*.
  */
-export function applyDelta(currentBalance: number, delta: number): number | null {
-    const next = currentBalance + delta;
-    if (next < 0) return null;
-    return next;
-}
+export const applyDelta = sharedApplyDelta;
 
 export const topupWallet = functions.https.onCall(
     async (data: unknown, context): Promise<CallResult<{ balance: number; entryId: string }, WalletErrorCode>> => {

@@ -35,21 +35,9 @@ const db = admin.firestore();
 
 /* ───────────────────── Pure validation helpers ───────────────────── */
 
-/** Allowed status transitions; reject anything outside this graph. */
-export const VALID_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
-    pending: ['accepted', 'cancelled'],
-    accepted: ['enroute', 'cancelled'],
-    enroute: ['arrived', 'cancelled'],
-    arrived: ['inProgress', 'cancelled'],
-    inProgress: ['completed', 'cancelled'],
-    completed: [],
-    cancelled: [],
-};
-
-export function isAllowedStatusTransition(from: string, to: string): boolean {
-    const allowed = VALID_STATUS_TRANSITIONS[from];
-    return Array.isArray(allowed) && allowed.includes(to);
-}
+export { VALID_STATUS_TRANSITIONS, isAllowedStatusTransition } from '../shared/status';
+import { isAllowedStatusTransition } from '../shared/status';
+import { idempotencyDocId as sharedIdempotencyDocId } from '../shared/crypto';
 
 /** Shape-check the create-request input. Returns null if valid. */
 export function validateCreateRequestInput(
@@ -211,14 +199,9 @@ export const createServiceRequest = functions.https.onCall(
 export function idempotencyDocId(userId: string, idempotencyKey: string): string {
     // Firestore doc ids cannot contain `/` and have a 1500-byte limit. We
     // hash here using a stable hex digest so the resulting id is short and
-    // safe for any input.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const crypto = require('crypto') as typeof import('crypto');
-    return crypto
-        .createHash('sha256')
-        .update(`${userId}:${idempotencyKey}`)
-        .digest('hex')
-        .slice(0, 32);
+    // safe for any input. Implementation lives in `../shared/crypto` so it
+    // can be unit-tested without firebase imports.
+    return sharedIdempotencyDocId(userId, idempotencyKey);
 }
 
 /**

@@ -13,10 +13,14 @@
  *   duplicate callback cannot increment provider earnings twice.
  */
 
-import * as crypto from 'crypto';
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import axios from 'axios';
+import {
+    signCallbackToken as sharedSign,
+    verifyCallbackToken as sharedVerify,
+} from '../shared/crypto';
+import { normaliseKenyanPhone as sharedNormalise } from '../shared/phone';
 
 // Initialize if not already done
 if (!admin.apps.length) {
@@ -68,10 +72,7 @@ export function getCallbackHmacSecret(): string {
  * when verifying inbound callbacks.
  */
 export function signCallbackToken(requestId: string, amount: number, secret?: string): string {
-    const key = secret ?? getCallbackHmacSecret();
-    const mac = crypto.createHmac('sha256', key);
-    mac.update(`${requestId}:${Math.round(amount)}`);
-    return mac.digest('hex').slice(0, 32);
+    return sharedSign(requestId, amount, secret ?? getCallbackHmacSecret());
 }
 
 /** Constant-time compare to avoid timing-channel leaks. */
@@ -81,9 +82,7 @@ export function verifyCallbackToken(
     received: string,
     secret?: string
 ): boolean {
-    const expected = signCallbackToken(requestId, amount, secret);
-    if (expected.length !== received.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+    return sharedVerify(requestId, amount, received, secret ?? getCallbackHmacSecret());
 }
 
 function getBaseUrl(env: 'sandbox' | 'production'): string {
@@ -135,19 +134,10 @@ function getTimestamp(): string {
 /**
  * Format and validate a Kenyan phone number into the `2547XXXXXXXX` form.
  * Returns null when the number doesn't match the expected mobile prefix.
+ * Implementation in `../shared/phone` for unit-test reuse.
  */
 export function normaliseKenyanPhone(input: string): string | null {
-    const digits = input.replace(/\D/g, '');
-    let formatted = digits;
-    if (digits.startsWith('0')) {
-        formatted = '254' + digits.slice(1);
-    } else if (digits.startsWith('7') || digits.startsWith('1')) {
-        formatted = '254' + digits;
-    } else if (!digits.startsWith('254')) {
-        formatted = '254' + digits;
-    }
-    if (!/^254(7|1)\d{8}$/.test(formatted)) return null;
-    return formatted;
+    return sharedNormalise(input);
 }
 
 /**

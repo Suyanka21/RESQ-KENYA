@@ -3,7 +3,7 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import type { Hospital, KenyaHospitalLevel, HospitalEmergencyCapability } from '../../../types/hospital';
+import type { KenyaHospitalLevel, HospitalEmergencyCapability } from '../../../types/hospital';
 import type { TriageLevel, EmergencyType } from '../../../types/medical';
 
 const db = admin.firestore();
@@ -117,7 +117,10 @@ export const findNearestHospitals = functions.https.onCall(
             throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
         }
 
-        const { latitude, longitude, emergencyType, triageLevel, requiredCapabilities, maxDistance = 20, limit = 10 } = data;
+        const { latitude, longitude, triageLevel, requiredCapabilities, maxDistance = 20, limit = 10 } = data;
+        // emergencyType is reserved for a future filter; intentionally unused
+        // here so callers can already pass it without a contract change.
+        void (data as { emergencyType?: unknown }).emergencyType;
 
         if (!latitude || !longitude) {
             throw new functions.https.HttpsError('invalid-argument', 'Location required');

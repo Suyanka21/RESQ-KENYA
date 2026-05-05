@@ -25,26 +25,8 @@ if (!admin.apps.length) {
     admin.initializeApp();
 }
 
-type StatusChangeKind =
-    | 'accepted'
-    | 'completed'
-    | 'cancelled'
-    | 'no-op';
-
-/**
- * Pure helper. Given the previous and current status of a request,
- * return what side-effect should run (or `'no-op'`).
- */
-export function summariseStatusChange(
-    previous: string | undefined,
-    current: string | undefined
-): StatusChangeKind {
-    if (previous === current) return 'no-op';
-    if (current === 'accepted' && previous !== 'accepted') return 'accepted';
-    if (current === 'completed') return 'completed';
-    if (current === 'cancelled') return 'cancelled';
-    return 'no-op';
-}
+export { summariseStatusChange } from '../shared/status';
+import { summariseStatusChange } from '../shared/status';
 
 /**
  * Firestore trigger on `requests/{requestId}` writes. Mirrors lifecycle
