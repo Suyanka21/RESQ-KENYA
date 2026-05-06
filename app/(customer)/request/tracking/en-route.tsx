@@ -16,7 +16,7 @@ import TrackingMap from '../../../../components/maps/TrackingMap';
 import ProgressSteps from '../../../../components/tracking/ProgressSteps';
 import ProviderCard from '../../../../components/tracking/ProviderCard';
 import type { Step } from '../../../../components/tracking/ProgressSteps';
-import { colors } from '../../../../theme/voltage-premium';
+import { colors, spacing } from '../../../../theme/voltage-premium';
 import {
     DEMO_CUSTOMER_LOC,
     getPointAlongRoute,
@@ -120,7 +120,7 @@ export default function EnRouteScreen() {
 
                 {/* Back button */}
                 <Pressable
-                    style={({ pressed }) => [styles.backBtn, { top: 16 }, pressed && { backgroundColor: colors.background.tertiary, transform: [{ scale: 0.9 }] }]}
+                    style={({ pressed }) => [styles.backBtn, { top: spacing.md }, pressed && { backgroundColor: colors.background.tertiary, transform: [{ scale: 0.9 }] }]}
                     onPress={() => router.back()}
                     accessibilityLabel="Go back" accessibilityRole="button"
                 >
@@ -206,21 +206,21 @@ const styles = StyleSheet.create({
 
     // Banner
     banner: { backgroundColor: colors.interactive.focus, borderBottomWidth: 2, borderBottomColor: colors.voltage, zIndex: 30 },
-    bannerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
+    bannerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.md },
     bannerCheck: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.status.success, alignItems: 'center', justifyContent: 'center' },
     bannerText: { fontSize: 16, fontWeight: '700', color: colors.text.primary },
 
     // Map
     mapArea: { flex: 1, position: 'relative' },
     etaBadge: {
-        position: 'absolute', top: 16, right: 16,
+        position: 'absolute', top: spacing.md, right: spacing.md,
         backgroundColor: colors.background.secondary, borderWidth: 1, borderColor: colors.voltage,
-        borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8,
-        flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 20,
+        borderRadius: 12, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+        flexDirection: 'row', alignItems: 'center', gap: spacing.sm, zIndex: 20,
     },
     etaText: { fontSize: 14, fontWeight: '700', color: colors.voltage },
     backBtn: {
-        position: 'absolute', left: 16, zIndex: 20,
+        position: 'absolute', left: spacing.md, zIndex: 20,
         width: 44, height: 44, borderRadius: 22,
         backgroundColor: colors.text.opacity20,
         alignItems: 'center', justifyContent: 'center',
@@ -237,33 +237,33 @@ const styles = StyleSheet.create({
 
     // Distance
     distanceCard: {
-        backgroundColor: colors.background.tertiary, borderRadius: 12, padding: 16,
-        borderWidth: 1, borderColor: colors.background.border, marginBottom: 24,
+        backgroundColor: colors.background.tertiary, borderRadius: 12, padding: spacing.md,
+        borderWidth: 1, borderColor: colors.background.border, marginBottom: spacing.lg,
     },
-    distanceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 },
+    distanceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: spacing.sm },
     distanceLabel: { fontSize: 12, fontWeight: '500', color: colors.text.secondary, letterSpacing: 0.5 },
     distanceValue: { fontSize: 24, fontWeight: '700', color: colors.voltage },
-    distanceTrack: { height: 8, backgroundColor: colors.background.secondary, borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
+    distanceTrack: { height: 8, backgroundColor: colors.background.secondary, borderRadius: 4, overflow: 'hidden', marginBottom: spacing.sm },
     distanceFill: { height: '100%' as any, backgroundColor: colors.voltage, borderRadius: 4 },
     distanceFooter: { flexDirection: 'row', justifyContent: 'space-between' },
     distanceMeta: { fontSize: 10, color: colors.text.secondary },
 
     // Buttons — match the toggle effect from other screens
-    buttonsRow: { flexDirection: 'row', gap: 16, marginBottom: 16 },
+    buttonsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
     callBtn: {
         flex: 1, height: 56, borderRadius: 12, backgroundColor: colors.status.success,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
         shadowColor: colors.status.success, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4,
     },
     callBtnText: { fontSize: 16, fontWeight: '700', color: colors.text.onBrand },
     msgBtn: {
         flex: 1, height: 56, borderRadius: 12, backgroundColor: 'transparent',
         borderWidth: 2, borderColor: colors.voltage,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     },
     msgBtnText: { fontSize: 16, fontWeight: '700', color: colors.voltage },
 
     // Cancel
-    cancelLink: { alignItems: 'center', paddingVertical: 8 },
+    cancelLink: { alignItems: 'center', paddingVertical: spacing.sm },
     cancelText: { fontSize: 14, fontWeight: '500', color: colors.status.error },
 });

@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme/voltage-premium';
+import { colors, spacing } from '../../theme/voltage-premium';
 import type { GeoLocation } from '../../types';
 
 interface TrackingMapProps {
@@ -76,17 +76,17 @@ const styles = StyleSheet.create({
         backgroundColor: colors.charcoal[800],
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 32,
+        padding: spacing.xl,
     },
     emoji: {
         fontSize: 64,
-        marginBottom: 16,
+        marginBottom: spacing.md,
     },
     title: {
         color: colors.voltage,
         fontSize: 28,
         fontWeight: 'bold',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     subtitle: {
         color: colors.text.opacity60,
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.charcoal[700],
         borderRadius: 16,
         padding: 20,
-        marginTop: 32,
+        marginTop: spacing.xl,
         borderWidth: 1,
         borderColor: colors.charcoal[600],
     },
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     infoLabel: {
         color: colors.text.opacity60,
         fontSize: 12,
-        marginBottom: 4,
+        marginBottom: spacing.xs,
     },
     infoValue: {
         color: colors.voltage,
@@ -119,6 +119,6 @@ const styles = StyleSheet.create({
     },
     loading: {
         color: colors.text.opacity60,
-        marginTop: 24,
+        marginTop: spacing.lg,
     },
 });

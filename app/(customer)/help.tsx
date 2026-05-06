@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 4,
+        gap: spacing.xs,
         marginBottom: spacing.lg,
     },
     emergencyText: {
@@ -717,8 +717,8 @@ const styles = StyleSheet.create({
     // Chat FAB
     chatFab: {
         position: 'absolute',
-        bottom: 24,
-        right: 24,
+        bottom: spacing.lg,
+        right: spacing.lg,
         width: 56,
         height: 56,
         borderRadius: 28,

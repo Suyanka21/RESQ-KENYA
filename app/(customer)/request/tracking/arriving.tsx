@@ -16,7 +16,7 @@ import TrackingMap from '../../../../components/maps/TrackingMap';
 import ProgressSteps from '../../../../components/tracking/ProgressSteps';
 import ProviderCard from '../../../../components/tracking/ProviderCard';
 import type { Step } from '../../../../components/tracking/ProgressSteps';
-import { colors } from '../../../../theme/voltage-premium';
+import { colors, spacing } from '../../../../theme/voltage-premium';
 import {
     DEMO_CUSTOMER_LOC,
     getPointAlongRoute,
@@ -110,7 +110,7 @@ export default function ArrivingScreen() {
                     traveledCoordinates={getTraveledRoute(0.95)}
                 />
                 <Pressable
-                    style={({ pressed }) => [styles.backBtn, { top: 16 }, pressed && { backgroundColor: colors.background.tertiary, transform: [{ scale: 0.9 }] }]}
+                    style={({ pressed }) => [styles.backBtn, { top: spacing.md }, pressed && { backgroundColor: colors.background.tertiary, transform: [{ scale: 0.9 }] }]}
                     onPress={() => router.back()}
                     accessibilityLabel="Go back" accessibilityRole="button"
                 >
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
 
     // Banner
     banner: { backgroundColor: colors.interactive.focus, borderBottomWidth: 2, borderBottomColor: colors.voltage, zIndex: 30 },
-    bannerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
+    bannerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: 14 },
     bannerText: { fontSize: 16, fontWeight: '700', color: colors.voltage },
 
     // Map
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1, borderBottomColor: colors.background.border, position: 'relative',
     },
     backBtn: {
-        position: 'absolute', left: 16, zIndex: 20,
+        position: 'absolute', left: spacing.md, zIndex: 20,
         width: 44, height: 44, borderRadius: 22,
         backgroundColor: colors.text.opacity20,
         alignItems: 'center', justifyContent: 'center',
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     countdownBadge: {
         position: 'absolute', bottom: 20, alignSelf: 'center',
         backgroundColor: colors.background.secondary, borderWidth: 2, borderColor: colors.voltage,
-        paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16,
+        paddingHorizontal: spacing.lg, paddingVertical: 12, borderRadius: 16,
         alignItems: 'center', zIndex: 15,
         shadowColor: colors.voltage, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8,
     },
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     // Tips
     tipsCard: {
         backgroundColor: colors.background.tertiary, borderRadius: 12,
-        padding: 16, borderWidth: 1, borderColor: colors.background.border, marginBottom: 24,
+        padding: spacing.md, borderWidth: 1, borderColor: colors.background.border, marginBottom: spacing.lg,
     },
     tipsTitle: { fontSize: 12, fontWeight: '700', color: colors.text.secondary, letterSpacing: 0.5, marginBottom: 12 },
     tipsList: { gap: 10 },
@@ -233,17 +233,17 @@ const styles = StyleSheet.create({
     tipText: { fontSize: 14, color: colors.text.primary },
 
     // Buttons
-    buttonsRow: { flexDirection: 'row', gap: 16, marginBottom: 16 },
+    buttonsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
     callBtn: {
         flex: 1, height: 56, borderRadius: 12, backgroundColor: colors.status.success,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
         shadowColor: colors.status.success, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4,
     },
     callBtnText: { fontSize: 16, fontWeight: '700', color: colors.text.onBrand },
     msgBtn: {
         flex: 1, height: 56, borderRadius: 12, backgroundColor: 'transparent',
         borderWidth: 2, borderColor: colors.voltage,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     },
     msgBtnText: { fontSize: 16, fontWeight: '700', color: colors.voltage },
 });

@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
         fontSize: 14,
         fontWeight: '500',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     inputContainer: {
         backgroundColor: colors.charcoal[700],

@@ -31,7 +31,7 @@ class ErrorBoundary extends React.Component<
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background.primary, padding: spacing.xl }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
                         <Zap size={24} color={colors.voltage} fill={colors.voltage} strokeWidth={1} />
-                        <Text style={{ color: colors.voltage, fontSize: 24, fontWeight: 'bold', marginLeft: 4 }}>
+                        <Text style={{ color: colors.voltage, fontSize: 24, fontWeight: 'bold', marginLeft: spacing.xs }}>
                             ResQ Kenya
                         </Text>
                     </View>

@@ -15,7 +15,7 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/voltage-premium';
+import { colors, spacing } from '../theme/voltage-premium';
 
 // Kenya Emergency Numbers
 export const KENYA_EMERGENCY_NUMBERS = {
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.background.secondary,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        padding: 24,
+        padding: spacing.lg,
         paddingBottom: 40,
     },
     modalTitle: {
@@ -301,13 +301,13 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: colors.text.secondary,
         textAlign: 'center',
-        marginTop: 8,
-        marginBottom: 24,
+        marginTop: spacing.sm,
+        marginBottom: spacing.lg,
     },
     emergencyTypes: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 24,
+        marginBottom: spacing.lg,
     },
     emergencyTypeButton: {
         flex: 1,
@@ -329,11 +329,11 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
         fontSize: 14,
         fontWeight: '600',
-        marginTop: 8,
+        marginTop: spacing.sm,
     },
     quickCallSection: {
-        marginTop: 16,
-        paddingTop: 16,
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
         borderTopWidth: 1,
         borderTopColor: colors.background.border,
     },
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     },
     quickCallButton: {
         flex: 1,
-        marginHorizontal: 4,
+        marginHorizontal: spacing.xs,
         padding: 12,
         backgroundColor: colors.background.border,
         borderRadius: 12,
@@ -362,12 +362,12 @@ const styles = StyleSheet.create({
     quickCallLabel: {
         fontSize: 11,
         color: colors.text.secondary,
-        marginTop: 4,
+        marginTop: spacing.xs,
         textAlign: 'center',
     },
     cancelButton: {
-        marginTop: 24,
-        padding: 16,
+        marginTop: spacing.lg,
+        padding: spacing.md,
         borderRadius: 12,
         backgroundColor: colors.background.border,
         alignItems: 'center',
@@ -399,8 +399,8 @@ const styles = StyleSheet.create({
     },
     abortButton: {
         backgroundColor: colors.background.border,
-        paddingHorizontal: 48,
-        paddingVertical: 16,
+        paddingHorizontal: spacing.xxl,
+        paddingVertical: spacing.md,
         borderRadius: 12,
         borderWidth: 2,
         borderColor: colors.status.error,
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     countdownInfo: {
         fontSize: 12,
         color: colors.text.secondary,
-        marginTop: 24,
+        marginTop: spacing.lg,
         textAlign: 'center',
     },
 });

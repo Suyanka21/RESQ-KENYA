@@ -458,12 +458,12 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSize.xl,
         fontWeight: '700',
         color: colors.text.primary,
-        marginBottom: 4, // 4px grid
+        marginBottom: spacing.xs, // 4px grid
     },
     userPhone: {
         fontSize: typography.fontSize.sm,
         color: colors.text.secondary,
-        marginBottom: 8, // 4px × 2
+        marginBottom: spacing.sm, // 4px × 2
     },
     membershipBadge: {
         flexDirection: 'row',
@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
         borderRadius: borderRadius.xl,
         borderWidth: 1,
         borderColor: colors.status.infoGlow,
-        padding: 16, // 4px × 4
+        padding: spacing.md, // 4px × 4
         marginBottom: spacing.lg,
     },
     urgencyIconWrap: {
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: colors.text.primary,
         marginBottom: spacing.md, // 12px
-        paddingLeft: 4, // 4px grid
+        paddingLeft: spacing.xs, // 4px grid
     },
     menuList: {
         backgroundColor: colors.background.secondary,
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: 16, // 4px × 4
+        padding: spacing.md, // 4px × 4
     },
     menuItemBorder: {
         borderBottomWidth: 1,
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     menuItemLabelRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8, // 4px × 2
+        gap: spacing.sm, // 4px × 2
     },
     menuItemLabel: {
         fontSize: typography.fontSize.base,

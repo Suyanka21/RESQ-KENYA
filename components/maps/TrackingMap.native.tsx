@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
-import { colors } from '../../theme/voltage-premium';
+import { colors, spacing } from '../../theme/voltage-premium';
 import type { GeoLocation } from '../../types';
 
 // Conditionally import react-native-maps only on native platforms
@@ -335,22 +335,22 @@ const styles = StyleSheet.create({
         backgroundColor: colors.charcoal[800],
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 32,
+        padding: spacing.xl,
     },
     fallbackEmoji: {
         fontSize: 48,
-        marginBottom: 16,
+        marginBottom: spacing.md,
     },
     fallbackTitle: {
         color: colors.voltage,
         fontSize: 24,
         fontWeight: 'bold',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     fallbackSubtitle: {
         color: colors.text.opacity60,
         textAlign: 'center',
-        paddingHorizontal: 32,
+        paddingHorizontal: spacing.xl,
         fontSize: 14,
         lineHeight: 20,
     },
@@ -396,14 +396,14 @@ const styles = StyleSheet.create({
     etaOverlay: {
         position: 'absolute',
         top: 20,
-        left: 16,
-        right: 16,
+        left: spacing.md,
+        right: spacing.md,
     },
     etaCard: {
         flexDirection: 'row',
         backgroundColor: colors.charcoal[800],
         borderRadius: 16,
-        padding: 16,
+        padding: spacing.md,
         borderWidth: 1,
         borderColor: colors.charcoal[600],
         shadowColor: colors.background.primary,
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     etaLabel: {
         color: colors.text.opacity60,
         fontSize: 12,
-        marginBottom: 4,
+        marginBottom: spacing.xs,
     },
     etaValue: {
         color: colors.voltage,
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         color: colors.text.primary,
-        marginTop: 16,
+        marginTop: spacing.md,
         fontSize: 16,
     },
 });

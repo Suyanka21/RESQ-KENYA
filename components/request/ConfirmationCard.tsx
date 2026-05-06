@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     },
     trackButton: {
         backgroundColor: colors.voltage,
-        paddingVertical: 16,
+        paddingVertical: spacing.md,
         borderRadius: borderRadius.lg,
         alignItems: 'center',
         ...shadows.button,

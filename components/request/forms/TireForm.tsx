@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
         borderRadius: 12, paddingHorizontal: spacing.md, gap: spacing.sm, marginBottom: spacing.sm,
     },
     textInput: { flex: 1, fontSize: 16, color: colors.text.primary, height: '100%' },
-    currentLocationBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: 4, marginBottom: spacing.lg },
+    currentLocationBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: spacing.xs, marginBottom: spacing.lg },
     currentLocationText: { fontSize: 14, fontWeight: '500', color: PURPLE },
 
     // Issue Grid — 2x2
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
         width: (width - spacing.lg * 2 - spacing.sm) / 2, height: 100,
         borderRadius: 12, borderWidth: 2, borderColor: colors.charcoal[600],
         backgroundColor: colors.charcoal[800], alignItems: 'center', justifyContent: 'center',
-        paddingHorizontal: spacing.sm, gap: 4,
+        paddingHorizontal: spacing.sm, gap: spacing.xs,
     },
     issueCardActive: {
         backgroundColor: colors.background.tertiary, borderColor: PURPLE, borderLeftWidth: 4, borderLeftColor: PURPLE,
@@ -460,11 +460,11 @@ const styles = StyleSheet.create({
     },
     chassisOuter: { position: 'relative', width: 130, height: 200 },
     carBodyOuter: {
-        position: 'absolute', left: 16, right: 16, top: 8, bottom: 8,
+        position: 'absolute', left: spacing.md, right: spacing.md, top: spacing.sm, bottom: spacing.sm,
         backgroundColor: colors.background.border, borderRadius: 16, opacity: 0.5,
     },
     carBodyInner: {
-        position: 'absolute', left: 8, right: 8, top: 32, bottom: 32,
+        position: 'absolute', left: spacing.sm, right: spacing.sm, top: spacing.xl, bottom: spacing.xl,
         backgroundColor: colors.charcoal[500], borderRadius: 8, opacity: 0.4,
     },
     frontLabel: {
@@ -482,14 +482,14 @@ const styles = StyleSheet.create({
         backgroundColor: PURPLE, borderColor: PURPLE,
         shadowColor: PURPLE, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 10, elevation: 8,
     },
-    tireFrontLeft: { left: -8, top: 24 },
-    tireFrontRight: { right: -8, top: 24 },
-    tireRearLeft: { left: -8, bottom: 24 },
-    tireRearRight: { right: -8, bottom: 24 },
+    tireFrontLeft: { left: -8, top: spacing.lg },
+    tireFrontRight: { right: -8, top: spacing.lg },
+    tireRearLeft: { left: -8, bottom: spacing.lg },
+    tireRearRight: { right: -8, bottom: spacing.lg },
 
     selectedTiresRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center', marginTop: spacing.lg },
     tapHint: { fontSize: 14, color: colors.text.tertiary },
-    selectedTireBadge: { backgroundColor: PURPLE, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    selectedTireBadge: { backgroundColor: PURPLE, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 6 },
     selectedTireText: { fontSize: 12, fontWeight: '700', color: colors.background.primary, textTransform: 'capitalize' },
 
     // Spare Tire
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
         borderRadius: 12, padding: spacing.md, color: colors.text.primary, fontSize: 14,
         textAlignVertical: 'top',
     },
-    charCount: { position: 'absolute', bottom: 12, right: 16, fontSize: 12, color: colors.text.tertiary },
+    charCount: { position: 'absolute', bottom: 12, right: spacing.md, fontSize: 12, color: colors.text.tertiary },
 
     // Step 3 — Confirm
     summaryCard: {
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     summarySubtitle: { fontSize: 13, color: colors.text.secondary, textTransform: 'capitalize' },
     summaryDivider: { height: 1, backgroundColor: colors.charcoal[600], marginVertical: spacing.md },
     summaryTags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    summaryTag: { backgroundColor: colors.background.border, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.charcoal[500] },
+    summaryTag: { backgroundColor: colors.background.border, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 6, borderWidth: 1, borderColor: colors.charcoal[500] },
     summaryTagText: { fontSize: 12, color: colors.text.primary, textTransform: 'capitalize' },
 
     // Price Card — with purple left border

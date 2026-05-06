@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import TrackingMap from '../../../../components/maps/TrackingMap';
 import ProgressSteps from '../../../../components/tracking/ProgressSteps';
 import type { Step } from '../../../../components/tracking/ProgressSteps';
-import { colors } from '../../../../theme/voltage-premium';
+import { colors, spacing } from '../../../../theme/voltage-premium';
 
 interface UpdateItem {
     id: number;
@@ -213,8 +213,8 @@ const styles = StyleSheet.create({
         position: 'absolute', top: '50%' as any, left: '50%' as any,
         marginLeft: -80, marginTop: -20,
         backgroundColor: colors.background.secondary, borderWidth: 1, borderColor: colors.voltage,
-        borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8,
-        flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 40,
+        borderRadius: 12, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+        flexDirection: 'row', alignItems: 'center', gap: spacing.sm, zIndex: 40,
     },
     inProgressText: { fontSize: 14, fontWeight: '700', color: colors.voltage },
 
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     timerCard: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
         backgroundColor: colors.background.tertiary, borderRadius: 12,
-        padding: 16, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
+        padding: spacing.md, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
     },
     timerTextGroup: { gap: 2 },
     timerLabel: { fontSize: 12, color: colors.text.secondary },
@@ -242,37 +242,37 @@ const styles = StyleSheet.create({
     // Timeline
     timelineCard: {
         backgroundColor: colors.background.tertiary, borderRadius: 12,
-        padding: 16, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
+        padding: spacing.md, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
     },
-    sectionTitle: { fontSize: 12, fontWeight: '700', color: colors.text.secondary, letterSpacing: 0.5, marginBottom: 16 },
+    sectionTitle: { fontSize: 12, fontWeight: '700', color: colors.text.secondary, letterSpacing: 0.5, marginBottom: spacing.md },
     timelineItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, position: 'relative', paddingBottom: 20 },
     timelineLine: { position: 'absolute', left: 5, top: 12, bottom: 0, width: 2, backgroundColor: colors.background.border },
     timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.status.success, marginTop: 2, zIndex: 5 },
     timelineContent: {
         flex: 1, backgroundColor: colors.background.primary,
-        padding: 12, marginLeft: 8, borderWidth: 1, borderColor: colors.background.border, maxWidth: '85%' as any,
+        padding: 12, marginLeft: spacing.sm, borderWidth: 1, borderColor: colors.background.border, maxWidth: '85%' as any,
         borderRadius: 8,
     },
-    timelineTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    timelineTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.xs },
     timelineTime: { fontSize: 12, color: colors.text.tertiary },
     timelineText: { fontSize: 14, color: colors.text.primary, lineHeight: 20 },
 
     // Live updates
     liveCard: {
         backgroundColor: colors.interactive.focus, borderRadius: 12,
-        padding: 16, borderWidth: 1, borderColor: colors.voltage, marginBottom: 24,
+        padding: spacing.md, borderWidth: 1, borderColor: colors.voltage, marginBottom: spacing.lg,
     },
-    liveHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+    liveHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
     liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.status.success },
     liveTitle: { fontSize: 14, fontWeight: '700', color: colors.text.primary },
     liveText: { fontSize: 14, color: colors.text.secondary, lineHeight: 20 },
 
     // Footer actions
-    footerActions: { alignItems: 'center', gap: 16 },
-    reportLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
+    footerActions: { alignItems: 'center', gap: spacing.md },
+    reportLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.sm },
     reportText: { fontSize: 14, color: colors.status.error, fontWeight: '500' },
     demoBtn: {
-        backgroundColor: colors.voltage, paddingHorizontal: 24, paddingVertical: 12,
+        backgroundColor: colors.voltage, paddingHorizontal: spacing.lg, paddingVertical: 12,
         borderRadius: 999,
     },
     demoBtnText: { fontSize: 14, fontWeight: '700', color: colors.text.onBrand },

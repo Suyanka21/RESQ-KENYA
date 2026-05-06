@@ -4,7 +4,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Star, Car } from 'lucide-react-native';
-import { colors } from '../../theme/voltage-premium';
+import { colors, spacing } from '../../theme/voltage-premium';
 
 interface ProviderCardProps {
     name?: string;
@@ -86,7 +86,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
 
 const styles = StyleSheet.create({
     // Full card
-    container: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 24 },
+    container: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.lg },
     avatarWrap: { position: 'relative' },
     avatar: {
         width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: colors.voltage,
@@ -100,23 +100,23 @@ const styles = StyleSheet.create({
     },
     badgeText: { fontSize: 9, fontWeight: '700', color: colors.text.onBrand },
     name: { fontSize: 20, fontWeight: '700', color: colors.text.primary, lineHeight: 24 },
-    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
     ratingText: { fontSize: 14, color: colors.text.secondary },
     rescues: { fontSize: 12, color: colors.text.tertiary },
-    tagsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+    tagsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' },
     vehicleTag: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        backgroundColor: colors.background.tertiary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
+        flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+        backgroundColor: colors.background.tertiary, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 4,
     },
     vehicleText: { fontSize: 12, color: colors.text.secondary },
-    serviceTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.background.border },
+    serviceTag: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 4, borderWidth: 1, borderColor: colors.background.border },
     serviceText: { fontSize: 12, fontWeight: '500', color: colors.text.primary },
 
     // Compact card
     compactContainer: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
         padding: 12, backgroundColor: colors.background.tertiary, borderRadius: 12,
-        borderWidth: 1, borderColor: colors.background.border, marginBottom: 24,
+        borderWidth: 1, borderColor: colors.background.border, marginBottom: spacing.lg,
     },
     compactAvatar: {
         width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: colors.voltage,
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     },
     avatarText: { fontSize: 18, fontWeight: '700', color: colors.voltage },
     compactName: { fontSize: 14, fontWeight: '700', color: colors.text.primary },
-    compactMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+    compactMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 2 },
     compactRating: { fontSize: 12, color: colors.text.secondary },
     compactDot: { fontSize: 12, color: colors.text.tertiary },
     compactVehicle: { fontSize: 12, color: colors.text.secondary },

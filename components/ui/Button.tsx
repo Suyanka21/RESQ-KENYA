@@ -133,10 +133,10 @@ const styles = StyleSheet.create({
         letterSpacing: -0.2,
     },
     iconLeft: {
-        marginRight: 8,
+        marginRight: spacing.sm,
     },
     iconRight: {
-        marginLeft: 8,
+        marginLeft: spacing.sm,
     },
     disabled: {
         opacity: 0.5,

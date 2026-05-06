@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, MapPin, ChevronDown, ChevronUp, X, ChevronLeft, Wrench } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import TrackingMap from '../../../../components/maps/TrackingMap';
-import { colors } from '../../../../theme/voltage-premium';
+import { colors, spacing } from '../../../../theme/voltage-premium';
 import { ErrorState } from '../../../../components/ui/ErrorState';
 
 const { width } = Dimensions.get('window');
@@ -294,27 +294,27 @@ const styles = StyleSheet.create({
     userPinPulse: { position: 'absolute', width: 32, height: 32, borderRadius: 16, backgroundColor: colors.status.infoGlow },
 
     // Content
-    content: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 0, paddingBottom: 32 },
-    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: 0, marginBottom: 8 },
+    content: { flex: 1, alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: 0, paddingBottom: spacing.xl },
+    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: 0, marginBottom: spacing.sm },
     topBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.text.opacity20, alignItems: 'center', justifyContent: 'center' },
     topTitle: { fontSize: 17, fontWeight: '700', color: colors.text.primary, letterSpacing: 0.3 },
 
     // Radar icon
-    radarIconWrap: { marginBottom: 16 },
+    radarIconWrap: { marginBottom: spacing.md },
     radarIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: `1A`, borderWidth: 1, borderColor: `4D`, alignItems: 'center', justifyContent: 'center' },
 
     // Text
-    title: { fontSize: 24, fontWeight: '700', color: colors.text.primary, marginBottom: 4 },
-    subtitle: { fontSize: 16, color: colors.text.secondary, marginBottom: 8 },
+    title: { fontSize: 24, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs },
+    subtitle: { fontSize: 16, color: colors.text.secondary, marginBottom: spacing.sm },
 
     // Dots
-    dotsRow: { flexDirection: 'row', gap: 6, marginBottom: 24 },
+    dotsRow: { flexDirection: 'row', gap: 6, marginBottom: spacing.lg },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.voltage },
 
     // Progress card
     progressCard: {
         width: '100%', backgroundColor: colors.background.secondary, borderWidth: 1, borderColor: colors.background.border,
-        borderLeftWidth: 3, borderLeftColor: colors.voltage, borderRadius: 12, padding: 16, marginBottom: 12,
+        borderLeftWidth: 3, borderLeftColor: colors.voltage, borderRadius: 12, padding: spacing.md, marginBottom: 12,
     },
     progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     progressLabel: { fontSize: 14, color: colors.text.secondary },
@@ -325,22 +325,22 @@ const styles = StyleSheet.create({
 
     // Summary card
     summaryCard: { width: '100%', backgroundColor: colors.background.tertiary, borderRadius: 12, borderWidth: 1, borderColor: colors.background.border, padding: 12 },
-    summaryCardExpanded: { padding: 16 },
+    summaryCardExpanded: { padding: spacing.md },
     summaryHeader: { flexDirection: 'row', alignItems: 'center' },
     summaryIconWrap: { width: 40, height: 40, borderRadius: 8, backgroundColor: colors.background.secondary, borderWidth: 1, borderColor: colors.charcoal[500], alignItems: 'center', justifyContent: 'center', marginRight: 12 },
     summaryTitle: { fontSize: 14, fontWeight: '700', color: colors.text.primary },
-    summaryLocation: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+    summaryLocation: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 2 },
     summaryLocationText: { fontSize: 12, color: colors.text.secondary, maxWidth: 150 },
     summaryRight: { alignItems: 'flex-end' },
     summaryPrice: { fontSize: 14, fontWeight: '700', color: colors.voltage, fontFamily: 'monospace' },
-    summaryDetails: { marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.charcoal[500], gap: 8 },
+    summaryDetails: { marginTop: spacing.md, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.charcoal[500], gap: spacing.sm },
     summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
     summaryDetailLabel: { fontSize: 12, color: colors.text.secondary },
     summaryDetailValue: { fontSize: 12, color: colors.text.primary, fontFamily: 'monospace' },
 
     // Footer
-    footer: { marginTop: 'auto' as any, alignItems: 'center', gap: 24, width: '100%' },
+    footer: { marginTop: 'auto' as any, alignItems: 'center', gap: spacing.lg, width: '100%' },
     rotatingMsg: { fontSize: 14, color: colors.text.secondary, fontWeight: '500', textAlign: 'center' },
-    cancelBtn: { paddingHorizontal: 32, paddingVertical: 12, borderRadius: 999 },
+    cancelBtn: { paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: 999 },
     cancelText: { fontSize: 16, fontWeight: '700', color: colors.status.error },
 });

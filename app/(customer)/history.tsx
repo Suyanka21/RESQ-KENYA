@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
     },
     statusBadge: {
-        paddingHorizontal: 8,
+        paddingHorizontal: spacing.sm,
         paddingVertical: 2,
         borderRadius: borderRadius.full,
     },
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     cardProvider: {
         fontSize: typography.fontSize.sm,
         color: colors.text.secondary,
-        marginBottom: 4,
+        marginBottom: spacing.xs,
     },
     cardMetaRow: {
         flexDirection: 'row',
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
     ratingRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: spacing.xs,
     },
 
     // Breakdown
@@ -827,8 +827,8 @@ const styles = StyleSheet.create({
     // FAB
     fab: {
         position: 'absolute',
-        bottom: 24,
-        right: 24,
+        bottom: spacing.lg,
+        right: spacing.lg,
         width: 56,
         height: 56,
         borderRadius: 28,

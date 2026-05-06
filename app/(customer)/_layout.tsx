@@ -47,7 +47,7 @@ export default function CustomerLayout() {
                     borderTopWidth: 1,
                     height: Platform.OS === 'ios' ? 88 : 70,
                     paddingBottom: Platform.OS === 'ios' ? 28 : 10,
-                    paddingTop: 8,
+                    paddingTop: spacing.sm,
                     elevation: 0,
                     shadowOpacity: 0,
                 },
