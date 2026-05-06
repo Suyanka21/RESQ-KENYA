@@ -15,7 +15,7 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing } from '../theme/voltage-premium';
+import { colors, spacing, touchTargets } from '../theme/voltage-premium';
 
 // Kenya Emergency Numbers
 export const KENYA_EMERGENCY_NUMBERS = {
@@ -149,7 +149,14 @@ export default function EmergencySOS({
                 visible={showModal}
                 transparent
                 animationType="slide"
-                onRequestClose={() => !isCountingDown && setShowModal(false)}
+                onRequestClose={() => {
+                    // Hardware back button: cancel countdown if active, else close modal.
+                    if (isCountingDown) {
+                        cancelCountdown();
+                    } else {
+                        setShowModal(false);
+                    }
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -258,9 +265,9 @@ export default function EmergencySOS({
 const styles = StyleSheet.create({
     sosButton: {
         backgroundColor: colors.status.error,
-        width: 70,
-        height: 70,
-        borderRadius: 35,
+        width: touchTargets.sos,
+        height: touchTargets.sos,
+        borderRadius: touchTargets.sos / 2,
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: colors.status.error,
