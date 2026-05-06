@@ -289,48 +289,55 @@ export async function getServiceRequest(requestId: string): Promise<ServiceReque
 }
 
 /**
- * Update service request status
+ * Phase 3 (B-HIGH-2) — DEPRECATED.
+ *
+ * This client-side shim wrote `requests/{id}.status` directly,
+ * bypassing the canonical `updateRequestStatus` Cloud Function and
+ * its `VALID_STATUS_TRANSITIONS` graph. Real callers must use
+ * `services/provider.service.ts:updateRequestStatus` (callable) or
+ * `services/customer.service.ts:cancelServiceRequest` (also a
+ * callable) so server-authoritative state-machine rules are
+ * enforced.
+ *
+ * Throwing at runtime guarantees any forgotten call-site fails
+ * loudly rather than silently corrupting state. The Firestore rules
+ * tightening in Phase 3.5 makes the legacy direct write impossible
+ * anyway; this guard catches the bug before the server rejects it.
+ *
+ * Skills: API-and-Interface-Design (deprecate clearly, fail
+ * loudly), Code-Review-and-Quality.
+ *
+ * @deprecated Use `provider.service.ts:updateRequestStatus`
+ *             (callable) instead. Will be removed in a follow-up
+ *             cleanup PR once all consumers migrate.
  */
 export async function updateRequestStatus(
-    requestId: string,
-    status: ServiceRequest['status'],
-    additionalUpdates?: Partial<ServiceRequest>
+    _requestId: string,
+    _status: ServiceRequest['status'],
+    _additionalUpdates?: Partial<ServiceRequest>
 ): Promise<void> {
-    const requestRef = doc(db, COLLECTIONS.REQUESTS, requestId);
-
-    const updates: Record<string, any> = {
-        status,
-        updatedAt: serverTimestamp(),
-    };
-
-    // Update timeline based on status
-    switch (status) {
-        case 'accepted':
-            updates['timeline.acceptedAt'] = serverTimestamp();
-            break;
-        case 'arrived':
-            updates['timeline.arrivedAt'] = serverTimestamp();
-            break;
-        case 'completed':
-            updates['timeline.completedAt'] = serverTimestamp();
-            break;
-    }
-
-    if (additionalUpdates) {
-        Object.assign(updates, additionalUpdates);
-    }
-
-    await updateDoc(requestRef, updates);
+    throw new Error(
+        '[deprecated] firestore.service.ts:updateRequestStatus removed. ' +
+        'Call `updateRequestStatus` from `services/provider.service.ts` ' +
+        '(or `cancelServiceRequest` from `services/customer.service.ts`) ' +
+        'so the server-side VALID_STATUS_TRANSITIONS graph is enforced.'
+    );
 }
 
 /**
- * Assign provider to request
+ * @deprecated Used the deprecated `updateRequestStatus` shim above;
+ * removed for the same reason. Provider acceptance flows through
+ * the `acceptServiceRequest` Cloud Function only (see
+ * `services/provider.service.ts:acceptRequest`).
  */
 export async function assignProviderToRequest(
-    requestId: string,
-    providerId: string
+    _requestId: string,
+    _providerId: string
 ): Promise<void> {
-    await updateRequestStatus(requestId, 'accepted', { providerId });
+    throw new Error(
+        '[deprecated] firestore.service.ts:assignProviderToRequest removed. ' +
+        'Call `acceptRequest` from `services/provider.service.ts` instead.'
+    );
 }
 
 /**

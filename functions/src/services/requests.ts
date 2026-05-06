@@ -205,7 +205,38 @@ export function idempotencyDocId(userId: string, idempotencyKey: string): string
 }
 
 /**
- * Find and notify nearby available providers
+ * Maximum number of provider docs to consider per dispatch attempt. Caps
+ * Firestore reads (B-HIGH-5) and bounds memory growth in cities with
+ * dense provider coverage. Sized so we can still saturate FCM batches
+ * (≤500 per `sendEachForMulticast` call) while leaving headroom.
+ */
+const NEARBY_PROVIDER_LIMIT = 50;
+
+/**
+ * Possible values for `requests.{id}.dispatch.status`. Surfaced as a
+ * value-typed const + `as const` tuple so the trigger that resumes a
+ * stuck dispatch (future Cloud Tasks worker) can pattern-match.
+ */
+export const DISPATCH_STATUS = {
+    Pending: 'pending',
+    Notified: 'notified',
+    NoProviders: 'no_providers',
+    Failed: 'failed',
+} as const;
+export type DispatchStatus = typeof DISPATCH_STATUS[keyof typeof DISPATCH_STATUS];
+
+/**
+ * Phase 3 (B-HIGH-4 / B-HIGH-5) — bounded dispatcher with explicit state.
+ *
+ * Persists `requests/{id}.dispatch = { status, retryCount, lastAttemptAt,
+ * notifiedCount }` so a future scheduled worker can pick up rows in
+ * `pending` / `failed` states for retry. Read budget is capped via
+ * `NEARBY_PROVIDER_LIMIT`. Errors are no longer silently swallowed —
+ * we mark `failed` and bump `retryCount` so the request is observable.
+ *
+ * Skills: API-and-Interface-Design (explicit state model rather than
+ * implicit silence), Security-and-Hardening (all server writes,
+ * never trust client to seed dispatch fields).
  */
 async function notifyNearbyProviders(
     requestId: string,
@@ -214,44 +245,63 @@ async function notifyNearbyProviders(
     longitude: number,
     radiusKm: number = 15
 ): Promise<void> {
-    const center = [latitude, longitude] as [number, number];
-    const radiusM = radiusKm * 1000;
-    const bounds = geofire.geohashQueryBounds(center, radiusM);
+    const requestRef = db.collection('requests').doc(requestId);
+    const now = admin.firestore.FieldValue.serverTimestamp();
 
-    const providerTokens: string[] = [];
+    try {
+        const center = [latitude, longitude] as [number, number];
+        const radiusM = radiusKm * 1000;
+        const bounds = geofire.geohashQueryBounds(center, radiusM);
 
-    // Query each geohash bound
-    for (const bound of bounds) {
-        const q = db.collection('providers')
-            .where('serviceTypes', 'array-contains', serviceType)
-            .where('availability.isOnline', '==', true)
-            .where('verificationStatus', '==', 'verified')
-            .orderBy('geohash')
-            .startAt(bound[0])
-            .endAt(bound[1]);
+        const providerTokens: string[] = [];
+        const seenDocIds = new Set<string>();
 
-        const snapshot = await q.get();
+        for (const bound of bounds) {
+            if (providerTokens.length >= NEARBY_PROVIDER_LIMIT) break;
 
-        for (const doc of snapshot.docs) {
-            const data = doc.data();
-            const providerLocation = data.availability?.currentLocation;
+            const q = db.collection('providers')
+                .where('serviceTypes', 'array-contains', serviceType)
+                .where('availability.isOnline', '==', true)
+                .where('verificationStatus', '==', 'verified')
+                .orderBy('geohash')
+                .startAt(bound[0])
+                .endAt(bound[1])
+                .limit(NEARBY_PROVIDER_LIMIT);
 
-            if (providerLocation) {
+            const snapshot = await q.get();
+
+            for (const doc of snapshot.docs) {
+                if (seenDocIds.has(doc.id)) continue;
+                seenDocIds.add(doc.id);
+
+                const data = doc.data();
+                const providerLocation = data.availability?.currentLocation;
+                if (!providerLocation || typeof data.fcmToken !== 'string') continue;
+
                 const distance = geofire.distanceBetween(
                     center,
                     [providerLocation.latitude, providerLocation.longitude]
                 );
-
-                // Only notify providers within actual radius
-                if (distance <= radiusKm && data.fcmToken) {
+                if (distance <= radiusKm) {
                     providerTokens.push(data.fcmToken);
+                    if (providerTokens.length >= NEARBY_PROVIDER_LIMIT) break;
                 }
             }
         }
-    }
 
-    // Send push notifications to nearby providers
-    if (providerTokens.length > 0) {
+        if (providerTokens.length === 0) {
+            await requestRef.update({
+                'dispatch.status': DISPATCH_STATUS.NoProviders,
+                'dispatch.notifiedCount': 0,
+                'dispatch.lastAttemptAt': now,
+                'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
+            });
+            console.log(
+                `[dispatch] no_providers requestId=${requestId} serviceType=${serviceType}`
+            );
+            return;
+        }
+
         const message = {
             notification: {
                 title: 'New Service Request! 🚗',
@@ -264,8 +314,9 @@ async function notifyNearbyProviders(
             },
         };
 
-        // Send to all providers (max 500 per batch)
-        const batches = [];
+        // FCM cap is 500 tokens per multicast; we already cap at
+        // NEARBY_PROVIDER_LIMIT, but keep the chunking for safety.
+        const batches: Promise<unknown>[] = [];
         for (let i = 0; i < providerTokens.length; i += 500) {
             const batch = providerTokens.slice(i, i + 500);
             batches.push(
@@ -275,48 +326,141 @@ async function notifyNearbyProviders(
                 })
             );
         }
-
         await Promise.all(batches);
-        console.log(`Notified ${providerTokens.length} providers for request ${requestId}`);
-    } else {
-        console.log(`No available providers found for ${serviceType} near ${latitude}, ${longitude}`);
+
+        await requestRef.update({
+            'dispatch.status': DISPATCH_STATUS.Notified,
+            'dispatch.notifiedCount': providerTokens.length,
+            'dispatch.lastAttemptAt': now,
+            'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
+        });
+        console.log(
+            `[dispatch] notified=${providerTokens.length} requestId=${requestId}`
+        );
+    } catch (dispatchError: unknown) {
+        const message = dispatchError instanceof Error ? dispatchError.message : 'unknown';
+        console.error(
+            `[dispatch] failed requestId=${requestId} reason=${message}`
+        );
+        // Best-effort: persist the failure so a retry worker can pick it
+        // up. Do not re-throw — a failed dispatch must not undo the
+        // already-committed `requests/{id}` create.
+        try {
+            await requestRef.update({
+                'dispatch.status': DISPATCH_STATUS.Failed,
+                'dispatch.lastAttemptAt': now,
+                'dispatch.retryCount': admin.firestore.FieldValue.increment(1),
+                'dispatch.lastError': message.slice(0, 500),
+            });
+        } catch (persistError) {
+            console.error('[dispatch] failed to persist failure marker', persistError);
+        }
     }
 }
 
 /**
- * Cloud Function: Accept Service Request
- * Called when a provider accepts a pending request
+ * Cloud Function: Accept Service Request.
+ *
+ * Phase 3 (B-CRIT-5) hardening: the transaction now reads the calling
+ * provider's doc and rejects unless ALL of the following invariants
+ * hold:
+ *   1. provider is `verificationStatus: 'verified'`
+ *   2. provider is `availability.isOnline === true`
+ *   3. provider's `serviceTypes` includes the request's `serviceType`
+ *   4. provider has no other active request
+ *      (`availability.currentRequestId` is unset)
+ *   5. request is still `status: 'pending'` (existing check)
+ *
+ * Skills: Security-and-Hardening (boundary auth + invariant
+ * enforcement), API-and-Interface-Design (clear failure codes per
+ * invariant via HttpsError so client can react sensibly).
  */
 export const acceptServiceRequest = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const { requestId } = data;
+    const { requestId } = (data ?? {}) as { requestId?: unknown };
     const providerId = context.auth.uid;
 
-    if (!requestId) {
+    if (typeof requestId !== 'string' || requestId.length === 0) {
         throw new functions.https.HttpsError('invalid-argument', 'requestId is required');
     }
 
     try {
         const requestRef = db.collection('requests').doc(requestId);
+        const providerRef = db.collection('providers').doc(providerId);
 
-        // Use transaction to prevent race conditions
+        // Use transaction to prevent race conditions and to enforce the
+        // five invariants atomically with the assignment write.
         await db.runTransaction(async (transaction) => {
-            const requestDoc = await transaction.get(requestRef);
+            const [requestDoc, providerDoc] = await Promise.all([
+                transaction.get(requestRef),
+                transaction.get(providerRef),
+            ]);
 
             if (!requestDoc.exists) {
                 throw new functions.https.HttpsError('not-found', 'Request not found');
             }
+            if (!providerDoc.exists) {
+                throw new functions.https.HttpsError(
+                    'permission-denied',
+                    'Caller is not registered as a provider'
+                );
+            }
 
             const requestData = requestDoc.data()!;
+            const providerData = providerDoc.data()!;
 
+            // (5) Request must still be pending.
             if (requestData.status !== 'pending') {
                 throw new functions.https.HttpsError('failed-precondition', 'Request already assigned');
             }
 
-            // Assign provider to request
+            // (1) Verification gate.
+            if (providerData.verificationStatus !== 'verified') {
+                throw new functions.https.HttpsError(
+                    'permission-denied',
+                    'Provider is not verified'
+                );
+            }
+
+            // (2) Online gate.
+            const availability = (providerData.availability ?? {}) as {
+                isOnline?: boolean;
+                currentRequestId?: string | null;
+            };
+            if (availability.isOnline !== true) {
+                throw new functions.https.HttpsError(
+                    'failed-precondition',
+                    'Provider is not online'
+                );
+            }
+
+            // (3) Service-type gate.
+            const serviceTypes = Array.isArray(providerData.serviceTypes)
+                ? (providerData.serviceTypes as unknown[])
+                : [];
+            if (!serviceTypes.includes(requestData.serviceType)) {
+                throw new functions.https.HttpsError(
+                    'failed-precondition',
+                    'Provider does not offer this service type'
+                );
+            }
+
+            // (4) Idle gate — reject if already on another job.
+            if (
+                typeof availability.currentRequestId === 'string' &&
+                availability.currentRequestId.length > 0 &&
+                availability.currentRequestId !== requestId
+            ) {
+                throw new functions.https.HttpsError(
+                    'failed-precondition',
+                    'Provider already has an active request'
+                );
+            }
+
+            // Assign provider to request.
             transaction.update(requestRef, {
                 providerId,
                 status: 'accepted',
@@ -324,8 +468,9 @@ export const acceptServiceRequest = functions.https.onCall(async (data, context)
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
-            // Update provider status
-            transaction.update(db.collection('providers').doc(providerId), {
+            // Pin the provider to the request so a second concurrent
+            // accept call observes invariant (4).
+            transaction.update(providerRef, {
                 'availability.currentRequestId': requestId,
             });
         });
