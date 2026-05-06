@@ -82,10 +82,19 @@ export function err<E extends string>(
     return { ok: false, errorCode, message };
 }
 
+// Idempotency key character set + length contract. Mirror of
+// `types/api.ts` (single source of truth for the FE app). The functions
+// package is built independently and cannot import the FE file directly,
+// so we keep both copies in sync via the unit test
+// `__tests__/shared/idempotency-mirror.test.ts` (Phase 3, X-1 fix).
+export const IDEMPOTENCY_KEY_MIN_LENGTH = 16;
+export const IDEMPOTENCY_KEY_MAX_LENGTH = 64;
+export const IDEMPOTENCY_KEY_REGEX = /^[A-Za-z0-9_-]+$/;
+
 export function isValidIdempotencyKey(key: unknown): key is string {
     if (typeof key !== 'string') return false;
-    if (key.length < 16 || key.length > 64) return false;
-    return /^[A-Za-z0-9_-]+$/.test(key);
+    if (key.length < IDEMPOTENCY_KEY_MIN_LENGTH || key.length > IDEMPOTENCY_KEY_MAX_LENGTH) return false;
+    return IDEMPOTENCY_KEY_REGEX.test(key);
 }
 
 export function isValidCoordinates(loc: unknown): loc is ApiGeoLocation {

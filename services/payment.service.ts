@@ -6,6 +6,7 @@ import { getFunctions } from 'firebase/functions';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import app from '../config/firebase';
+import { generateIdempotencyKey, isValidIdempotencyKey } from '../types/api';
 
 // Initialize Firebase Functions
 const functions = getFunctions(app, 'us-central1'); // Adjust region as needed
@@ -18,12 +19,23 @@ export interface PaymentRequest {
     amount: number;
     phoneNumber: string;
     description?: string;
+    /**
+     * Phase 3 (B-CRIT-1): the `initiateStkPush` callable now requires this
+     * field. Optional at the wrapper boundary so existing call-sites do not
+     * break — `initiatePayment` auto-generates one via
+     * `generateIdempotencyKey()` (from `types/api`) when omitted.
+     */
+    idempotencyKey?: string;
 }
 
 export interface PaymentResult {
     success: boolean;
     checkoutRequestID?: string;
     error?: string;
+    /** True when the server short-circuited a duplicate request. */
+    duplicate?: boolean;
+    /** Echoed back so callers can persist it for retries. */
+    idempotencyKey?: string;
 }
 
 export interface PaymentStatusResult {
@@ -33,13 +45,41 @@ export interface PaymentStatusResult {
 }
 
 /**
- * Initiate M-Pesa STK Push payment
- * This will trigger a push notification on the user's phone
+ * Demo mode toggle. Mirrors the `customer.service.ts` pattern: opt in via
+ * `EXPO_PUBLIC_DEMO_MODE='true'` at build time. Default-OFF — production
+ * builds talk to the real backend. Indirect access avoids
+ * `babel-preset-expo`'s `process.env.EXPO_PUBLIC_*` constant-folding.
+ */
+const USE_DEMO_MODE: boolean = (() => {
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+    const flag = env ? env['EXPO_PUBLIC_DEMO_MODE'] : undefined;
+    return flag === 'true' || flag === '1';
+})();
+
+/**
+ * Initiate M-Pesa STK Push payment.
+ *
+ * Phase 3 (B-CRIT-1, X-1): payload now carries `idempotencyKey` to satisfy
+ * the canonical `initiateStkPush` callable's validation (16-64 char
+ * alphanumeric/underscore/dash). Auto-generated when callers omit it so
+ * existing UI does not need to change. The key is echoed back on the
+ * result so the UI can retry safely on transient failure.
+ *
+ * Demo mode (`EXPO_PUBLIC_DEMO_MODE=true`) routes through
+ * `initiatePaymentDemo` for local development without M-Pesa credentials.
  */
 export async function initiatePayment(payment: PaymentRequest): Promise<PaymentResult> {
-    try {
-        console.log('Initiating M-Pesa payment:', payment);
+    const idempotencyKey =
+        payment.idempotencyKey && isValidIdempotencyKey(payment.idempotencyKey)
+            ? payment.idempotencyKey
+            : generateIdempotencyKey();
 
+    if (USE_DEMO_MODE) {
+        const demoResult = await initiatePaymentDemo(payment);
+        return { ...demoResult, idempotencyKey };
+    }
+
+    try {
         const initiateStkPush = httpsCallable(functions, 'initiateStkPush');
 
         const result = await initiateStkPush({
@@ -47,26 +87,37 @@ export async function initiatePayment(payment: PaymentRequest): Promise<PaymentR
             amount: payment.amount,
             requestId: payment.requestId,
             description: payment.description || 'ResQ Service Payment',
+            idempotencyKey,
         });
 
-        const data = result.data as any;
+        const data = result.data as {
+            success?: boolean;
+            checkoutRequestID?: string | null;
+            duplicate?: boolean;
+            status?: string;
+            error?: string;
+        };
 
         if (data.success) {
             return {
                 success: true,
-                checkoutRequestID: data.checkoutRequestID,
-            };
-        } else {
-            return {
-                success: false,
-                error: data.error || 'Payment initiation failed',
+                checkoutRequestID: data.checkoutRequestID ?? undefined,
+                duplicate: data.duplicate === true,
+                idempotencyKey,
             };
         }
-    } catch (error: any) {
-        console.error('Payment initiation error:', error);
         return {
             success: false,
-            error: error.message || 'Failed to initiate payment',
+            error: data.error || 'Payment initiation failed',
+            idempotencyKey,
+        };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to initiate payment';
+        console.error('Payment initiation error:', message);
+        return {
+            success: false,
+            error: message,
+            idempotencyKey,
         };
     }
 }

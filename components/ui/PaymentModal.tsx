@@ -12,7 +12,7 @@ import {
     Animated,
 } from 'react-native';
 import {
-    initiatePaymentDemo as initiatePayment,
+    initiatePayment,
     formatAmount,
     validatePhoneNumber,
     formatPhoneForMpesa,
