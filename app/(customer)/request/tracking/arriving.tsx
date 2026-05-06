@@ -158,7 +158,7 @@ export default function ArrivingScreen() {
                         <Pressable
                             style={({ pressed }) => [
                                 styles.callBtn,
-                                pressed && { backgroundColor: '#00C853', transform: [{ scale: 0.95 }] },
+                                pressed && { backgroundColor: colors.status.success, transform: [{ scale: 0.95 }] },
                             ]}
                             onPress={handleCallProvider}
                             accessibilityLabel="Call provider" accessibilityRole="button"

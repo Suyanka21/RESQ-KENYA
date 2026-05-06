@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     gridOverlay: { ...StyleSheet.absoluteFillObject },
     roadH: { position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: colors.background.secondary },
     roadV: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colors.background.secondary },
-    building: { position: 'absolute', backgroundColor: '#141414', borderRadius: 3, borderWidth: 1, borderColor: '#1E1E1E' },
+    building: { position: 'absolute', backgroundColor: colors.background.primary, borderRadius: 3, borderWidth: 1, borderColor: colors.background.secondary },
     routeContainer: { ...StyleSheet.absoluteFillObject, zIndex: 5 },
     routeSegment: {
         position: 'absolute', height: 4, backgroundColor: colors.voltage,
@@ -197,14 +197,14 @@ const styles = StyleSheet.create({
     providerMarker: { position: 'absolute', zIndex: 20, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     providerIconWrap: {
         width: 48, height: 48, borderRadius: 24,
-        backgroundColor: 'rgba(15, 15, 15, 0.9)', borderWidth: 2, borderColor: colors.voltage,
+        backgroundColor: colors.background.primary, borderWidth: 2, borderColor: colors.voltage,
         alignItems: 'center', justifyContent: 'center',
     },
     searchingOverlay: { position: 'absolute', top: '40%' as any, left: '50%' as any, marginLeft: -30, marginTop: -30, alignItems: 'center', zIndex: 25 },
     searchPulse: { position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: colors.voltageGlow },
     searchDot: {
         width: 48, height: 48, borderRadius: 24,
-        backgroundColor: 'rgba(15, 15, 15, 0.9)', borderWidth: 2, borderColor: colors.voltage,
+        backgroundColor: colors.background.primary, borderWidth: 2, borderColor: colors.voltage,
         alignItems: 'center', justifyContent: 'center',
     },
     dimOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay.light, zIndex: 30 },

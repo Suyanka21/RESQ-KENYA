@@ -77,12 +77,12 @@ const FILTER_OPTIONS = ['all', 'towing', 'fuel', 'battery', 'tire', 'diagnostics
 
 const getServiceIcon = (type: ServiceType, size = 24) => {
     const map: Record<ServiceType, { Icon: any; color: string }> = {
-        towing: { Icon: Truck, color: '#FFA500' },
-        fuel: { Icon: Fuel, color: '#4CAF50' },
-        battery: { Icon: Battery, color: '#FFA500' },
-        tire: { Icon: Disc, color: '#9C27B0' },
-        diagnostics: { Icon: Activity, color: '#2196F3' },
-        medical: { Icon: HeartPulse, color: '#DC143C' },
+        towing: { Icon: Truck, color: colors.voltage },
+        fuel: { Icon: Fuel, color: colors.service.fuel },
+        battery: { Icon: Battery, color: colors.voltage },
+        tire: { Icon: Disc, color: colors.service.tire },
+        diagnostics: { Icon: Activity, color: colors.service.diagnostic },
+        medical: { Icon: HeartPulse, color: colors.service.medical },
     };
     const { Icon, color } = map[type];
     return <Icon size={size} color={color} strokeWidth={2} />;
@@ -90,17 +90,17 @@ const getServiceIcon = (type: ServiceType, size = 24) => {
 
 const getServiceColor = (type: ServiceType): string => {
     const map: Record<ServiceType, string> = {
-        towing: '#FFA500', fuel: '#4CAF50', battery: '#FFA500',
-        tire: '#9C27B0', diagnostics: '#2196F3', medical: '#DC143C',
+        towing: colors.voltage, fuel: colors.service.fuel, battery: colors.voltage,
+        tire: colors.service.tire, diagnostics: colors.service.diagnostic, medical: colors.service.medical,
     };
     return map[type];
 };
 
 const getStatusStyle = (status: Status) => {
     const map: Record<Status, { bg: string; text: string; label: string }> = {
-        completed: { bg: 'rgba(0,230,118,0.15)', text: '#00E676', label: 'Completed' },
-        cancelled: { bg: 'rgba(255,61,61,0.15)', text: '#FF3D3D', label: 'Cancelled' },
-        in_progress: { bg: 'rgba(255,165,0,0.15)', text: '#FFA500', label: 'In Progress' },
+        completed: { bg: `26`, text: colors.status.success, label: 'Completed' },
+        cancelled: { bg: `26`, text: colors.status.error, label: 'Cancelled' },
+        in_progress: { bg: `26`, text: colors.voltage, label: 'In Progress' },
     };
     return map[status];
 };

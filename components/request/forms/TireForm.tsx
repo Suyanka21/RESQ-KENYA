@@ -21,10 +21,10 @@ type IssueType = 'flat' | 'burst' | 'install' | 'unsure';
 type TirePosition = 'front-left' | 'front-right' | 'rear-left' | 'rear-right';
 
 // Purple accent color matching stitch design
-const PURPLE = '#9C27B0';
-const PURPLE_10 = 'rgba(156, 39, 176, 0.1)';
-const PURPLE_20 = 'rgba(156, 39, 176, 0.2)';
-const PURPLE_30 = 'rgba(156, 39, 176, 0.3)';
+const PURPLE = colors.service.tire;
+const PURPLE_10 = `${colors.service.tire}1A`;
+const PURPLE_20 = `${colors.service.tire}33`;
+const PURPLE_30 = `${colors.service.tire}4D`;
 
 interface TireFormProps {
     onSubmit: (data: any) => void;
@@ -148,7 +148,7 @@ export const TireForm: React.FC<TireFormProps> = ({ onSubmit, onBack }) => {
                                         style={[styles.issueCard, selected && styles.issueCardActive]}
                                         onPress={() => setIssueType(id)}
                                     >
-                                        <Icon size={28} color={selected ? '#FFFFFF' : colors.text.muted} strokeWidth={2} />
+                                        <Icon size={28} color={selected ? colors.text.primary : colors.text.muted} strokeWidth={2} />
                                         <Text style={[styles.issueLabel, selected && styles.issueLabelActive]}>{label}</Text>
                                         <Text style={styles.issueDesc}>{desc}</Text>
                                     </Pressable>
@@ -373,7 +373,7 @@ export const TireForm: React.FC<TireFormProps> = ({ onSubmit, onBack }) => {
                         disabled={isSubmitting}
                     >
                         {isSubmitting ? (
-                            <ActivityIndicator color={'#0F0F0F'} />
+                            <ActivityIndicator color={colors.background.primary} />
                         ) : (
                             <Text style={styles.submitText}>Request Tire Service</Text>
                         )}
@@ -446,12 +446,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.sm, gap: 4,
     },
     issueCardActive: {
-        backgroundColor: '#252525', borderColor: PURPLE, borderLeftWidth: 4, borderLeftColor: PURPLE,
+        backgroundColor: colors.background.tertiary, borderColor: PURPLE, borderLeftWidth: 4, borderLeftColor: PURPLE,
         shadowColor: PURPLE, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 5,
     },
     issueLabel: { fontSize: 14, fontWeight: '700', color: colors.text.muted },
     issueLabelActive: { color: colors.text.primary },
-    issueDesc: { fontSize: 11, color: '#6B6B6B' },
+    issueDesc: { fontSize: 11, color: colors.text.tertiary },
 
     // ===== CAR CHASSIS DIAGRAM =====
     chassisDiagram: {
@@ -461,11 +461,11 @@ const styles = StyleSheet.create({
     chassisOuter: { position: 'relative', width: 130, height: 200 },
     carBodyOuter: {
         position: 'absolute', left: 16, right: 16, top: 8, bottom: 8,
-        backgroundColor: '#2E2E2E', borderRadius: 16, opacity: 0.5,
+        backgroundColor: colors.background.border, borderRadius: 16, opacity: 0.5,
     },
     carBodyInner: {
         position: 'absolute', left: 8, right: 8, top: 32, bottom: 32,
-        backgroundColor: '#3E3E3E', borderRadius: 8, opacity: 0.4,
+        backgroundColor: colors.charcoal[500], borderRadius: 8, opacity: 0.4,
     },
     frontLabel: {
         position: 'absolute', top: -20, alignSelf: 'center', left: 0, right: 0,
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     // Tire touchables — positioned on the chassis
     tireTouchable: {
         position: 'absolute', width: 22, height: 40, borderRadius: 4,
-        borderWidth: 2, borderColor: '#3E3E3E', backgroundColor: colors.charcoal[800],
+        borderWidth: 2, borderColor: colors.charcoal[500], backgroundColor: colors.charcoal[800],
     },
     tireSelected: {
         backgroundColor: PURPLE, borderColor: PURPLE,
@@ -488,9 +488,9 @@ const styles = StyleSheet.create({
     tireRearRight: { right: -8, bottom: 24 },
 
     selectedTiresRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center', marginTop: spacing.lg },
-    tapHint: { fontSize: 14, color: '#6B6B6B' },
+    tapHint: { fontSize: 14, color: colors.text.tertiary },
     selectedTireBadge: { backgroundColor: PURPLE, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    selectedTireText: { fontSize: 12, fontWeight: '700', color: '#0F0F0F', textTransform: 'capitalize' },
+    selectedTireText: { fontSize: 12, fontWeight: '700', color: colors.background.primary, textTransform: 'capitalize' },
 
     // Spare Tire
     spareRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm, marginTop: spacing.xs },
@@ -498,8 +498,8 @@ const styles = StyleSheet.create({
         flex: 1, height: 56, borderRadius: 12, borderWidth: 2, borderColor: colors.charcoal[600],
         alignItems: 'center', justifyContent: 'center', backgroundColor: colors.charcoal[800],
     },
-    spareBtnActive: { backgroundColor: '#252525', borderColor: PURPLE },
-    spareBtnText: { fontSize: 16, fontWeight: '700', color: '#6B6B6B' },
+    spareBtnActive: { backgroundColor: colors.background.tertiary, borderColor: PURPLE },
+    spareBtnText: { fontSize: 16, fontWeight: '700', color: colors.text.tertiary },
     spareBtnTextActive: { color: colors.text.primary },
     spareWarning: {
         flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
         borderRadius: 12, padding: spacing.md, color: colors.text.primary, fontSize: 14,
         textAlignVertical: 'top',
     },
-    charCount: { position: 'absolute', bottom: 12, right: 16, fontSize: 12, color: '#6B6B6B' },
+    charCount: { position: 'absolute', bottom: 12, right: 16, fontSize: 12, color: colors.text.tertiary },
 
     // Step 3 — Confirm
     summaryCard: {
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
     summarySubtitle: { fontSize: 13, color: colors.text.secondary, textTransform: 'capitalize' },
     summaryDivider: { height: 1, backgroundColor: colors.charcoal[600], marginVertical: spacing.md },
     summaryTags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    summaryTag: { backgroundColor: '#2E2E2E', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#3E3E3E' },
+    summaryTag: { backgroundColor: colors.background.border, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.charcoal[500] },
     summaryTagText: { fontSize: 12, color: colors.text.primary, textTransform: 'capitalize' },
 
     // Price Card — with purple left border
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     totalLabel: { fontSize: 18, fontWeight: '700', color: colors.text.primary },
     totalValue: { fontSize: 20, fontWeight: '700', color: colors.voltage, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
 
-    disclaimer: { textAlign: 'center', fontSize: 12, color: '#6B6B6B', marginTop: spacing.xs },
+    disclaimer: { textAlign: 'center', fontSize: 12, color: colors.text.tertiary, marginTop: spacing.xs },
 
     // Footer
     footer: {
@@ -575,9 +575,9 @@ const styles = StyleSheet.create({
     submitButton: {
         height: 80, backgroundColor: colors.voltage, borderRadius: 12,
         alignItems: 'center', justifyContent: 'center',
-        shadowColor: '#FFA500', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 12,
+        shadowColor: colors.voltage, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 12,
     },
-    submitText: { fontSize: 18, fontWeight: '700', color: '#0F0F0F' },
+    submitText: { fontSize: 18, fontWeight: '700', color: colors.background.primary },
     buttonDisabled: { opacity: 0.5 },
 });
 

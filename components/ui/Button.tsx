@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
     },
     secondaryPressed: {
-        backgroundColor: 'rgba(255, 214, 10, 0.1)',
+        backgroundColor: colors.voltageGlow,
         borderColor: colors.voltageBright,
     },
 
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
     },
     emergencyPressed: {
-        backgroundColor: '#E02020',
+        backgroundColor: colors.status.error,
         transform: [{ scale: 0.98 }],
     },
 

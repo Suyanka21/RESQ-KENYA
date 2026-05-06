@@ -24,7 +24,7 @@ interface BatteryFormProps {
 
 const URGENCY_OPTIONS = [
     { id: 'standard' as UrgencyLevel, label: 'Standard', desc: '30-45 min', fee: 0, color: colors.success, icon: Clock },
-    { id: 'priority' as UrgencyLevel, label: 'Priority', desc: '15-25 min', fee: PRICES.PRIORITY_FEE, color: '#FFA500', icon: Zap },
+    { id: 'priority' as UrgencyLevel, label: 'Priority', desc: '15-25 min', fee: PRICES.PRIORITY_FEE, color: colors.voltage, icon: Zap },
     { id: 'express' as UrgencyLevel, label: 'Express', desc: '10-15 min', fee: PRICES.EXPRESS_FEE, color: colors.status.error, icon: AlertTriangle },
 ];
 

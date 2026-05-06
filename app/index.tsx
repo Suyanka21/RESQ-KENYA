@@ -10,13 +10,14 @@ import { router } from 'expo-router';
 import { Zap } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../services/AuthContext';
+import { colors } from '../theme/voltage-premium';
 
 const { width, height } = Dimensions.get('window');
 
 // Brand Colors — Bolt-inspired
-const VOLTAGE = '#FFA500';
-const CHARCOAL = '#0F0F0F';
-const WHITE = '#FFFFFF';
+const VOLTAGE = colors.voltage;
+const CHARCOAL = colors.background.primary;
+const WHITE = colors.text.primary;
 
 // =============================================================================
 // SPLASH SCREEN (Logged In / Loading)
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     getStartedButtonPressed: {
-        backgroundColor: '#1A1A1A',
+        backgroundColor: colors.background.secondary,
         transform: [{ scale: 0.98 }],
     },
     getStartedText: {

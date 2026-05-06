@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     serviceCardSelected: {
         borderWidth: 2,
         borderColor: colors.voltage,
-        backgroundColor: 'rgba(255, 214, 10, 0.05)',
+        backgroundColor: colors.voltageGlow,
     },
     serviceCardPressed: {
         transform: [{ scale: 1.02 }],

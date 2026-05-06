@@ -393,7 +393,7 @@ const mapStyles = StyleSheet.create({
         height: 32,
         borderRadius: 16,
         backgroundColor: `${colors.status.info}25`,
-        top: 8,
+        top: spacing.sm,
     },
     userDot: {
         width: 20,

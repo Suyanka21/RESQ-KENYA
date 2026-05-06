@@ -156,7 +156,7 @@ export function SidebarDrawer({ isOpen, onClose }: SidebarDrawerProps) {
 const styles = StyleSheet.create({
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backgroundColor: colors.overlay.medium,
     },
     drawer: {
         position: 'absolute',
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        backgroundColor: colors.text.opacity20,
     },
     ctaTitle: {
         fontSize: 13,
@@ -325,7 +325,8 @@ const styles = StyleSheet.create({
     },
     ctaSub: {
         fontSize: 11,
-        color: 'rgba(15, 15, 15, 0.65)',
+        color: colors.background.primary,
+        opacity: 0.65,
         marginTop: 1,
     },
     footer: {

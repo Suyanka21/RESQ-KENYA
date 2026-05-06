@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { colors } from '../../theme/voltage-premium';
 
 // Web fallback MapView component
 export const PlatformMapView = ({ children, style, ...props }: any) => {
@@ -41,7 +42,7 @@ export const PlatformProviderGoogle = undefined;
 const styles = StyleSheet.create({
     webMap: {
         flex: 1,
-        backgroundColor: '#1a1a1a',
+        backgroundColor: colors.background.secondary,
         position: 'relative',
         overflow: 'hidden',
     },
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 2,
-        backgroundColor: '#3d3d3d',
+        backgroundColor: colors.charcoal[500],
     },
     gridLine2: {
         position: 'absolute',
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 2,
-        backgroundColor: '#3d3d3d',
+        backgroundColor: colors.charcoal[500],
     },
     gridLine3: {
         position: 'absolute',
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: '30%',
         width: 2,
-        backgroundColor: '#3d3d3d',
+        backgroundColor: colors.charcoal[500],
     },
     gridLine4: {
         position: 'absolute',
@@ -83,7 +84,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: '70%',
         width: 2,
-        backgroundColor: '#3d3d3d',
+        backgroundColor: colors.charcoal[500],
     },
     gridCircle1: {
         position: 'absolute',
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 40,
         borderWidth: 1,
-        borderColor: '#3d3d3d',
+        borderColor: colors.charcoal[500],
     },
     gridCircle2: {
         position: 'absolute',
@@ -103,7 +104,7 @@ const styles = StyleSheet.create({
         height: 50,
         borderRadius: 25,
         borderWidth: 1,
-        borderColor: '#3d3d3d',
+        borderColor: colors.charcoal[500],
     },
     webMarkerContainer: {
         position: 'absolute',

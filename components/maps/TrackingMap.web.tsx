@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     subtitle: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.text.opacity60,
         fontSize: 16,
         textAlign: 'center',
         lineHeight: 24,
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     infoLabel: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.text.opacity60,
         fontSize: 12,
         marginBottom: 4,
     },
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     loading: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.text.opacity60,
         marginTop: 24,
     },
 });

@@ -24,9 +24,9 @@ interface AmbulanceFormProps {
 }
 
 const TRIAGE_OPTIONS = [
-    { id: 'critical' as TriageLevel, label: 'Critical', desc: 'Life-threatening emergency', fee: PRICES.AMBULANCE_CRITICAL_FEE, color: '#FF3D3D', eta: '5-10 min' },
-    { id: 'urgent' as TriageLevel, label: 'Urgent', desc: 'Serious but not life-threatening', fee: PRICES.AMBULANCE_URGENT_FEE, color: '#FFA500', eta: '10-20 min' },
-    { id: 'non_emergency' as TriageLevel, label: 'Non-Emergency', desc: 'Stable, needs medical transport', fee: 0, color: '#4CAF50', eta: '20-30 min' },
+    { id: 'critical' as TriageLevel, label: 'Critical', desc: 'Life-threatening emergency', fee: PRICES.AMBULANCE_CRITICAL_FEE, color: colors.status.error, eta: '5-10 min' },
+    { id: 'urgent' as TriageLevel, label: 'Urgent', desc: 'Serious but not life-threatening', fee: PRICES.AMBULANCE_URGENT_FEE, color: colors.voltage, eta: '10-20 min' },
+    { id: 'non_emergency' as TriageLevel, label: 'Non-Emergency', desc: 'Stable, needs medical transport', fee: 0, color: colors.service.fuel, eta: '20-30 min' },
 ];
 
 export const AmbulanceForm: React.FC<AmbulanceFormProps> = ({ onSubmit, onBack }) => {
@@ -65,7 +65,7 @@ export const AmbulanceForm: React.FC<AmbulanceFormProps> = ({ onSubmit, onBack }
 
             {/* Emergency Banner */}
             <View style={styles.emergencyBanner}>
-                <AlertTriangle size={16} color="#FF3D3D" strokeWidth={2.5} />
+                <AlertTriangle size={16} color={colors.status.error} strokeWidth={2.5} />
                 <Text style={styles.emergencyText}>For life-threatening emergencies, call 999 immediately</Text>
             </View>
 
@@ -90,7 +90,7 @@ export const AmbulanceForm: React.FC<AmbulanceFormProps> = ({ onSubmit, onBack }
 
                         {/* 999 Quick Call */}
                         <Pressable style={styles.callBanner}>
-                            <Phone size={20} color="#FF3D3D" strokeWidth={2} />
+                            <Phone size={20} color={colors.status.error} strokeWidth={2} />
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.callTitle}>Emergency Hotline</Text>
                                 <Text style={styles.callNumber}>999</Text>
@@ -222,10 +222,10 @@ export const AmbulanceForm: React.FC<AmbulanceFormProps> = ({ onSubmit, onBack }
                 ) : (
                     <Pressable style={({ pressed }) => [styles.submitButtonEmergency, pressed && { transform: [{ scale: 0.98 }] }, isSubmitting && styles.buttonDisabled]} onPress={() => { setIsSubmitting(true); onSubmit({ triage, patientName, patientAge, condition, location, emergencyContact, preferredHospital, totalCost, service: 'medical' }); }} disabled={isSubmitting}>
                         {isSubmitting ? (
-                            <ActivityIndicator color="#FFF" />
+                            <ActivityIndicator color={colors.text.primary} />
                         ) : (
                             <>
-                                <HeartPulse size={20} color="#FFF" strokeWidth={2.5} />
+                                <HeartPulse size={20} color={colors.text.primary} strokeWidth={2.5} />
                                 <Text style={styles.submitTextEmergency}>Request Ambulance Now</Text>
                             </>
                         )}
@@ -242,8 +242,8 @@ const styles = StyleSheet.create({
     backButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: typography.fontSize.lg, fontWeight: '700', color: colors.text.primary },
     headerSpacer: { width: 44 },
-    emergencyBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: `${'#FF3D3D'}15`, borderBottomWidth: 1, borderBottomColor: `${'#FF3D3D'}30` },
-    emergencyText: { fontSize: 12, fontWeight: '600', color: '#FF3D3D' },
+    emergencyBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: `${colors.status.error}15`, borderBottomWidth: 1, borderBottomColor: `${colors.status.error}30` },
+    emergencyText: { fontSize: 12, fontWeight: '600', color: colors.status.error },
     scroll: { flex: 1 },
     scrollContent: { padding: spacing.lg, paddingBottom: 140 },
     sectionTitle: { fontSize: typography.fontSize.xl, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs },
@@ -254,10 +254,10 @@ const styles = StyleSheet.create({
     textInput: { flex: 1, fontSize: 16, color: colors.text.primary, height: '100%' },
     textArea: { height: 90, textAlignVertical: 'top', paddingTop: spacing.md, backgroundColor: colors.charcoal[800], borderWidth: 2, borderColor: colors.charcoal[600], borderRadius: borderRadius.xl, paddingHorizontal: spacing.md },
 
-    callBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: `${'#FF3D3D'}10`, borderRadius: borderRadius.xl, borderWidth: 1, borderColor: `${'#FF3D3D'}30` },
+    callBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: `${colors.status.error}10`, borderRadius: borderRadius.xl, borderWidth: 1, borderColor: `${colors.status.error}30` },
     callTitle: { fontSize: 12, color: colors.text.secondary },
-    callNumber: { fontSize: 20, fontWeight: '700', color: '#FF3D3D' },
-    callAction: { fontSize: 13, fontWeight: '600', color: '#FF3D3D' },
+    callNumber: { fontSize: 20, fontWeight: '700', color: colors.status.error },
+    callAction: { fontSize: 13, fontWeight: '600', color: colors.status.error },
     triageCard: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.charcoal[800], borderRadius: borderRadius.xl, borderWidth: 2, borderColor: colors.charcoal[600], marginBottom: spacing.sm, gap: spacing.sm },
     triageDot: { width: 12, height: 12, borderRadius: 6 },
     triageLabel: { fontSize: 15, fontWeight: '600', color: colors.text.muted },
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
     footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, backgroundColor: colors.charcoal[900], borderTopWidth: 1, borderTopColor: colors.charcoal[700] },
     continueButton: { height: 60, backgroundColor: colors.charcoal[800], borderWidth: 2, borderColor: colors.voltage, borderRadius: borderRadius.xl, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
     continueText: { fontSize: 16, fontWeight: '700', color: colors.voltage },
-    submitButtonEmergency: { height: 64, backgroundColor: '#DC143C', borderRadius: borderRadius.xl, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, ...shadows.button },
-    submitTextEmergency: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    submitButtonEmergency: { height: 64, backgroundColor: colors.service.medical, borderRadius: borderRadius.xl, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, ...shadows.button },
+    submitTextEmergency: { fontSize: 16, fontWeight: '700', color: colors.text.primary },
     buttonDisabled: { opacity: 0.5 },
 });
 

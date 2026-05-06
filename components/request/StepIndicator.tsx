@@ -32,7 +32,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({
                                 isComplete && styles.stepCircleComplete
                             ]}>
                                 {isComplete ? (
-                                    <Check size={14} color="#FFF" strokeWidth={3} />
+                                    <Check size={14} color={colors.text.primary} strokeWidth={3} />
                                 ) : (
                                     <Text style={[
                                         styles.stepNumber,

@@ -287,9 +287,9 @@ const styles = StyleSheet.create({
 
     // Radar overlay
     radarCenter: { position: 'absolute', top: '50%' as any, left: '50%' as any, marginLeft: -60, marginTop: -60, width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
-    radarRing: { position: 'absolute', width: 128, height: 128, borderRadius: 64, borderWidth: 1, borderColor: colors.voltageGlow, backgroundColor: 'rgba(255,165,0,0.1)' },
-    radarRing2: { width: 180, height: 180, borderRadius: 90, borderColor: 'rgba(255,165,0,0.25)', backgroundColor: 'transparent' },
-    radarRing3: { width: 240, height: 240, borderRadius: 120, borderColor: 'rgba(255,165,0,0.15)', backgroundColor: 'transparent' },
+    radarRing: { position: 'absolute', width: 128, height: 128, borderRadius: 64, borderWidth: 1, borderColor: colors.voltageGlow, backgroundColor: `1A` },
+    radarRing2: { width: 180, height: 180, borderRadius: 90, borderColor: `40`, backgroundColor: 'transparent' },
+    radarRing3: { width: 240, height: 240, borderRadius: 120, borderColor: `26`, backgroundColor: 'transparent' },
     userPin: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.status.info, shadowColor: colors.status.info, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 10, elevation: 6, zIndex: 20 },
     userPinPulse: { position: 'absolute', width: 32, height: 32, borderRadius: 16, backgroundColor: colors.status.infoGlow },
 
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
 
     // Radar icon
     radarIconWrap: { marginBottom: 16 },
-    radarIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,165,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,165,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+    radarIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: `1A`, borderWidth: 1, borderColor: `4D`, alignItems: 'center', justifyContent: 'center' },
 
     // Text
     title: { fontSize: 24, fontWeight: '700', color: colors.text.primary, marginBottom: 4 },

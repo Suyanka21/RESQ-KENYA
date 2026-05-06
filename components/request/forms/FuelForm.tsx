@@ -71,7 +71,7 @@ export const FuelForm: React.FC<FuelFormProps> = ({ onSubmit, onBack }) => {
                                 style={[styles.fuelTypeCard, fuelType === 'petrol' && styles.fuelTypeActive]}
                                 onPress={() => setFuelType('petrol')}
                             >
-                                {fuelType === 'petrol' && <View style={[styles.fuelStripe, { backgroundColor: '#4CAF50' }]} />}
+                                {fuelType === 'petrol' && <View style={[styles.fuelStripe, { backgroundColor: colors.service.fuel }]} />}
                                 <Fuel size={28} color={fuelType === 'petrol' ? colors.text.primary : colors.text.muted} strokeWidth={2} />
                                 <Text style={[styles.fuelTypeLabel, fuelType === 'petrol' && styles.fuelTypeLabelActive]}>Petrol</Text>
                                 <Text style={styles.fuelPrice}>KES {PRICES.FUEL_PETROL}/L</Text>
@@ -80,7 +80,7 @@ export const FuelForm: React.FC<FuelFormProps> = ({ onSubmit, onBack }) => {
                                 style={[styles.fuelTypeCard, fuelType === 'diesel' && styles.fuelTypeActive]}
                                 onPress={() => setFuelType('diesel')}
                             >
-                                {fuelType === 'diesel' && <View style={[styles.fuelStripe, { backgroundColor: '#FFA500' }]} />}
+                                {fuelType === 'diesel' && <View style={[styles.fuelStripe, { backgroundColor: colors.voltage }]} />}
                                 <Droplets size={28} color={fuelType === 'diesel' ? colors.text.primary : colors.text.muted} strokeWidth={2} />
                                 <Text style={[styles.fuelTypeLabel, fuelType === 'diesel' && styles.fuelTypeLabelActive]}>Diesel</Text>
                                 <Text style={styles.fuelPrice}>KES {PRICES.FUEL_DIESEL}/L</Text>

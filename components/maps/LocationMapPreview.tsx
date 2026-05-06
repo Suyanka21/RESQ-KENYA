@@ -23,16 +23,19 @@ if (Platform.OS !== 'web') {
     }
 }
 
+// Google Maps stylers require literal hex strings.
+/* eslint-disable resq-theme/no-hardcoded-colors */
 const DARK_MAP_STYLE = [
-    { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8e8e8e' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d1d' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c2c' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1d1d1d' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3a3a3a' }] },
+    { elementType: 'geometry', stylers: [{ color: colors.background.secondary }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: colors.text.secondary }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: colors.background.secondary }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: colors.background.border }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: colors.background.secondary }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: colors.charcoal[500] }] },
     { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
     { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#262626' }] },
 ];
+/* eslint-enable resq-theme/no-hardcoded-colors */
 
 // Default to Nairobi
 const DEFAULT_REGION = {
@@ -149,7 +152,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: '#FFFFFF',
+        borderColor: colors.text.primary,
     },
     markerInner: {
         width: 8,

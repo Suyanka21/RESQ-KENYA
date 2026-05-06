@@ -32,18 +32,20 @@ interface Region {
     longitudeDelta: number;
 }
 
-// Map styling for dark mode
+// Map styling for dark mode (Google Maps stylers require literal hex strings)
+/* eslint-disable resq-theme/no-hardcoded-colors */
 const DARK_MAP_STYLE = [
-    { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8e8e8e' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d1d' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c2c' }] },
-    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1d1d1d' }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3a3a3a' }] },
+    { elementType: 'geometry', stylers: [{ color: colors.background.secondary }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: colors.text.secondary }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: colors.background.secondary }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: colors.background.border }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: colors.background.secondary }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: colors.charcoal[500] }] },
     { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
     { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#262626' }] },
     { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a3d1a' }] },
 ];
+/* eslint-enable resq-theme/no-hardcoded-colors */
 
 // Nairobi default region
 const DEFAULT_REGION: Region = {
@@ -263,7 +265,7 @@ export default function TrackingMap({
                     {showRoute && traveledCoordinates && traveledCoordinates.length >= 2 ? (
                         <Polyline
                             coordinates={traveledCoordinates}
-                            strokeColor={'#7C5CFC'}
+                            strokeColor={colors.service.tire}
                             strokeWidth={5}
                         />
                     ) : null}
@@ -346,7 +348,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     fallbackSubtitle: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.text.opacity60,
         textAlign: 'center',
         paddingHorizontal: 32,
         fontSize: 14,
@@ -360,8 +362,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: '#FFFFFF',
-        shadowColor: '#000',
+        borderColor: colors.text.primary,
+        shadowColor: colors.background.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -382,7 +384,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 3,
         borderColor: colors.voltage,
-        shadowColor: '#000',
+        shadowColor: colors.background.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.4,
         shadowRadius: 4,
@@ -404,7 +406,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderWidth: 1,
         borderColor: colors.charcoal[600],
-        shadowColor: '#000',
+        shadowColor: colors.background.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -415,7 +417,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     etaLabel: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.text.opacity60,
         fontSize: 12,
         marginBottom: 4,
     },
@@ -426,12 +428,12 @@ const styles = StyleSheet.create({
     },
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15,15,15,0.8)',
+        backgroundColor: colors.background.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
     loadingText: {
-        color: '#FFFFFF',
+        color: colors.text.primary,
         marginTop: 16,
         fontSize: 16,
     },

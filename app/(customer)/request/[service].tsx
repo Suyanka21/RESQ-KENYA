@@ -13,7 +13,7 @@ import { TireForm } from '../../../components/request/forms/TireForm';
 import { DiagnosticsForm } from '../../../components/request/forms/DiagnosticsForm';
 import { AmbulanceForm } from '../../../components/request/forms/AmbulanceForm';
 
-type ServiceType = 'towing' | 'fuel' | 'battery' | 'tire' | 'diagnostics' | 'medical';
+import type { ServiceType } from '../../../types/api';
 
 export default function ServiceRequestScreen() {
     const { service } = useLocalSearchParams<{ service: string }>();
@@ -50,14 +50,14 @@ export default function ServiceRequestScreen() {
             return <TireForm onSubmit={handleSubmit} onBack={handleBack} />;
         case 'diagnostics':
             return <DiagnosticsForm onSubmit={handleSubmit} onBack={handleBack} />;
-        case 'medical':
+        case 'ambulance':
             return <AmbulanceForm onSubmit={handleSubmit} onBack={handleBack} />;
         default:
             // Fallback for unknown service types
             return (
                 <View style={styles.errorContainer}>
                     <View style={styles.errorHeader}>
-                        <Pressable onPress={handleBack} style={({ pressed }) => [styles.backButton, pressed && { backgroundColor: colors.charcoal[700], transform: [{ scale: 0.9 }] }]} accessibilityLabel="Go back" accessibilityRole="button">
+                        <Pressable onPress={handleBack} style={({ pressed }) => [styles.backButton, pressed && { backgroundColor: colors.background.tertiary, transform: [{ scale: 0.9 }] }]} accessibilityLabel="Go back" accessibilityRole="button">
                             <ChevronLeft size={24} color={colors.text.primary} strokeWidth={2} />
                         </Pressable>
                         <Text style={styles.headerTitle}>Service</Text>
@@ -82,11 +82,11 @@ export default function ServiceRequestScreen() {
 }
 
 const styles = StyleSheet.create({
-    errorContainer: { flex: 1, backgroundColor: colors.charcoal[900] },
+    errorContainer: { flex: 1, backgroundColor: colors.background.primary },
     errorHeader: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: spacing.md, paddingTop: Platform.OS === 'ios' ? 56 : 36, paddingBottom: spacing.sm,
-        backgroundColor: colors.charcoal[800], borderBottomWidth: 1, borderBottomColor: colors.charcoal[700],
+        backgroundColor: colors.background.secondary, borderBottomWidth: 1, borderBottomColor: colors.background.border,
     },
     backButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: typography.fontSize.lg, fontWeight: '700', color: colors.text.primary },
@@ -99,5 +99,5 @@ const styles = StyleSheet.create({
         marginTop: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
         backgroundColor: colors.voltage, borderRadius: borderRadius.xl,
     },
-    errorButtonText: { fontSize: 16, fontWeight: '700', color: colors.charcoal[900] },
+    errorButtonText: { fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.bold as any, color: colors.text.onBrand },
 });

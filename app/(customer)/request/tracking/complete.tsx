@@ -117,7 +117,7 @@ export default function CompleteScreen() {
                         <Animated.View key={i} style={[styles.confetti, {
                             opacity: op,
                             transform: confettiTrans[i].getTranslateTransform(),
-                            backgroundColor: [colors.voltage, colors.status.success, colors.status.info, '#FF6B6B', '#9B59B6', '#1ABC9C'][i],
+                            backgroundColor: [colors.voltage, colors.status.success, colors.status.info, colors.status.error, colors.service.tire, colors.status.success][i],
                         }]} />
                     ))}
 
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     confetti: { position: 'absolute', width: 8, height: 8, borderRadius: 4, top: 40 },
     checkCircle: {
         width: 80, height: 80, borderRadius: 40,
-        backgroundColor: 'rgba(0,230,118,0.15)', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: `26`, alignItems: 'center', justifyContent: 'center',
         marginBottom: 16,
     },
     completeTitle: { fontSize: 28, fontWeight: '700', color: colors.text.primary, marginBottom: 4 },

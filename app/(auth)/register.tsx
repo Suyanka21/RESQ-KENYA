@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.md,
         ...shadows.button,
         // Glow effect matching stitch design
-        shadowColor: '#FFA500',
+        shadowColor: colors.voltage,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 16,
