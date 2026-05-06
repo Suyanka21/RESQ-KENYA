@@ -1,48 +1,28 @@
 // ⚡ ResQ Kenya - Emergency Command Center Dashboard
 // 3-State Bottom Sheet + Smart Intent Bar + Floating SOS
-// Bolt-inspired premium dark command center
+// Refactored: theme tokens, extracted components, centralized SERVICE_CATALOG
+// Audit fixes: F-MED-2 (service data duplication), F-HIGH-1 (battery color)
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, Pressable, ScrollView, Animated,
-    Dimensions, Platform, Modal, TextInput, PanResponder,
-    type GestureResponderEvent, type PanResponderGestureState,
+    Dimensions, Platform, TextInput, PanResponder,
+    type PanResponderGestureState,
 } from 'react-native';
 import { router } from 'expo-router';
-import {
-    Menu, Bell, Crosshair, MapPin, X, Home, Clock, CreditCard,
-    Settings, HelpCircle, LogOut, ChevronRight, Shield, Search,
-    Zap, Fuel, Battery, Disc, Activity, HeartPulse, Truck,
-    Wallet as WalletIcon, Car, History, ShieldAlert, Star, Users
-} from 'lucide-react-native';
-import { colors, spacing, borderRadius, shadows, touchTargets, typography } from '../../theme/voltage-premium';
+import { Menu, Bell, Crosshair, Search } from 'lucide-react-native';
+import { colors, spacing, borderRadius, shadows, typography, touchTargets } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
+import { SERVICE_LIST } from '../../constants/services';
+import { SidebarDrawer } from '../../components/dashboard/SidebarDrawer';
 
 const { width, height } = Dimensions.get('window');
 
 // Sheet snap points (from bottom)
-const SHEET_EXPANDED = height * 0.60;  // 60% — Emergency Hub
-const SHEET_HALF = height * 0.40;      // 40% — Hybrid Context
-const SHEET_COLLAPSED = 80;            // 80px — Operational Map
+const SHEET_EXPANDED = height * 0.60;
+const SHEET_HALF = height * 0.40;
+const SHEET_COLLAPSED = 80;
 const SNAP_POINTS = [SHEET_COLLAPSED, SHEET_HALF, SHEET_EXPANDED];
-
-// Service definitions
-const SERVICES = [
-    { id: 'towing', name: 'Towing', icon: Truck, color: '#FFA500', bg: 'rgba(255, 165, 0, 0.12)', keywords: ['tow', 'flatbed', 'stuck'] },
-    { id: 'fuel', name: 'Fuel', icon: Fuel, color: '#4CAF50', bg: 'rgba(76, 175, 80, 0.12)', keywords: ['fuel', 'petrol', 'diesel', 'gas'] },
-    { id: 'battery', name: 'Battery', icon: Battery, color: '#FFA500', bg: 'rgba(255, 165, 0, 0.12)', keywords: ['battery', 'jump', 'jumpstart', 'dead'] },
-    { id: 'tire', name: 'Tire', icon: Disc, color: '#9C27B0', bg: 'rgba(156, 39, 176, 0.12)', keywords: ['tire', 'tyre', 'flat', 'puncture'] },
-    { id: 'diagnostics', name: 'Diagnostics', icon: Activity, color: '#2196F3', bg: 'rgba(33, 150, 243, 0.12)', keywords: ['scan', 'diagnos', 'check', 'engine'] },
-    { id: 'medical', name: 'Ambulance', icon: HeartPulse, color: '#FF3D3D', bg: 'rgba(255, 61, 61, 0.12)', keywords: ['ambulance', 'medical', 'emergency', 'hospital'] },
-];
-
-// Sidebar nav items
-const NAV_ITEMS = [
-    { icon: WalletIcon, label: 'ResQ Wallet', sublabel: 'KES 2,450', route: '/(customer)/wallet', active: false },
-    { icon: Car, label: 'My Garage', sublabel: 'Digital Glovebox', route: '/(customer)/profile', active: false },
-    { icon: History, label: 'Service History', route: '/(customer)/history', active: false },
-    { icon: ShieldAlert, label: 'Emergency Safety Hub', route: '/(customer)/help', active: false },
-];
 
 // Provider markers scattered across "Nairobi"
 const PROVIDER_MARKERS = [
@@ -57,7 +37,6 @@ const PROVIDER_MARKERS = [
 // ============================================================================
 const DarkMap = () => (
     <View style={mapStyles.container}>
-        {/* Road grid */}
         <View style={mapStyles.gridOverlay}>
             {[...Array(8)].map((_, i) => (
                 <View key={`h${i}`} style={[mapStyles.gridLine, { top: `${10 + i * 12}%` }]} />
@@ -67,14 +46,12 @@ const DarkMap = () => (
             ))}
         </View>
 
-        {/* Provider markers (Voltage Orange) */}
         {PROVIDER_MARKERS.map((pos, i) => (
             <View key={`p${i}`} style={[mapStyles.providerMarker, { top: pos.top as any, left: pos.left as any }]}>
                 <View style={mapStyles.providerDot} />
             </View>
         ))}
 
-        {/* User location marker (center) */}
         <View style={mapStyles.userMarker}>
             <View style={mapStyles.userPulseOuter} />
             <View style={mapStyles.userPulseInner} />
@@ -89,198 +66,49 @@ const DarkMap = () => (
 );
 
 // ============================================================================
-// SIDEBAR DRAWER
-// ============================================================================
-const SidebarDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-    const slideAnim = useRef(new Animated.Value(-280)).current;
-    const backdropAnim = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        if (isOpen) {
-            Animated.parallel([
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    tension: 180,
-                    friction: 12,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(backdropAnim, {
-                    toValue: 1,
-                    duration: 250,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        } else {
-            Animated.parallel([
-                Animated.spring(slideAnim, {
-                    toValue: -280,
-                    tension: 180,
-                    friction: 12,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(backdropAnim, {
-                    toValue: 0,
-                    duration: 200,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }
-    }, [isOpen]);
-
-    return (
-        <Modal visible={isOpen} transparent animationType="none" onRequestClose={onClose}>
-            <Animated.View style={[sidebarStyles.backdrop, { opacity: backdropAnim }]}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-            </Animated.View>
-            <Animated.View style={[sidebarStyles.drawer, { transform: [{ translateX: slideAnim }] }]}>
-                {/* Header */}
-                <View style={sidebarStyles.header}>
-                    <View style={sidebarStyles.headerTop}>
-                        <View style={sidebarStyles.brandRow}>
-                            <View style={sidebarStyles.brandIcon}>
-                                <Zap size={16} color={colors.background.primary} strokeWidth={3} fill={colors.background.primary} />
-                            </View>
-                            <Text style={sidebarStyles.brandName}>ResQ</Text>
-                        </View>
-                        <Pressable onPress={onClose} style={sidebarStyles.closeBtn}
-                            accessibilityLabel="Close menu" accessibilityRole="button">
-                            <X size={20} color={colors.text.secondary} strokeWidth={2} />
-                        </Pressable>
-                    </View>
-
-                    {/* User Profile with Safety Rating */}
-                    <View style={sidebarStyles.userProfile}>
-                        <View style={sidebarStyles.avatar}>
-                            <Text style={sidebarStyles.avatarText}>JM</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={sidebarStyles.userName}>John Mwangi</Text>
-                            <View style={sidebarStyles.ratingRow}>
-                                <Star size={14} color={colors.voltage} fill={colors.voltage} />
-                                <Text style={sidebarStyles.ratingValue}>4.74</Text>
-                                <Text style={sidebarStyles.ratingLabel}>Safety Rating</Text>
-                            </View>
-                        </View>
-                    </View>
-                    <Pressable
-                        onPress={() => { onClose(); router.push('/(customer)/profile'); }}
-                        style={sidebarStyles.viewProfileLink}
-                        accessibilityLabel="View profile" accessibilityRole="button">
-                        <Text style={sidebarStyles.viewProfileText}>View Profile</Text>
-                        <ChevronRight size={14} color={colors.text.secondary} />
-                    </Pressable>
-                </View>
-
-                {/* Nav Items */}
-                <ScrollView style={sidebarStyles.navList} showsVerticalScrollIndicator={false}>
-                    {NAV_ITEMS.map((item) => (
-                        <Pressable key={item.label}
-                            style={({ pressed }) => [sidebarStyles.navItem, pressed && { backgroundColor: 'rgba(255,165,0,0.06)' }]}
-                            onPress={() => { onClose(); router.push(item.route as any); }}
-                            accessibilityLabel={item.label} accessibilityRole="button">
-                            <View style={sidebarStyles.navItemLeft}>
-                                <View style={sidebarStyles.navIconWrap}>
-                                    <item.icon size={20} color={colors.voltage} strokeWidth={2} />
-                                </View>
-                                <View>
-                                    <Text style={sidebarStyles.navLabel}>{item.label}</Text>
-                                    {item.sublabel && (
-                                        <Text style={sidebarStyles.navSublabel}>{item.sublabel}</Text>
-                                    )}
-                                </View>
-                            </View>
-                            <ChevronRight size={16} color={colors.text.tertiary} />
-                        </Pressable>
-                    ))}
-                </ScrollView>
-
-                {/* Provider CTA Banner — Glassmorphism */}
-                <View style={sidebarStyles.ctaBanner}>
-                    <View style={sidebarStyles.ctaGlow} />
-                    <Users size={20} color="#0F0F0F" strokeWidth={2} />
-                    <View style={{ flex: 1 }}>
-                        <Text style={sidebarStyles.ctaTitle}>Join the ResQ Provider Network</Text>
-                        <Text style={sidebarStyles.ctaSub}>Earn by helping drivers in need</Text>
-                    </View>
-                    <ChevronRight size={16} color="#0F0F0F" />
-                </View>
-
-                {/* Footer */}
-                <View style={sidebarStyles.footer}>
-                    <Pressable style={({ pressed }) => [sidebarStyles.logoutBtn, pressed && { backgroundColor: 'rgba(255,61,61,0.1)' }]}
-                        onPress={() => { onClose(); router.replace('/'); }}
-                        accessibilityLabel="Sign out" accessibilityRole="button">
-                        <LogOut size={20} color={colors.status.error} strokeWidth={2} />
-                        <Text style={sidebarStyles.logoutText}>Sign Out</Text>
-                    </Pressable>
-                    <Text style={sidebarStyles.versionText}>Version 2.5.0</Text>
-                </View>
-            </Animated.View>
-        </Modal>
-    );
-};
-
-// ============================================================================
 // SMART INTENT BAR
 // ============================================================================
-const SmartIntentBar = ({ onServiceMatch }: { onServiceMatch: (serviceId: string) => void }) => {
+const SmartIntentBar = ({ onServiceMatch }: { onServiceMatch: (id: string) => void }) => {
     const [query, setQuery] = useState('');
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const handleTextChange = useCallback((text: string) => {
+    const handleChange = (text: string) => {
         setQuery(text);
-
-        // Clear any pending debounce
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
-        }
-
         const lower = text.toLowerCase().trim();
-        if (lower.length < 4) return;
+        if (lower.length < 2) return;
 
-        // Wait 600ms after user stops typing before matching
-        debounceRef.current = setTimeout(() => {
-            for (const svc of SERVICES) {
-                if (svc.keywords.some(kw => lower.includes(kw))) {
-                    setQuery('');
-                    onServiceMatch(svc.id);
-                    return;
-                }
+        for (const svc of SERVICE_LIST) {
+            if (svc.keywords.some(kw => lower.includes(kw))) {
+                onServiceMatch(svc.id);
+                setQuery('');
+                return;
             }
-        }, 600);
-    }, [onServiceMatch]);
-
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (debounceRef.current) clearTimeout(debounceRef.current);
-        };
-    }, []);
+        }
+    };
 
     return (
         <View style={intentStyles.container}>
-            <View style={intentStyles.searchIcon}>
-                <Search size={18} color={colors.text.tertiary} strokeWidth={2} />
-            </View>
+            <Search size={18} color={colors.text.tertiary} style={intentStyles.searchIcon} />
             <TextInput
                 style={intentStyles.input}
-                value={query}
-                onChangeText={handleTextChange}
-                placeholder="What do you need? (e.g., Towing, Jumpstart)"
+                placeholder="What do you need help with?"
                 placeholderTextColor={colors.text.tertiary}
+                value={query}
+                onChangeText={handleChange}
                 returnKeyType="search"
-                accessibilityLabel="Search for emergency service"
+                accessibilityLabel="Search for service"
             />
         </View>
     );
 };
 
 // ============================================================================
-// BENTO SERVICE GRID (Expanded State)
+// BENTO GRID (Expanded State)
 // ============================================================================
+const CARD_WIDTH = (width - spacing.lg * 2 - spacing.md - 4) / 2;
+
 const BentoGrid = ({ onSelect }: { onSelect: (id: string) => void }) => (
     <View style={bentoStyles.grid}>
-        {SERVICES.map((svc) => {
+        {SERVICE_LIST.map((svc) => {
             const Icon = svc.icon;
             return (
                 <Pressable key={svc.id}
@@ -307,7 +135,7 @@ const BentoGrid = ({ onSelect }: { onSelect: (id: string) => void }) => (
 const IconRow = ({ onSelect }: { onSelect: (id: string) => void }) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={rowStyles.scroll}>
-        {SERVICES.map((svc) => {
+        {SERVICE_LIST.map((svc) => {
             const Icon = svc.icon;
             return (
                 <Pressable key={svc.id}
@@ -382,7 +210,6 @@ export default function DashboardScreen() {
             onStartShouldSetPanResponder: () => true,
             onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 8,
             onPanResponderGrant: () => {
-                // Capture the current animated value
                 sheetHeight.stopAnimation((value) => {
                     lastHeight.current = value;
                 });
@@ -396,15 +223,11 @@ export default function DashboardScreen() {
             },
             onPanResponderRelease: (_, gs: PanResponderGestureState) => {
                 const currentHeight = lastHeight.current - gs.dy;
-                // Velocity-aware snapping
                 if (Math.abs(gs.vy) > 0.5) {
-                    // Fast fling — snap in direction of fling
                     if (gs.vy > 0) {
-                        // Swiping down
                         const below = SNAP_POINTS.filter(sp => sp < currentHeight);
                         snapTo(below.length > 0 ? below[below.length - 1] : SNAP_POINTS[0]);
                     } else {
-                        // Swiping up
                         const above = SNAP_POINTS.filter(sp => sp > currentHeight);
                         snapTo(above.length > 0 ? above[0] : SNAP_POINTS[SNAP_POINTS.length - 1]);
                     }
@@ -455,7 +278,7 @@ export default function DashboardScreen() {
                 </View>
             </View>
 
-            {/* Floating SOS Button */}
+            {/* Floating SOS Button — primary action, ≥80px touch target */}
             <View style={styles.sosArea}>
                 <Animated.View style={[styles.sosGlow, { opacity: sosGlow }]} />
                 <Pressable
@@ -472,7 +295,7 @@ export default function DashboardScreen() {
             {/* Location FAB */}
             <Pressable style={styles.locationFab}
                 accessibilityLabel="Center on location" accessibilityRole="button">
-                <Crosshair size={20} color={colors.background.primary} strokeWidth={2.5} />
+                <Crosshair size={20} color={colors.text.onBrand} strokeWidth={2.5} />
             </Pressable>
 
             {/* 3-State Bottom Sheet */}
@@ -490,7 +313,7 @@ export default function DashboardScreen() {
                 {/* Expanded State: Bento Grid */}
                 {sheetState === 'expanded' && (
                     <ScrollView showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ paddingBottom: 32 }}>
+                        contentContainerStyle={{ paddingBottom: spacing.xl }}>
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Emergency Services</Text>
                             <Text style={styles.sectionSub}>Select the help you need</Text>
@@ -501,7 +324,7 @@ export default function DashboardScreen() {
 
                 {/* Half State: Horizontal Icon Row */}
                 {sheetState === 'half' && (
-                    <View style={{ marginTop: 8 }}>
+                    <View style={{ marginTop: spacing.sm }}>
                         <IconRow onSelect={handleSelectService} />
                     </View>
                 )}
@@ -516,7 +339,7 @@ export default function DashboardScreen() {
 const mapStyles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0F0F0F',
+        backgroundColor: colors.background.primary,
     },
     gridOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -526,20 +349,20 @@ const mapStyles = StyleSheet.create({
         position: 'absolute',
         left: 0, right: 0,
         height: 1,
-        backgroundColor: '#3D3D3D',
+        backgroundColor: colors.charcoal[500],
     },
     gridLineV: {
         position: 'absolute',
         top: 0, bottom: 0,
         width: 1,
-        backgroundColor: '#3D3D3D',
+        backgroundColor: colors.charcoal[500],
     },
     providerMarker: {
         position: 'absolute',
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: 'rgba(255, 165, 0, 0.15)',
+        backgroundColor: `${colors.voltage}26`,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -559,251 +382,47 @@ const mapStyles = StyleSheet.create({
     },
     userPulseOuter: {
         position: 'absolute',
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: 'rgba(255, 165, 0, 0.08)',
-        left: -16,
-        top: -16,
-    },
-    userPulseInner: {
-        position: 'absolute',
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 165, 0, 0.15)',
-    },
-    userDot: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#0F0F0F',
-        borderWidth: 4,
-        borderColor: colors.voltage,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    userDotCore: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: colors.voltage,
-    },
-    userLabel: {
-        marginTop: 8,
-        backgroundColor: 'rgba(15, 15, 15, 0.9)',
-        borderWidth: 1,
-        borderColor: '#2E2E2E',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    userLabelText: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#FFFFFF',
-    },
-});
-
-// ============================================================================
-// SIDEBAR STYLES
-// ============================================================================
-const sidebarStyles = StyleSheet.create({
-    backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.65)',
-    },
-    drawer: {
-        position: 'absolute',
-        top: 0, bottom: 0, left: 0,
-        width: 280,
-        backgroundColor: '#0F0F0F',
-        borderRightWidth: 1,
-        borderRightColor: '#2E2E2E',
-    },
-    header: {
-        padding: 24,
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        borderBottomWidth: 1,
-        borderBottomColor: '#2E2E2E',
-    },
-    headerTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    brandRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    brandIcon: {
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        backgroundColor: colors.voltage,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    brandName: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        letterSpacing: -0.5,
-    },
-    closeBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    userProfile: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        padding: 8,
-        borderRadius: 16,
-    },
-    avatar: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#252525',
-        borderWidth: 1,
-        borderColor: '#3D3D3D',
-        alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: `${colors.status.info}15`,
     },
-    avatarText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#FFFFFF',
-    },
-    userName: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#FFFFFF',
-    },
-    ratingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
-    },
-    ratingValue: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: colors.voltage,
-    },
-    ratingLabel: {
-        fontSize: 11,
-        color: colors.text.secondary,
-        marginLeft: 2,
-    },
-    viewProfileLink: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 12,
-        paddingLeft: 8,
-    },
-    viewProfileText: {
-        fontSize: 13,
-        color: colors.text.secondary,
-        fontWeight: '500',
-    },
-    navList: {
-        flex: 1,
-        paddingVertical: 16,
-        paddingHorizontal: 8,
-    },
-    navItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderRadius: 16,
-        marginBottom: 4,
-    },
-    navItemLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    navIconWrap: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 165, 0, 0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    navLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-    navSublabel: {
-        fontSize: 11,
-        color: colors.text.tertiary,
-        marginTop: 1,
-    },
-    ctaBanner: {
-        marginHorizontal: 12,
-        marginBottom: 8,
-        padding: 16,
-        borderRadius: 16,
-        backgroundColor: colors.voltage,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        overflow: 'hidden',
-    },
-    ctaGlow: {
+    userPulseInner: {
         position: 'absolute',
-        top: -20,
-        right: -20,
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    },
-    ctaTitle: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#0F0F0F',
-    },
-    ctaSub: {
-        fontSize: 11,
-        color: 'rgba(15, 15, 15, 0.65)',
-        marginTop: 1,
-    },
-    footer: {
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#2E2E2E',
-    },
-    logoutBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
+        width: 32,
+        height: 32,
         borderRadius: 16,
+        backgroundColor: `${colors.status.info}25`,
+        top: 8,
     },
-    logoutText: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#FF3D3D',
+    userDot: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: colors.status.info,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 14,
+        borderWidth: 3,
+        borderColor: colors.text.primary,
     },
-    versionText: {
-        textAlign: 'center',
+    userDotCore: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: colors.text.primary,
+    },
+    userLabel: {
+        marginTop: spacing.sm,
+        backgroundColor: colors.background.secondary,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: borderRadius.sm,
+    },
+    userLabelText: {
         fontSize: 10,
-        color: '#6B6B6B',
-        marginTop: 16,
+        color: colors.text.secondary,
+        fontWeight: typography.fontWeight.medium as any,
     },
 });
 
@@ -814,21 +433,21 @@ const intentStyles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1A1A1A',
-        borderRadius: 16,
+        backgroundColor: colors.background.secondary,
+        borderRadius: borderRadius.xl,
         borderWidth: 1,
-        borderColor: '#2E2E2E',
-        height: 48,
-        paddingHorizontal: 12,
+        borderColor: colors.background.border,
+        height: touchTargets.standard,
+        paddingHorizontal: spacing.md - 4,
     },
     searchIcon: {
-        marginRight: 8,
+        marginRight: spacing.sm,
     },
     input: {
         flex: 1,
-        fontSize: 14,
-        color: '#FFFFFF',
-        height: 48,
+        fontSize: typography.fontSize.sm,
+        color: colors.text.primary,
+        height: touchTargets.standard,
         paddingVertical: 0,
     },
 });
@@ -836,42 +455,40 @@ const intentStyles = StyleSheet.create({
 // ============================================================================
 // BENTO GRID STYLES
 // ============================================================================
-const CARD_WIDTH = (width - 24 * 2 - 12) / 2;  // 2 columns, 24px padding, 12px gap
-
 const bentoStyles = StyleSheet.create({
     grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
-        paddingHorizontal: 24,
+        gap: spacing.md - 4,
+        paddingHorizontal: spacing.lg,
     },
     card: {
         width: CARD_WIDTH,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 24,
-        borderRadius: 20,
+        paddingVertical: spacing.lg,
+        borderRadius: borderRadius['2xl'] - 4,
         borderWidth: 1,
-        borderColor: '#2E2E2E',
-        backgroundColor: 'rgba(26, 26, 26, 0.7)',
+        borderColor: colors.background.border,
+        backgroundColor: `${colors.background.secondary}B3`,
     },
     cardPressed: {
-        borderColor: 'rgba(255, 165, 0, 0.5)',
-        backgroundColor: '#252525',
+        borderColor: `${colors.voltage}80`,
+        backgroundColor: colors.background.tertiary,
         transform: [{ scale: 0.96 }],
     },
     iconWrap: {
         width: 56,
         height: 56,
-        borderRadius: 16,
+        borderRadius: borderRadius.xl,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 10,
+        marginBottom: spacing.sm + 2,
     },
     label: {
         fontSize: 13,
-        fontWeight: '600',
-        color: '#A0A0A0',
+        fontWeight: typography.fontWeight.semibold as any,
+        color: colors.text.secondary,
     },
 });
 
@@ -880,8 +497,8 @@ const bentoStyles = StyleSheet.create({
 // ============================================================================
 const rowStyles = StyleSheet.create({
     scroll: {
-        paddingHorizontal: 24,
-        gap: 16,
+        paddingHorizontal: spacing.lg,
+        gap: spacing.md,
     },
     item: {
         alignItems: 'center',
@@ -892,19 +509,19 @@ const rowStyles = StyleSheet.create({
         transform: [{ scale: 0.92 }],
     },
     iconCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: touchTargets.standard,
+        height: touchTargets.standard,
+        borderRadius: touchTargets.standard / 2,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 6,
+        marginBottom: spacing.xs + 2,
         borderWidth: 1,
-        borderColor: '#2E2E2E',
+        borderColor: colors.background.border,
     },
     label: {
         fontSize: 11,
-        fontWeight: '600',
-        color: '#A0A0A0',
+        fontWeight: typography.fontWeight.semibold as any,
+        color: colors.text.secondary,
         textAlign: 'center',
     },
 });
@@ -915,7 +532,7 @@ const rowStyles = StyleSheet.create({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0F0F0F',
+        backgroundColor: colors.background.primary,
     },
 
     // Top Bar
@@ -930,18 +547,18 @@ const styles = StyleSheet.create({
         zIndex: 30,
     },
     topBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        backgroundColor: 'rgba(26, 26, 26, 0.9)',
+        width: touchTargets.minimum,
+        height: touchTargets.minimum,
+        borderRadius: borderRadius.xl - 2,
+        backgroundColor: `${colors.background.secondary}E6`,
         borderWidth: 1,
-        borderColor: '#2E2E2E',
+        borderColor: colors.background.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
     topRight: {
         flexDirection: 'row',
-        gap: 8,
+        gap: spacing.sm,
     },
     notifDot: {
         position: 'absolute',
@@ -952,27 +569,27 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         backgroundColor: colors.voltage,
         borderWidth: 2,
-        borderColor: '#1A1A1A',
+        borderColor: colors.background.secondary,
     },
     topBtnProfile: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
+        width: touchTargets.minimum,
+        height: touchTargets.minimum,
+        borderRadius: borderRadius.xl - 2,
         backgroundColor: colors.voltage,
         alignItems: 'center',
         justifyContent: 'center',
     },
     profileInitials: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#0F0F0F',
+        fontSize: typography.fontSize.sm,
+        fontWeight: typography.fontWeight.bold as any,
+        color: colors.text.onBrand,
     },
 
-    // SOS
+    // SOS — primary action, minimum 80px (touchTargets.sos)
     sosArea: {
         position: 'absolute',
         right: 20,
-        bottom: SHEET_EXPANDED + 24,
+        bottom: SHEET_EXPANDED + spacing.lg,
         zIndex: 25,
         alignItems: 'center',
         justifyContent: 'center',
@@ -982,23 +599,23 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: '#FF3D3D',
+        backgroundColor: colors.status.error,
     },
     sosButton: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: '#FF3D3D',
+        width: touchTargets.sos,
+        height: touchTargets.sos,
+        borderRadius: touchTargets.sos / 2,
+        backgroundColor: colors.status.error,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 4,
-        borderColor: 'rgba(255, 61, 61, 0.3)',
+        borderColor: `${colors.status.error}4D`,
         ...shadows.emergencyGlow,
     },
     sosText: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#FFFFFF',
+        fontSize: typography.fontSize.xl - 4,
+        fontWeight: typography.fontWeight.extrabold as any,
+        color: colors.text.primary,
         letterSpacing: 3,
     },
 
@@ -1007,9 +624,9 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: 20,
         bottom: SHEET_EXPANDED + 116,
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: touchTargets.minimum,
+        height: touchTargets.minimum,
+        borderRadius: touchTargets.minimum / 2,
         backgroundColor: colors.voltage,
         alignItems: 'center',
         justifyContent: 'center',
@@ -1021,11 +638,11 @@ const styles = StyleSheet.create({
     sheet: {
         position: 'absolute',
         bottom: 0, left: 0, right: 0,
-        backgroundColor: 'rgba(15, 15, 15, 0.92)',
+        backgroundColor: `${colors.background.primary}EB`,
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         borderTopWidth: 1,
-        borderTopColor: '#2E2E2E',
+        borderTopColor: colors.background.border,
         zIndex: 20,
         overflow: 'hidden',
     },
@@ -1039,29 +656,29 @@ const styles = StyleSheet.create({
         width: 40,
         height: 4,
         borderRadius: 2,
-        backgroundColor: '#3D3D3D',
+        backgroundColor: colors.charcoal[500],
     },
 
     // Intent bar wrapper
     intentWrap: {
         paddingHorizontal: 20,
-        paddingBottom: 8,
+        paddingBottom: spacing.sm,
     },
 
     // Section header
     sectionHeader: {
-        paddingHorizontal: 24,
-        paddingTop: 8,
-        paddingBottom: 12,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.md - 4,
     },
     sectionTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginBottom: 4,
+        fontSize: typography.mobile.subsection.size,
+        fontWeight: typography.fontWeight.bold as any,
+        color: colors.text.primary,
+        marginBottom: spacing.xs,
     },
     sectionSub: {
         fontSize: 13,
-        color: '#6B6B6B',
+        color: colors.text.tertiary,
     },
 });
