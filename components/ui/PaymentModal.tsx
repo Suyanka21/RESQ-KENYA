@@ -1,7 +1,7 @@
 // ResQ Kenya - Payment Modal Component
 // M-Pesa STK Push payment flow
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -16,9 +16,25 @@ import {
     formatAmount,
     validatePhoneNumber,
     formatPhoneForMpesa,
+    subscribeToPaymentStatus,
     PaymentStatus,
 } from '../../services/payment.service';
 import { colors } from '../../theme/voltage-premium';
+
+/**
+ * Phase 4 (audit-v2 §N-CRIT-5) — STK push UX timeout.
+ *
+ * Safaricom Daraja's STK push prompts the customer's handset and
+ * gives them up to ~75 seconds to enter the M-PIN. We use 90 seconds
+ * to give a safety margin for callback latency. The previous
+ * implementation hardcoded a 5-second `setTimeout` that fabricated
+ * success — the audit's archetype "shows fake state" bug. Now the
+ * UI subscribes to `payment_requests/{idempotencyKey}` for the real
+ * server status and only times out if no callback arrives within
+ * `PAYMENT_TIMEOUT_SECONDS`.
+ */
+const PAYMENT_TIMEOUT_SECONDS = 90;
+const PAYMENT_SUCCESS_HOLD_MS = 1500;
 
 interface PaymentModalProps {
     visible: boolean;
@@ -42,17 +58,43 @@ export default function PaymentModal({
     const [phoneNumber, setPhoneNumber] = useState(defaultPhone);
     const [status, setStatus] = useState<'idle' | 'sending' | 'waiting' | 'success' | 'failed'>('idle');
     const [error, setError] = useState('');
-    const [countdown, setCountdown] = useState(60);
+    const [countdown, setCountdown] = useState(PAYMENT_TIMEOUT_SECONDS);
+    const [receipt, setReceipt] = useState<string | undefined>(undefined);
 
-    const pulseAnim = new Animated.Value(1);
+    // Track the live `payment_requests/{idempotencyKey}` subscription
+    // so we can tear it down on unmount, modal close, or success.
+    const unsubRef = useRef<null | (() => void)>(null);
+    const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    // Cleanup helper — invoked on every state transition that ends a
+    // pending payment, plus on unmount.
+    const teardownSubscription = () => {
+        if (unsubRef.current) {
+            unsubRef.current();
+            unsubRef.current = null;
+        }
+        if (successTimerRef.current) {
+            clearTimeout(successTimerRef.current);
+            successTimerRef.current = null;
+        }
+    };
+
+    useEffect(() => {
+        return () => teardownSubscription();
+    }, []);
 
     // Reset state when modal opens
     useEffect(() => {
         if (visible) {
             setStatus('idle');
             setError('');
-            setCountdown(60);
+            setCountdown(PAYMENT_TIMEOUT_SECONDS);
+            setReceipt(undefined);
             if (defaultPhone) setPhoneNumber(defaultPhone);
+        } else {
+            teardownSubscription();
         }
     }, [visible]);
 
@@ -62,6 +104,12 @@ export default function PaymentModal({
         if (status === 'waiting' && countdown > 0) {
             timer = setTimeout(() => setCountdown(c => c - 1), 1000);
         } else if (countdown === 0 && status === 'waiting') {
+            // 90s elapsed without a server-side completion — Daraja
+            // never called us back, or the customer never entered
+            // their M-PIN. Tear down the subscription so a late
+            // callback cannot fire onSuccess after the modal has
+            // shown a failure state.
+            teardownSubscription();
             setStatus('failed');
             setError('Payment timed out. Please try again.');
         }
@@ -112,15 +160,44 @@ export default function PaymentModal({
                 description: `ResQ ${serviceName} Payment`,
             });
 
-            if (result.success) {
+            if (result.success && result.idempotencyKey) {
                 setStatus('waiting');
-                setCountdown(60);
+                setCountdown(PAYMENT_TIMEOUT_SECONDS);
 
-                // Simulate successful payment after 5 seconds (demo)
-                setTimeout(() => {
-                    setStatus('success');
-                    setTimeout(() => onSuccess(result.checkoutRequestID), 1500);
-                }, 5000);
+                // Phase 4 (audit-v2 §N-CRIT-5): subscribe to the
+                // server-truth status of this STK push instead of
+                // fabricating success after a fixed delay.
+                teardownSubscription();
+                unsubRef.current = subscribeToPaymentStatus(
+                    result.idempotencyKey,
+                    (statusUpdate) => {
+                        if (statusUpdate.status === 'completed') {
+                            const receiptNumber =
+                                statusUpdate.mpesaReceiptNumber ?? result.checkoutRequestID;
+                            setReceipt(receiptNumber);
+                            setStatus('success');
+                            // Hold the success state briefly for UX
+                            // before handing back control.
+                            successTimerRef.current = setTimeout(() => {
+                                onSuccess(receiptNumber);
+                            }, PAYMENT_SUCCESS_HOLD_MS);
+                            // The subscription has fulfilled its
+                            // purpose; release Firestore listener.
+                            if (unsubRef.current) {
+                                unsubRef.current();
+                                unsubRef.current = null;
+                            }
+                        } else if (statusUpdate.status === 'failed' || statusUpdate.status === 'cancelled') {
+                            teardownSubscription();
+                            setStatus('failed');
+                            setError(
+                                statusUpdate.status === 'cancelled'
+                                    ? 'Payment was cancelled on your phone.'
+                                    : 'Payment failed. Please try again.'
+                            );
+                        }
+                    }
+                );
             } else {
                 setStatus('failed');
                 setError(result.error || 'Payment initiation failed');

@@ -146,13 +146,28 @@ export async function queryPaymentStatus(checkoutRequestID: string): Promise<Pay
 }
 
 /**
- * Subscribe to payment status updates in real-time
+ * Phase 4 (audit-v2 §N-CRIT-5) — subscribe to the live status of an
+ * STK push.
+ *
+ * The `payment_requests` collection is keyed by **idempotencyKey**
+ * (see `functions/src/mpesa/stkPush.ts` and
+ * `functions/src/mpesa/callback.ts`), not by the customer-facing
+ * `requestId`. The pre-fix wrapper passed `requestId` here, which
+ * meant the customer's UI could never observe the real M-Pesa
+ * outcome — it had to rely on the local `setTimeout` fake-success
+ * path that the audit flagged as a "shows fake state" bug. Now the
+ * argument name matches the storage key and the UI gets the real
+ * server status as soon as the M-Pesa callback writes it.
+ *
+ * Skills: API-and-Interface-Design (parameter name matches storage
+ * contract), Source-Driven Development (Firestore `payment_requests`
+ * schema is the single source of truth).
  */
 export function subscribeToPaymentStatus(
-    requestId: string,
+    idempotencyKey: string,
     callback: (status: PaymentStatusResult) => void
 ): () => void {
-    const paymentRef = doc(db, 'payment_requests', requestId);
+    const paymentRef = doc(db, 'payment_requests', idempotencyKey);
 
     return onSnapshot(paymentRef, (snapshot) => {
         if (snapshot.exists()) {
