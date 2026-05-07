@@ -49,6 +49,7 @@ export {
     createEmergencyRequest,
     findNearestMedicalProviders,
     assignMedicalProvider,
+    onEmergencyRequestStatusChange,
     notifyNearbyHospitals
 } from './medical/dispatch';
 

@@ -3,6 +3,12 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import {
+    planAssignMedicalProvider,
+    shouldReleaseMedicalProvider,
+    type AssignMedicalProviderRequest,
+    type AssignMedicalProviderProvider,
+} from './dispatch.planner';
 
 const db = admin.firestore();
 
@@ -193,6 +199,22 @@ export const findNearestMedicalProviders = functions.https.onCall(async (data: {
 // ASSIGN MEDICAL PROVIDER
 // ============================================================================
 
+/**
+ * Phase 4 (audit-v2 §N-CRIT-4) — single-transaction provider assignment
+ * with seven invariants. The pre-fix implementation used two
+ * sequential `update()` calls and only gated on `status === 'pending'`
+ * + `provider.status === 'active'`. The audit catalogues the risks
+ * that allowed:
+ *  - the same provider to take two simultaneous emergencies
+ *  - a `first_responder` to be dispatched to a `red` cardiac call
+ *  - any auth'd caller to assign any provider to any request
+ *  - a half-applied state when the second update failed
+ *
+ * Decision logic lives in `dispatch.planner.ts`; this function is the
+ * thin wiring that runs the plan inside `db.runTransaction` and emits
+ * the customer notification after the transaction commits (so we
+ * don't promise the customer a dispatch we haven't durably written).
+ */
 export const assignMedicalProvider = functions.https.onCall(async (data: {
     requestId: string;
     providerId: string;
@@ -201,71 +223,145 @@ export const assignMedicalProvider = functions.https.onCall(async (data: {
         throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
     }
 
+    const callerUid = context.auth.uid;
     const { requestId, providerId } = data;
 
+    if (typeof requestId !== 'string' || requestId.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'requestId is required');
+    }
+    if (typeof providerId !== 'string' || providerId.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'providerId is required');
+    }
+
+    const requestRef = db.collection('emergency_requests').doc(requestId);
+    const providerRef = db.collection('medical_providers').doc(providerId);
+
+    // Captured inside the transaction, used after commit to fan out
+    // the customer notification.
+    let customerUserId: string | null = null;
+
     try {
-        const requestRef = db.collection('emergency_requests').doc(requestId);
-        const requestDoc = await requestRef.get();
+        await db.runTransaction(async (txn) => {
+            const [requestSnap, providerSnap] = await Promise.all([
+                txn.get(requestRef),
+                txn.get(providerRef),
+            ]);
 
-        if (!requestDoc.exists) {
-            throw new functions.https.HttpsError('not-found', 'Emergency request not found');
-        }
+            const requestData = requestSnap.exists
+                ? (requestSnap.data() as { status: string; triageLevel: string; userId: string })
+                : undefined;
+            const providerData = providerSnap.exists
+                ? (providerSnap.data() as {
+                      status: string;
+                      emtLevel: string;
+                      isAvailable?: boolean;
+                      currentRequestId?: string;
+                  })
+                : undefined;
 
-        const requestData = requestDoc.data()!;
+            const plan = planAssignMedicalProvider({
+                callerUid,
+                providerId,
+                request: requestData
+                    ? ({
+                          status: requestData.status,
+                          triageLevel: requestData.triageLevel,
+                      } as AssignMedicalProviderRequest)
+                    : undefined,
+                provider: providerData
+                    ? ({
+                          status: providerData.status,
+                          emtLevel: providerData.emtLevel,
+                          isAvailable: providerData.isAvailable,
+                          currentRequestId: providerData.currentRequestId,
+                      } as AssignMedicalProviderProvider)
+                    : undefined,
+            });
+            if (!plan.ok) {
+                throw new functions.https.HttpsError(plan.code, plan.message);
+            }
 
-        if (requestData.status !== 'pending') {
-            throw new functions.https.HttpsError(
-                'failed-precondition',
-                `Request already ${requestData.status}`
-            );
-        }
+            customerUserId = requestData!.userId;
+            const now = admin.firestore.FieldValue.serverTimestamp();
 
-        // Verify provider is active
-        const providerDoc = await db.collection('medical_providers').doc(providerId).get();
-        if (!providerDoc.exists || providerDoc.data()!.status !== 'active') {
-            throw new functions.https.HttpsError(
-                'failed-precondition',
-                'Provider not available'
-            );
-        }
+            txn.update(requestRef, {
+                providerId,
+                status: 'accepted',
+                providerAssignedAt: now,
+                'timeline.acceptedAt': now,
+                updatedAt: now,
+            });
 
-        const now = admin.firestore.FieldValue.serverTimestamp();
-
-        // Update request
-        await requestRef.update({
-            providerId,
-            status: 'accepted',
-            providerAssignedAt: now,
-            'timeline.acceptedAt': now,
-            updatedAt: now,
+            txn.update(providerRef, {
+                currentRequestId: requestId,
+                isAvailable: false,
+                updatedAt: now,
+            });
         });
+    } catch (error) {
+        if (error instanceof functions.https.HttpsError) throw error;
+        console.error('Assign medical provider error:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to assign provider');
+    }
 
-        // Update provider availability
-        await db.collection('medical_providers').doc(providerId).update({
-            currentRequestId: requestId,
-            isAvailable: false,
-            updatedAt: now,
-        });
-
-        // Notify customer
+    // Notify customer outside the transaction (Firestore transactions
+    // cannot include side-effecting writes to unrelated docs).
+    try {
         await db.collection('notifications').add({
-            userId: requestData.userId,
+            userId: customerUserId,
             title: 'Ambulance Dispatched',
             body: 'A medical responder is on the way to your location',
             type: 'emergency_update',
             data: { requestId, providerId },
-            createdAt: now,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-
-        return {
-            success: true,
-            message: 'Medical provider assigned successfully',
-        };
     } catch (error) {
-        console.error('Assign provider error:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to assign provider');
+        // Notification failure must not roll back the dispatch — the
+        // assignment is durably written. Log loudly so a follow-up
+        // worker can re-emit the notification.
+        console.error('Medical dispatch notification failed (assignment durable):', {
+            requestId,
+            providerId,
+            error,
+        });
     }
+
+    return {
+        success: true,
+        message: 'Medical provider assigned successfully',
+    };
 });
+
+/**
+ * Phase 4 (audit-v2 §N-CRIT-4 release path) — Firestore trigger that
+ * releases the medical provider's `currentRequestId` when the
+ * `emergency_requests` doc reaches a terminal status. Without this,
+ * a medical provider would be permanently locked out of dispatch
+ * after their first emergency (same regression class as N-CRIT-1 on
+ * the rideshare side, but for the `medical_providers/` collection).
+ */
+export const onEmergencyRequestStatusChange = functions.firestore
+    .document('emergency_requests/{requestId}')
+    .onUpdate(async (change) => {
+        const before = change.before.data() as { status?: string; providerId?: string } | undefined;
+        const after = change.after.data() as { status?: string; providerId?: string } | undefined;
+        if (!after) return null;
+
+        const release = shouldReleaseMedicalProvider(
+            before?.status,
+            after.status ?? '',
+            after.providerId
+        );
+        if (!release) return null;
+
+        const providerRef = db.collection('medical_providers').doc(after.providerId!);
+        await providerRef.update({
+            currentRequestId: admin.firestore.FieldValue.delete(),
+            isAvailable: true,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return null;
+    });
 
 // ============================================================================
 // NOTIFY NEARBY HOSPITALS
