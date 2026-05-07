@@ -17,8 +17,43 @@ import type {
 // Initialize Firebase Functions
 const functions = getFunctions(app, 'us-central1');
 
-// Demo mode flag
-const USE_DEMO_MODE = true;
+/**
+ * Phase 4 (audit-v2 §N-CRIT-3) — demo-mode toggle.
+ *
+ * Previously hardcoded to `true`, which meant the production build
+ * silently fabricated medical-provider registrations, audit logs, and
+ * incident reports. The audit ranked this CRITICAL on the safety
+ * override (medical, life-safety, regulatory). This now mirrors the
+ * `customer.service.ts` / `payment.service.ts` pattern: opt in via
+ * `EXPO_PUBLIC_DEMO_MODE='true'` at build time, default OFF so
+ * production builds talk to the real Cloud Functions.
+ *
+ * Indirect env access avoids `babel-preset-expo`'s
+ * `process.env.EXPO_PUBLIC_*` constant-folding (same constraint that
+ * forced the customer-service shape).
+ *
+ * Skills: Security-and-Hardening (default-deny on demo simulation
+ * paths that touch life-safety surfaces), API-and-Interface-Design
+ * (one demo-mode pattern across all client services).
+ */
+let USE_DEMO_MODE: boolean = (() => {
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+    const flag = env ? env['EXPO_PUBLIC_DEMO_MODE'] : undefined;
+    return flag === 'true' || flag === '1';
+})();
+
+/**
+ * Toggle demo mode at runtime. Used by tests and by ad-hoc local
+ * development. Production builds must leave this alone.
+ */
+export function setMedicalDemoMode(enabled: boolean): void {
+    USE_DEMO_MODE = enabled;
+}
+
+/** Read the current demo-mode flag (test seam). */
+export function isMedicalDemoMode(): boolean {
+    return USE_DEMO_MODE;
+}
 
 // ============================================================================
 // MEDICAL PROVIDER REGISTRATION
