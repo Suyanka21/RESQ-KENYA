@@ -48,3 +48,10 @@ eslint-output.json
 
 # Design assets (non-code)
 DESIGN RES Q/
+
+# Firebase Emulator Suite logs (Phase 3 rules tests)
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+ui-debug.log
+*-debug.log
