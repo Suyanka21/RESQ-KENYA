@@ -18,12 +18,12 @@ import { colors, spacing, borderRadius, shadows, typography } from '../../theme/
 import { StatusBar } from 'expo-status-bar';
 
 const TOPICS = [
-    { id: 'payment', Icon: CreditCard, title: 'Payment Issues', subtitle: 'Billing & refunds', color: '#FFA500' },
-    { id: 'service', Icon: AlertTriangle, title: 'Service Issues', subtitle: 'Problems during service', color: '#FF9800' },
-    { id: 'account', Icon: User, title: 'Account Settings', subtitle: 'Profile & preferences', color: '#2196F3' },
-    { id: 'provider', Icon: Users, title: 'Provider Questions', subtitle: 'About service providers', color: '#00E676' },
-    { id: 'safety', Icon: Shield, title: 'Safety & Security', subtitle: 'Privacy & protection', color: '#9C27B0' },
-    { id: 'app', Icon: Smartphone, title: 'Using the App', subtitle: 'How-to guides', color: '#FFA500' },
+    { id: 'payment', Icon: CreditCard, title: 'Payment Issues', subtitle: 'Billing & refunds', color: colors.voltage },
+    { id: 'service', Icon: AlertTriangle, title: 'Service Issues', subtitle: 'Problems during service', color: colors.status.warning },
+    { id: 'account', Icon: User, title: 'Account Settings', subtitle: 'Profile & preferences', color: colors.service.diagnostic },
+    { id: 'provider', Icon: Users, title: 'Provider Questions', subtitle: 'About service providers', color: colors.status.success },
+    { id: 'safety', Icon: Shield, title: 'Safety & Security', subtitle: 'Privacy & protection', color: colors.service.tire },
+    { id: 'app', Icon: Smartphone, title: 'Using the App', subtitle: 'How-to guides', color: colors.voltage },
 ];
 
 const FAQS = [
@@ -144,14 +144,14 @@ export default function HelpScreen() {
                             accessibilityLabel="Call support"
                             accessibilityRole="button"
                         >
-                            <Phone size={20} color="#00E676" strokeWidth={2.5} />
+                            <Phone size={20} color={colors.status.success} strokeWidth={2.5} />
                             <Text style={styles.callText}>Call Support</Text>
                         </Pressable>
                     </View>
 
                     {/* Emergency line */}
                     <View style={styles.emergencyRow}>
-                        <AlertTriangle size={12} color="#FF3D3D" strokeWidth={2.5} />
+                        <AlertTriangle size={12} color={colors.status.error} strokeWidth={2.5} />
                         <Text style={styles.emergencyText}>Emergency line: 999 (Kenya)</Text>
                     </View>
 
@@ -268,8 +268,8 @@ export default function HelpScreen() {
                             accessibilityLabel="WhatsApp support"
                             accessibilityRole="button"
                         >
-                            <View style={[styles.contactIconWrap, { backgroundColor: 'rgba(0, 230, 118, 0.1)' }]}>
-                                <MessageSquare size={20} color="#00E676" strokeWidth={2} />
+                            <View style={[styles.contactIconWrap, { backgroundColor: `1A` }]}>
+                                <MessageSquare size={20} color={colors.status.success} strokeWidth={2} />
                             </View>
                             <View style={styles.contactTextBlock}>
                                 <Text style={styles.contactTitle}>WhatsApp</Text>
@@ -285,12 +285,12 @@ export default function HelpScreen() {
                         <Pressable
                             style={({ pressed }) => [
                                 styles.reportButton,
-                                pressed && { backgroundColor: 'rgba(255, 61, 61, 0.05)' }
+                                pressed && { backgroundColor: `${colors.status.error}0D` }
                             ]}
                             accessibilityLabel="Report a safety issue or incident"
                             accessibilityRole="button"
                         >
-                            <AlertTriangle size={20} color="#FF3D3D" strokeWidth={2} />
+                            <AlertTriangle size={20} color={colors.status.error} strokeWidth={2} />
                             <Text style={styles.reportButtonText}>Report a Safety Issue or Incident</Text>
                         </Pressable>
                     </View>
@@ -418,14 +418,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.sm,
         paddingVertical: 6,
         borderRadius: borderRadius.xl,
-        backgroundColor: 'rgba(0, 230, 118, 0.15)',
+        backgroundColor: `26`,
         borderWidth: 1,
-        borderColor: 'rgba(0, 230, 118, 0.2)',
+        borderColor: colors.successGlow,
     },
     responseTimeText: {
         fontSize: typography.fontSize.xs,
         fontWeight: '500',
-        color: '#00E676',
+        color: colors.status.success,
     },
 
     // Quick actions
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 56,
         borderWidth: 2,
-        borderColor: '#00E676',
+        borderColor: colors.status.success,
         borderRadius: borderRadius.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     callText: {
         fontSize: typography.fontSize.base,
         fontWeight: '700',
-        color: '#00E676',
+        color: colors.status.success,
     },
 
     // Emergency
@@ -473,13 +473,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 4,
+        gap: spacing.xs,
         marginBottom: spacing.lg,
     },
     emergencyText: {
         fontSize: typography.fontSize.xs,
         fontWeight: '700',
-        color: '#FF3D3D',
+        color: colors.status.error,
     },
 
     // Search
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
         height: 64,
         borderWidth: 2,
         borderStyle: 'dashed',
-        borderColor: '#FF3D3D',
+        borderColor: colors.status.error,
         borderRadius: borderRadius.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     reportButtonText: {
         fontSize: typography.fontSize.sm,
         fontWeight: '700',
-        color: '#FF3D3D',
+        color: colors.status.error,
     },
 
     // Footer
@@ -717,8 +717,8 @@ const styles = StyleSheet.create({
     // Chat FAB
     chatFab: {
         position: 'absolute',
-        bottom: 24,
-        right: 24,
+        bottom: spacing.lg,
+        right: spacing.lg,
         width: 56,
         height: 56,
         borderRadius: 28,
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#FF3D3D',
+        backgroundColor: colors.status.error,
         borderWidth: 2,
         borderColor: colors.voltage,
     },

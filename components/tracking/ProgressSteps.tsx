@@ -4,7 +4,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
-import { colors } from '../../theme/voltage-premium';
+import { colors, spacing } from '../../theme/voltage-premium';
 
 export type StepStatus = 'completed' | 'active' | 'pending';
 export interface Step {
@@ -61,18 +61,18 @@ export const ProgressSteps: React.FC<ProgressStepsProps> = ({ steps }) => {
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 32, paddingVertical: 20, position: 'relative',
+        paddingHorizontal: spacing.xl, paddingVertical: 20, position: 'relative',
         borderBottomWidth: 1, borderBottomColor: colors.background.border,
     },
     bgLine: {
-        position: 'absolute', top: '50%' as any, left: 32, right: 32,
+        position: 'absolute', top: '50%' as any, left: spacing.xl, right: spacing.xl,
         height: 2, backgroundColor: colors.background.border, marginTop: -10,
     },
     activeLine: {
-        position: 'absolute', top: '50%' as any, left: 32,
+        position: 'absolute', top: '50%' as any, left: spacing.xl,
         height: 2, backgroundColor: colors.voltage, marginTop: -10,
     },
-    stepCol: { alignItems: 'center', gap: 8, backgroundColor: colors.background.secondary, paddingHorizontal: 6 },
+    stepCol: { alignItems: 'center', gap: spacing.sm, backgroundColor: colors.background.secondary, paddingHorizontal: 6 },
     dot: {
         width: 20, height: 20, borderRadius: 10, backgroundColor: colors.background.border,
         borderWidth: 2, borderColor: colors.text.disabled,

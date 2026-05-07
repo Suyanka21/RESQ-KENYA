@@ -17,6 +17,7 @@ import type {
     CreateServiceRequestInput,
     PricingInput,
 } from '../types/api';
+import { generateIdempotencyKey as generateIdempotencyKeyFromContract } from '../types/api';
 
 // Initialize Firebase Functions
 const functions = getFunctions(app, 'us-central1');
@@ -44,21 +45,13 @@ let USE_DEMO_MODE: boolean = (() => {
 })();
 
 /**
- * Generate a client-side idempotency key safe for the canonical
- * `createServiceRequest` contract (16-64 char alphanumeric/underscore/dash).
- * Falls back to `Math.random` in environments without `crypto.randomUUID`.
+ * Re-export of the canonical idempotency-key generator from `types/api.ts`
+ * (the contract layer). Phase 3 (X-1): single source of truth — frontend
+ * wrappers and the `functions/src/shared/api.ts` mirror reference the
+ * same regex/length bounds. Existing call-sites that imported
+ * `generateIdempotencyKey` from this file continue to work unchanged.
  */
-export function generateIdempotencyKey(): string {
-    type CryptoLike = { randomUUID?: () => string };
-    const cryptoApi: CryptoLike | undefined =
-        (globalThis as unknown as { crypto?: CryptoLike }).crypto;
-    if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
-        return cryptoApi.randomUUID();
-    }
-    const ts = Date.now().toString(36);
-    const rnd = Math.random().toString(36).slice(2, 14);
-    return `idem_${ts}_${rnd}`;
-}
+export const generateIdempotencyKey = generateIdempotencyKeyFromContract;
 
 /**
  * Create a service request (calls the canonical Cloud Function).

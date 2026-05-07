@@ -155,6 +155,20 @@ export function isOk<T, E extends string>(
 }
 
 /**
+ * Idempotency key character set + length contract. Single source of truth —
+ * referenced by `isValidIdempotencyKey` (this file), the matching mirror in
+ * `functions/src/shared/api.ts`, and any test that wants to assert payload
+ * shape without re-implementing the regex.
+ *
+ * Phase 3 (Backend Stabilization, Skill: API-and-Interface-Design): callers
+ * that previously inlined `/^[A-Za-z0-9_-]+$/` MUST import this constant
+ * instead so the validator and generator can never drift apart.
+ */
+export const IDEMPOTENCY_KEY_MIN_LENGTH = 16;
+export const IDEMPOTENCY_KEY_MAX_LENGTH = 64;
+export const IDEMPOTENCY_KEY_REGEX = /^[A-Za-z0-9_-]+$/;
+
+/**
  * Validate that an idempotency key is well-formed. Accepts:
  *   - any RFC 4122 v4 UUID, or
  *   - any 16–64 char alphanumeric/dash/underscore string (covers ULIDs and
@@ -164,8 +178,41 @@ export function isOk<T, E extends string>(
  */
 export function isValidIdempotencyKey(key: unknown): key is string {
     if (typeof key !== 'string') return false;
-    if (key.length < 16 || key.length > 64) return false;
-    return /^[A-Za-z0-9_-]+$/.test(key);
+    if (key.length < IDEMPOTENCY_KEY_MIN_LENGTH || key.length > IDEMPOTENCY_KEY_MAX_LENGTH) return false;
+    return IDEMPOTENCY_KEY_REGEX.test(key);
+}
+
+/**
+ * Generate an idempotency key that is guaranteed to satisfy
+ * `isValidIdempotencyKey`. Uses `crypto.randomUUID()` when available
+ * (RFC 4122 v4, 36 chars including dashes — well within bounds), falls
+ * back to a timestamp + `Math.random` composite for environments without
+ * the Web Crypto API (older RN debug builds, jsdom).
+ *
+ * Lives on the contract layer (`types/api.ts`) so frontend wrappers
+ * (`payment.service.ts`, `customer.service.ts`, …) and the matching
+ * mirror in `functions/src/shared/api.ts` cannot drift on what counts
+ * as a valid client-generated key (B-CRIT-1, X-1).
+ */
+export function generateIdempotencyKey(): string {
+    type CryptoLike = { randomUUID?: () => string };
+    const cryptoApi: CryptoLike | undefined =
+        (globalThis as unknown as { crypto?: CryptoLike }).crypto;
+    if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+        const candidate = cryptoApi.randomUUID();
+        // `randomUUID` always returns 36-char `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`
+        // which satisfies our regex + length bounds, but defend against an
+        // exotic polyfill that emits a non-conforming string.
+        if (isValidIdempotencyKey(candidate)) return candidate;
+    }
+    const ts = Date.now().toString(36);
+    const rnd = Math.random().toString(36).slice(2, 14);
+    const fallback = `idem-${ts}-${rnd}`;
+    // Guard against pathological `Math.random` outputs (e.g. all-zeros) by
+    // padding when too short. The regex always passes (`[A-Za-z0-9_-]`).
+    return fallback.length >= IDEMPOTENCY_KEY_MIN_LENGTH
+        ? fallback
+        : fallback.padEnd(IDEMPOTENCY_KEY_MIN_LENGTH, '0');
 }
 
 /**

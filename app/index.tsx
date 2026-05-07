@@ -10,13 +10,14 @@ import { router } from 'expo-router';
 import { Zap } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../services/AuthContext';
+import { colors, spacing } from '../theme/voltage-premium';
 
 const { width, height } = Dimensions.get('window');
 
 // Brand Colors — Bolt-inspired
-const VOLTAGE = '#FFA500';
-const CHARCOAL = '#0F0F0F';
-const WHITE = '#FFFFFF';
+const VOLTAGE = colors.voltage;
+const CHARCOAL = colors.background.primary;
+const WHITE = colors.text.primary;
 
 // =============================================================================
 // SPLASH SCREEN (Logged In / Loading)
@@ -204,7 +205,7 @@ function LandingPage() {
                     <View style={styles.linksRow}>
                         <Pressable
                             onPress={() => router.push('/(auth)/login')}
-                            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+                            hitSlop={{ top: 12, bottom: 12, left: spacing.md, right: spacing.md }}
                             accessibilityLabel="Sign in to existing account"
                             accessibilityRole="button"
                         >
@@ -215,7 +216,7 @@ function LandingPage() {
 
                         <Pressable
                             onPress={() => router.push('/(auth)/register')}
-                            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+                            hitSlop={{ top: 12, bottom: 12, left: spacing.md, right: spacing.md }}
                             accessibilityLabel="Create a new account"
                             accessibilityRole="button"
                         >
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     landingBottom: {
-        paddingHorizontal: 24,
+        paddingHorizontal: spacing.lg,
         paddingBottom: Platform.OS === 'ios' ? 16 : 32,
     },
     getStartedButton: {
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     getStartedButtonPressed: {
-        backgroundColor: '#1A1A1A',
+        backgroundColor: colors.background.secondary,
         transform: [{ scale: 0.98 }],
     },
     getStartedText: {
@@ -314,7 +315,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 24,
+        marginTop: spacing.lg,
         gap: 20,
     },
     linkText: {

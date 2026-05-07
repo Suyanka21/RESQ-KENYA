@@ -12,7 +12,7 @@ import {
     Animated,
 } from 'react-native';
 import {
-    initiatePaymentDemo as initiatePayment,
+    initiatePayment,
     formatAmount,
     validatePhoneNumber,
     formatPhoneForMpesa,
@@ -170,7 +170,7 @@ export default function PaymentModal({
                         <>
                             {/* M-Pesa Logo/Badge */}
                             <View className="flex-row items-center justify-center mb-4">
-                                <View className="bg-[#4CAF50] px-4 py-2 rounded-lg">
+                                <View className="px-4 py-2 rounded-lg" style={{ backgroundColor: colors.service.fuel }}>
                                     <Text className="text-white font-bold">M-PESA</Text>
                                 </View>
                             </View>
@@ -184,7 +184,7 @@ export default function PaymentModal({
                                 <TextInput
                                     className="flex-1 px-4 py-4 text-white text-lg"
                                     placeholder="712 345 678"
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                    placeholderTextColor={colors.text.opacity30}
                                     keyboardType="phone-pad"
                                     value={getPhoneDisplayValue()}
                                     onChangeText={handlePhoneChange}
@@ -201,8 +201,8 @@ export default function PaymentModal({
 
                             {/* Pay Button */}
                             <Pressable
-                                className={`py-4 rounded-xl ${validatePhoneNumber(phoneNumber) ? 'bg-[#4CAF50]' : 'bg-charcoal-600'
-                                    }`}
+                                className="py-4 rounded-xl"
+                                style={{ backgroundColor: validatePhoneNumber(phoneNumber) ? colors.service.fuel : colors.background.border }}
                                 onPress={handlePay}
                                 disabled={!validatePhoneNumber(phoneNumber)}
                             >
@@ -225,8 +225,8 @@ export default function PaymentModal({
                         <View className="items-center py-8">
                             {/* Animated Phone Icon */}
                             <Animated.View
-                                style={{ transform: [{ scale: pulseAnim }] }}
-                                className="w-20 h-20 bg-[#4CAF50]/20 rounded-full items-center justify-center mb-4"
+                                style={{ transform: [{ scale: pulseAnim }], backgroundColor: `${colors.service.fuel}33` }}
+                                className="w-20 h-20 rounded-full items-center justify-center mb-4"
                             >
                                 <Text className="text-4xl">📱</Text>
                             </Animated.View>

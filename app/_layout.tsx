@@ -2,10 +2,10 @@
 import "../global.css";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Text } from "react-native";
-import { Zap } from "lucide-react-native";
+import { View, Text, Pressable } from "react-native";
+import { Zap, RefreshCw } from "lucide-react-native";
 import { AuthProvider } from "../services/AuthContext";
-import { colors, spacing } from "../theme/voltage-premium";
+import { colors, spacing, borderRadius, touchTargets } from "../theme/voltage-premium";
 import React from "react";
 
 class ErrorBoundary extends React.Component<
@@ -25,25 +25,46 @@ class ErrorBoundary extends React.Component<
         console.error('App Error Boundary caught error:', error, errorInfo);
     }
 
+    handleReset = () => {
+        this.setState({ hasError: false, error: null });
+    };
+
     render() {
         if (this.state.hasError) {
             return (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background.primary, padding: spacing.xl }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
                         <Zap size={24} color={colors.voltage} fill={colors.voltage} strokeWidth={1} />
-                        <Text style={{ color: colors.voltage, fontSize: 24, fontWeight: 'bold', marginLeft: 4 }}>
+                        <Text style={{ color: colors.voltage, fontSize: 24, fontWeight: 'bold', marginLeft: spacing.xs }}>
                             ResQ Kenya
                         </Text>
                     </View>
                     <Text style={{ color: colors.status.error, fontSize: 18, marginBottom: spacing.sm }}>
                         App Error
                     </Text>
-                    <Text style={{ color: colors.text.primary, fontSize: 14, textAlign: 'center' }}>
+                    <Text style={{ color: colors.text.primary, fontSize: 14, textAlign: 'center', marginBottom: spacing.xl }}>
                         {this.state.error?.message || 'An unexpected error occurred'}
                     </Text>
-                    <Text style={{ color: colors.text.secondary, fontSize: 12, marginTop: spacing.xl, textAlign: 'center' }}>
-                        Check console for details
-                    </Text>
+                    <Pressable
+                        onPress={this.handleReset}
+                        accessibilityLabel="Try again"
+                        accessibilityRole="button"
+                        style={({ pressed }) => ({
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: spacing.sm,
+                            paddingHorizontal: spacing.lg,
+                            minHeight: touchTargets.standard,
+                            borderRadius: borderRadius.lg,
+                            backgroundColor: colors.voltage,
+                            opacity: pressed ? 0.85 : 1,
+                        })}
+                    >
+                        <RefreshCw size={18} color={colors.text.onBrand} strokeWidth={2.5} />
+                        <Text style={{ color: colors.text.onBrand, fontSize: 14, fontWeight: '700' }}>
+                            Try Again
+                        </Text>
+                    </Pressable>
                 </View>
             );
         }

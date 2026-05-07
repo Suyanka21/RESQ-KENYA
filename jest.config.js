@@ -10,7 +10,12 @@ module.exports = {
     testPathIgnorePatterns: [
         "/node_modules/",
         "/web-prototype-archive/",
-        "/functions/"
+        "/functions/",
+        // Rules tests need the Firebase emulator (Java + Firestore +
+        // Realtime Database) running. They have their own config:
+        // `npm run test:rules` (see package.json). Default `npx jest`
+        // is the unit-test pass and skips them.
+        "__tests__/rules/"
     ],
     modulePathIgnorePatterns: [
         "<rootDir>/web-prototype-archive/",

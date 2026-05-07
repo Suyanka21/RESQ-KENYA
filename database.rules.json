@@ -1,0 +1,26 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "activeRequests": {
+      "$requestId": {
+        ".read": "auth != null && (data.child('customerId').val() === auth.uid || data.child('providerId').val() === auth.uid)",
+        ".write": false
+      }
+    },
+
+    "providerLocations": {
+      "$providerId": {
+        ".read": false,
+        ".write": "auth != null && auth.uid === $providerId",
+        "location": {
+          ".validate": "newData.hasChild('latitude') && newData.hasChild('longitude') && newData.child('latitude').isNumber() && newData.child('longitude').isNumber()"
+        },
+        "isOnline": {
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    }
+  }
+}

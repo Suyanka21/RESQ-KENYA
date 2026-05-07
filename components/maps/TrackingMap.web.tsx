@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme/voltage-premium';
+import { colors, spacing } from '../../theme/voltage-premium';
 import type { GeoLocation } from '../../types';
 
 interface TrackingMapProps {
@@ -76,20 +76,20 @@ const styles = StyleSheet.create({
         backgroundColor: colors.charcoal[800],
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 32,
+        padding: spacing.xl,
     },
     emoji: {
         fontSize: 64,
-        marginBottom: 16,
+        marginBottom: spacing.md,
     },
     title: {
         color: colors.voltage,
         fontSize: 28,
         fontWeight: 'bold',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     subtitle: {
-        color: 'rgba(255,255,255,0.6)',
+        color: colors.text.opacity60,
         fontSize: 16,
         textAlign: 'center',
         lineHeight: 24,
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.charcoal[700],
         borderRadius: 16,
         padding: 20,
-        marginTop: 32,
+        marginTop: spacing.xl,
         borderWidth: 1,
         borderColor: colors.charcoal[600],
     },
@@ -108,9 +108,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     infoLabel: {
-        color: 'rgba(255,255,255,0.5)',
+        color: colors.text.opacity60,
         fontSize: 12,
-        marginBottom: 4,
+        marginBottom: spacing.xs,
     },
     infoValue: {
         color: colors.voltage,
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     loading: {
-        color: 'rgba(255,255,255,0.6)',
-        marginTop: 24,
+        color: colors.text.opacity60,
+        marginTop: spacing.lg,
     },
 });

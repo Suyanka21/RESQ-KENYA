@@ -12,7 +12,7 @@ import {
     Home, Clock, PhoneCall, ChevronRight,
 } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import { colors } from '../../../../theme/voltage-premium';
+import { colors, spacing } from '../../../../theme/voltage-premium';
 
 const { width } = Dimensions.get('window');
 
@@ -117,7 +117,7 @@ export default function CompleteScreen() {
                         <Animated.View key={i} style={[styles.confetti, {
                             opacity: op,
                             transform: confettiTrans[i].getTranslateTransform(),
-                            backgroundColor: [colors.voltage, colors.status.success, colors.status.info, '#FF6B6B', '#9B59B6', '#1ABC9C'][i],
+                            backgroundColor: [colors.voltage, colors.status.success, colors.status.info, colors.status.error, colors.service.tire, colors.status.success][i],
                         }]} />
                     ))}
 
@@ -264,17 +264,17 @@ export default function CompleteScreen() {
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background.primary },
-    scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+    scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 40 },
 
     // Celebration
-    celebrationArea: { alignItems: 'center', marginBottom: 32, position: 'relative' },
+    celebrationArea: { alignItems: 'center', marginBottom: spacing.xl, position: 'relative' },
     confetti: { position: 'absolute', width: 8, height: 8, borderRadius: 4, top: 40 },
     checkCircle: {
         width: 80, height: 80, borderRadius: 40,
-        backgroundColor: 'rgba(0,230,118,0.15)', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 16,
+        backgroundColor: `26`, alignItems: 'center', justifyContent: 'center',
+        marginBottom: spacing.md,
     },
-    completeTitle: { fontSize: 28, fontWeight: '700', color: colors.text.primary, marginBottom: 4 },
+    completeTitle: { fontSize: 28, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.xs },
     completeSubtitle: { fontSize: 16, color: colors.text.secondary, marginBottom: 12 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -284,13 +284,13 @@ const styles = StyleSheet.create({
     // Rating
     ratingCard: {
         backgroundColor: colors.background.secondary, borderRadius: 16,
-        padding: 24, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
+        padding: spacing.lg, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
         alignItems: 'center',
     },
-    ratingTitle: { fontSize: 18, fontWeight: '700', color: colors.text.primary, marginBottom: 16 },
-    starsRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+    ratingTitle: { fontSize: 18, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.md },
+    starsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: 20 },
     submitRatingBtn: {
-        backgroundColor: colors.voltage, paddingHorizontal: 32, paddingVertical: 12,
+        backgroundColor: colors.voltage, paddingHorizontal: spacing.xl, paddingVertical: 12,
         borderRadius: 999,
     },
     submitRatingText: { fontSize: 16, fontWeight: '700', color: colors.text.onBrand },
@@ -301,11 +301,11 @@ const styles = StyleSheet.create({
         backgroundColor: colors.background.secondary, borderRadius: 16,
         padding: 20, borderWidth: 1, borderColor: colors.background.border, marginBottom: 20,
     },
-    paymentTitle: { fontSize: 16, fontWeight: '700', color: colors.text.primary, marginBottom: 16 },
-    paymentRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
+    paymentTitle: { fontSize: 16, fontWeight: '700', color: colors.text.primary, marginBottom: spacing.md },
+    paymentRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm },
     paymentLabel: { fontSize: 14, color: colors.text.secondary },
     paymentValue: { fontSize: 14, color: colors.text.primary, fontFamily: 'monospace' },
-    paymentDivider: { height: 1, backgroundColor: colors.background.border, marginVertical: 8 },
+    paymentDivider: { height: 1, backgroundColor: colors.background.border, marginVertical: spacing.sm },
     totalLabel: { fontSize: 18, fontWeight: '700', color: colors.text.primary },
     totalValue: { fontSize: 18, fontWeight: '700', color: colors.voltage, fontFamily: 'monospace' },
 

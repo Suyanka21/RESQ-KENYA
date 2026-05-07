@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     serviceCardSelected: {
         borderWidth: 2,
         borderColor: colors.voltage,
-        backgroundColor: 'rgba(255, 214, 10, 0.05)',
+        backgroundColor: colors.voltageGlow,
     },
     serviceCardPressed: {
         transform: [{ scale: 1.02 }],
@@ -185,12 +185,12 @@ const styles = StyleSheet.create({
         color: colors.text.primary,
         fontSize: 16,
         fontWeight: '600',
-        marginBottom: 4,
+        marginBottom: spacing.xs,
     },
     serviceDesc: {
         color: colors.text.secondary,
         fontSize: 13,
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     servicePrice: {
         color: colors.voltage,
@@ -202,8 +202,8 @@ const styles = StyleSheet.create({
         top: 12,
         right: 12,
         backgroundColor: colors.voltage,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
         borderRadius: borderRadius.sm,
     },
     badgeText: {
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     statsIcon: {
-        marginBottom: 8,
+        marginBottom: spacing.sm,
     },
     statsValue: {
         color: colors.voltage,
@@ -245,6 +245,6 @@ const styles = StyleSheet.create({
     statsLabel: {
         color: colors.text.secondary,
         fontSize: 12,
-        marginTop: 4,
+        marginTop: spacing.xs,
     },
 });

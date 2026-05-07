@@ -15,6 +15,7 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { colors, spacing, touchTargets } from '../theme/voltage-premium';
 
 // Kenya Emergency Numbers
 export const KENYA_EMERGENCY_NUMBERS = {
@@ -138,7 +139,7 @@ export default function EmergencySOS({
                     disabled={disabled}
                     activeOpacity={0.8}
                 >
-                    <Ionicons name="warning" size={28} color="#FFFFFF" />
+                    <Ionicons name="warning" size={28} color={colors.text.primary} />
                     <Text style={styles.sosButtonText}>SOS</Text>
                 </TouchableOpacity>
             </Animated.View>
@@ -148,7 +149,14 @@ export default function EmergencySOS({
                 visible={showModal}
                 transparent
                 animationType="slide"
-                onRequestClose={() => !isCountingDown && setShowModal(false)}
+                onRequestClose={() => {
+                    // Hardware back button: cancel countdown if active, else close modal.
+                    if (isCountingDown) {
+                        cancelCountdown();
+                    } else {
+                        setShowModal(false);
+                    }
+                }}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -165,7 +173,7 @@ export default function EmergencySOS({
                                         style={[styles.emergencyTypeButton, styles.medicalButton]}
                                         onPress={() => startCountdown('medical')}
                                     >
-                                        <Ionicons name="medkit" size={32} color="#FFFFFF" />
+                                        <Ionicons name="medkit" size={32} color={colors.text.primary} />
                                         <Text style={styles.emergencyTypeText}>Medical</Text>
                                     </TouchableOpacity>
 
@@ -173,7 +181,7 @@ export default function EmergencySOS({
                                         style={[styles.emergencyTypeButton, styles.fireButton]}
                                         onPress={() => startCountdown('fire')}
                                     >
-                                        <Ionicons name="flame" size={32} color="#FFFFFF" />
+                                        <Ionicons name="flame" size={32} color={colors.text.primary} />
                                         <Text style={styles.emergencyTypeText}>Fire</Text>
                                     </TouchableOpacity>
 
@@ -181,7 +189,7 @@ export default function EmergencySOS({
                                         style={[styles.emergencyTypeButton, styles.policeButton]}
                                         onPress={() => startCountdown('police')}
                                     >
-                                        <Ionicons name="shield" size={32} color="#FFFFFF" />
+                                        <Ionicons name="shield" size={32} color={colors.text.primary} />
                                         <Text style={styles.emergencyTypeText}>Police</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -256,57 +264,57 @@ export default function EmergencySOS({
 
 const styles = StyleSheet.create({
     sosButton: {
-        backgroundColor: '#FF3B30',
-        width: 70,
-        height: 70,
-        borderRadius: 35,
+        backgroundColor: colors.status.error,
+        width: touchTargets.sos,
+        height: touchTargets.sos,
+        borderRadius: touchTargets.sos / 2,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#FF3B30',
+        shadowColor: colors.status.error,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.5,
         shadowRadius: 8,
         elevation: 8,
     },
     sosButtonDisabled: {
-        backgroundColor: '#999999',
-        shadowColor: '#999999',
+        backgroundColor: colors.text.secondary,
+        shadowColor: colors.text.secondary,
     },
     sosButtonText: {
-        color: '#FFFFFF',
+        color: colors.text.primary,
         fontSize: 12,
         fontWeight: '700',
         marginTop: 2,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: colors.overlay.dark,
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.background.secondary,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        padding: 24,
+        padding: spacing.lg,
         paddingBottom: 40,
     },
     modalTitle: {
         fontSize: 24,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: colors.text.primary,
         textAlign: 'center',
     },
     modalSubtitle: {
         fontSize: 14,
-        color: '#8E8E93',
+        color: colors.text.secondary,
         textAlign: 'center',
-        marginTop: 8,
-        marginBottom: 24,
+        marginTop: spacing.sm,
+        marginBottom: spacing.lg,
     },
     emergencyTypes: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 24,
+        marginBottom: spacing.lg,
     },
     emergencyTypeButton: {
         flex: 1,
@@ -316,29 +324,29 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     medicalButton: {
-        backgroundColor: '#FF3B30',
+        backgroundColor: colors.status.error,
     },
     fireButton: {
-        backgroundColor: '#FF9500',
+        backgroundColor: colors.status.warning,
     },
     policeButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: colors.status.info,
     },
     emergencyTypeText: {
-        color: '#FFFFFF',
+        color: colors.text.primary,
         fontSize: 14,
         fontWeight: '600',
-        marginTop: 8,
+        marginTop: spacing.sm,
     },
     quickCallSection: {
-        marginTop: 16,
-        paddingTop: 16,
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
         borderTopWidth: 1,
-        borderTopColor: '#2C2C2E',
+        borderTopColor: colors.background.border,
     },
     quickCallTitle: {
         fontSize: 14,
-        color: '#8E8E93',
+        color: colors.text.secondary,
         marginBottom: 12,
     },
     quickCallButtons: {
@@ -347,32 +355,32 @@ const styles = StyleSheet.create({
     },
     quickCallButton: {
         flex: 1,
-        marginHorizontal: 4,
+        marginHorizontal: spacing.xs,
         padding: 12,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.background.border,
         borderRadius: 12,
         alignItems: 'center',
     },
     quickCallNumber: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#FF9500',
+        color: colors.status.warning,
     },
     quickCallLabel: {
         fontSize: 11,
-        color: '#8E8E93',
-        marginTop: 4,
+        color: colors.text.secondary,
+        marginTop: spacing.xs,
         textAlign: 'center',
     },
     cancelButton: {
-        marginTop: 24,
-        padding: 16,
+        marginTop: spacing.lg,
+        padding: spacing.md,
         borderRadius: 12,
-        backgroundColor: '#2C2C2E',
+        backgroundColor: colors.background.border,
         alignItems: 'center',
     },
     cancelButtonText: {
-        color: '#FFFFFF',
+        color: colors.text.primary,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -382,37 +390,37 @@ const styles = StyleSheet.create({
     },
     countdownTitle: {
         fontSize: 20,
-        color: '#FFFFFF',
+        color: colors.text.primary,
         fontWeight: '600',
     },
     countdownNumber: {
         fontSize: 96,
         fontWeight: '700',
-        color: '#FF3B30',
+        color: colors.status.error,
         marginVertical: 20,
     },
     countdownSubtitle: {
         fontSize: 14,
-        color: '#8E8E93',
+        color: colors.text.secondary,
         marginBottom: 20,
     },
     abortButton: {
-        backgroundColor: '#2C2C2E',
-        paddingHorizontal: 48,
-        paddingVertical: 16,
+        backgroundColor: colors.background.border,
+        paddingHorizontal: spacing.xxl,
+        paddingVertical: spacing.md,
         borderRadius: 12,
         borderWidth: 2,
-        borderColor: '#FF3B30',
+        borderColor: colors.status.error,
     },
     abortButtonText: {
-        color: '#FF3B30',
+        color: colors.status.error,
         fontSize: 18,
         fontWeight: '700',
     },
     countdownInfo: {
         fontSize: 12,
-        color: '#8E8E93',
-        marginTop: 24,
+        color: colors.text.secondary,
+        marginTop: spacing.lg,
         textAlign: 'center',
     },
 });

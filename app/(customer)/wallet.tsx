@@ -42,15 +42,15 @@ export default function WalletScreen() {
     }, []);
 
     const renderTransactionIcon = (icon: string) => {
-        if (icon === 'topup') return <ArrowDownLeft size={20} color="#00E676" strokeWidth={2} />;
+        if (icon === 'topup') return <ArrowDownLeft size={20} color={colors.status.success} strokeWidth={2} />;
         if (icon === 'refund') return <HistoryIcon size={20} color={colors.voltage} strokeWidth={2} />;
         if (icon === 'card') return <CreditCard size={20} color={colors.text.secondary} strokeWidth={2} />;
         return <Text style={styles.txnEmoji}>{icon}</Text>;
     };
 
     const getAmountColor = (type: string) => {
-        if (type === 'debit') return '#FF3D3D';
-        if (type === 'credit') return '#00E676';
+        if (type === 'debit') return colors.status.error;
+        if (type === 'credit') return colors.status.success;
         return colors.voltage;
     };
 
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: '#00E676',
+        backgroundColor: colors.status.success,
     },
     updatedText: {
         fontSize: typography.fontSize.xs,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.background.border,
         borderLeftWidth: 3,
-        borderLeftColor: '#4CAF50',
+        borderLeftColor: colors.service.fuel,
         borderRadius: borderRadius.xl,
         padding: spacing.md,
         marginBottom: spacing.sm,
@@ -416,17 +416,17 @@ const styles = StyleSheet.create({
     mpesaBadge: {
         width: 48,
         height: 32,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.text.primary,
         borderRadius: borderRadius.sm,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#E0E0E0',
+        borderColor: colors.text.opacity80,
     },
     mpesaText: {
         fontSize: 8,
         fontWeight: '900',
-        color: '#4CAF50',
+        color: colors.service.fuel,
         letterSpacing: -0.5,
     },
     paymentNameRow: {
@@ -443,14 +443,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: borderRadius.sm,
-        backgroundColor: 'rgba(0, 230, 118, 0.2)',
+        backgroundColor: colors.successGlow,
         borderWidth: 1,
-        borderColor: 'rgba(0, 230, 118, 0.3)',
+        borderColor: `${colors.status.success}4D`,
     },
     defaultBadgeText: {
         fontSize: 10,
         fontWeight: '700',
-        color: '#00E676',
+        color: colors.status.success,
     },
     paymentNumber: {
         fontSize: typography.fontSize.sm,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 12,
-        backgroundColor: '#00E676',
+        backgroundColor: colors.status.success,
         alignItems: 'center',
         justifyContent: 'center',
     },

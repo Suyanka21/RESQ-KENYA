@@ -61,7 +61,7 @@ const MenuItem = ({
         style={({ pressed }) => [
             styles.menuItem,
             !isLast && styles.menuItemBorder,
-            pressed && { backgroundColor: 'rgba(255,165,0,0.04)' },
+            pressed && { backgroundColor: `0A` },
         ]}
         accessibilityLabel={label}
         accessibilityRole="button"
@@ -139,8 +139,8 @@ const ToggleItem = ({
 // ============================================================================
 const MEMBERSHIP_TIERS: Record<string, { bg: string; text: string; border: string }> = {
     Basic: { bg: colors.charcoal[700], text: colors.text.secondary, border: colors.charcoal[600] },
-    Gold: { bg: 'rgba(255, 165, 0, 0.15)', text: colors.voltage, border: 'rgba(255, 165, 0, 0.3)' },
-    Platinum: { bg: 'rgba(160, 160, 160, 0.15)', text: '#C0C0C0', border: 'rgba(192, 192, 192, 0.3)' },
+    Gold: { bg: `26`, text: colors.voltage, border: `4D` },
+    Platinum: { bg: colors.text.secondary, text: colors.text.secondary, border: colors.text.secondary },
 };
 
 // ============================================================================
@@ -174,7 +174,7 @@ export default function AccountHubScreen() {
                 <View style={styles.header}>
                     <Pressable
                         onPress={() => router.back()}
-                        style={({ pressed }) => [styles.headerButton, pressed && { transform: [{ scale: 0.95 }], backgroundColor: 'rgba(255,165,0,0.08)' }]}
+                        style={({ pressed }) => [styles.headerButton, pressed && { transform: [{ scale: 0.95 }], backgroundColor: `14` }]}
                         accessibilityLabel="Go back"
                         accessibilityRole="button"
                     >
@@ -265,10 +265,10 @@ export default function AccountHubScreen() {
                                 icon={Phone}
                                 label="Emergency Contacts"
                                 sublabel="Next of Kin"
-                                iconColor="#FF3D3D"
+                                iconColor={colors.status.error}
                                 badge="3 added"
-                                badgeColor="rgba(0, 230, 118, 0.2)"
-                                badgeTextColor="#00E676"
+                                badgeColor={colors.successGlow}
+                                badgeTextColor={colors.status.success}
                                 isLast
                             />
                         </View>
@@ -318,7 +318,7 @@ export default function AccountHubScreen() {
                                 icon={Headphones}
                                 label="Contact Support"
                                 sublabel="24/7 available"
-                                sublabelColor="#00E676"
+                                sublabelColor={colors.status.success}
                                 onPress={() => router.push('/(customer)/help')}
                             />
                             <MenuItem
@@ -341,25 +341,25 @@ export default function AccountHubScreen() {
                     <Pressable
                         style={({ pressed }) => [
                             styles.logoutButton,
-                            pressed && { backgroundColor: 'rgba(255, 255, 255, 0.06)', transform: [{ scale: 0.98 }] }
+                            pressed && { backgroundColor: colors.text.opacity20, transform: [{ scale: 0.98 }] }
                         ]}
                         onPress={() => router.replace('/')}
                         accessibilityLabel="Sign out"
                         accessibilityRole="button"
                     >
-                        <LogOut size={20} color="#FFFFFF" strokeWidth={2} />
+                        <LogOut size={20} color={colors.text.primary} strokeWidth={2} />
                         <Text style={styles.logoutText}>Log Out</Text>
                     </Pressable>
 
                     <Pressable
                         style={({ pressed }) => [
                             styles.deleteButton,
-                            pressed && { backgroundColor: 'rgba(255, 61, 61, 0.12)', transform: [{ scale: 0.98 }] }
+                            pressed && { backgroundColor: `${colors.status.error}1F`, transform: [{ scale: 0.98 }] }
                         ]}
                         accessibilityLabel="Delete account"
                         accessibilityRole="button"
                     >
-                        <Trash2 size={20} color="#FF3D3D" strokeWidth={2} />
+                        <Trash2 size={20} color={colors.status.error} strokeWidth={2} />
                         <Text style={styles.deleteText}>Delete Account</Text>
                     </Pressable>
                 </ScrollView>
@@ -458,12 +458,12 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSize.xl,
         fontWeight: '700',
         color: colors.text.primary,
-        marginBottom: 4, // 4px grid
+        marginBottom: spacing.xs, // 4px grid
     },
     userPhone: {
         fontSize: typography.fontSize.sm,
         color: colors.text.secondary,
-        marginBottom: 8, // 4px × 2
+        marginBottom: spacing.sm, // 4px × 2
     },
     membershipBadge: {
         flexDirection: 'row',
@@ -501,25 +501,25 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12, // 4px × 3
-        backgroundColor: 'rgba(41, 182, 246, 0.12)', // status.infoGlow
+        backgroundColor: colors.status.infoGlow,
         borderRadius: borderRadius.xl,
         borderWidth: 1,
-        borderColor: 'rgba(41, 182, 246, 0.25)',
-        padding: 16, // 4px × 4
+        borderColor: colors.status.infoGlow,
+        padding: spacing.md, // 4px × 4
         marginBottom: spacing.lg,
     },
     urgencyIconWrap: {
         width: 36,
         height: 36,
         borderRadius: 10,
-        backgroundColor: 'rgba(41, 182, 246, 0.15)',
+        backgroundColor: `26`,
         alignItems: 'center',
         justifyContent: 'center',
     },
     urgencyText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#29B6F6', // status.info
+        color: colors.status.info, // status.info
         lineHeight: 18,
     },
 
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: colors.text.primary,
         marginBottom: spacing.md, // 12px
-        paddingLeft: 4, // 4px grid
+        paddingLeft: spacing.xs, // 4px grid
     },
     menuList: {
         backgroundColor: colors.background.secondary,
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: 16, // 4px × 4
+        padding: spacing.md, // 4px × 4
     },
     menuItemBorder: {
         borderBottomWidth: 1,
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     menuItemLabelRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8, // 4px × 2
+        gap: spacing.sm, // 4px × 2
     },
     menuItemLabel: {
         fontSize: typography.fontSize.base,
@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
         width: '100%',
         height: 56,
         borderWidth: 2,
-        borderColor: '#FFFFFF',
+        borderColor: colors.text.primary,
         borderRadius: borderRadius.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -615,13 +615,13 @@ const styles = StyleSheet.create({
     logoutText: {
         fontSize: typography.fontSize.base,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: colors.text.primary,
     },
     deleteButton: {
         width: '100%',
         height: 56,
         borderWidth: 2,
-        borderColor: '#FF3D3D',
+        borderColor: colors.status.error,
         borderRadius: borderRadius.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -632,6 +632,6 @@ const styles = StyleSheet.create({
     deleteText: {
         fontSize: typography.fontSize.base,
         fontWeight: '700',
-        color: '#FF3D3D',
+        color: colors.status.error,
     },
 });
