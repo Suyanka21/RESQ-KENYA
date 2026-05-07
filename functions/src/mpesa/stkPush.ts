@@ -128,10 +128,14 @@ async function getAccessToken(): Promise<string> {
 
     const auth = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString('base64');
 
+    // Phase 3 (B-MED-8): explicit timeout. Without it Cloud Functions
+    // wait forever on a hung Safaricom OAuth socket and burn the whole
+    // function timeout, blocking the caller (and idempotency row).
     const response = await axios.get(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
         headers: {
             'Authorization': `Basic ${auth}`,
         },
+        timeout: 10_000,
     });
 
     return response.data.access_token;
@@ -394,6 +398,8 @@ export const queryStkStatus = functions.https.onCall(async (data, context) => {
         const timestamp = getTimestamp();
         const password = generatePassword(config.shortcode, config.passkey, timestamp);
 
+        // Phase 3 (B-MED-8): explicit timeout — same rationale as
+        // `getAccessToken`. The query endpoint can stall under load.
         const response = await axios.post(
             `${baseUrl}/mpesa/stkpushquery/v1/query`,
             {
@@ -407,6 +413,7 @@ export const queryStkStatus = functions.https.onCall(async (data, context) => {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                 },
+                timeout: 10_000,
             }
         );
 

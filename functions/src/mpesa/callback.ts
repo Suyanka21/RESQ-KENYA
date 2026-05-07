@@ -146,15 +146,41 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
             return;
         }
 
-        const isSuccess = ResultCode === 0;
-        const newStatus = isSuccess ? 'completed' : 'failed';
+        let isSuccess = ResultCode === 0;
 
         let mpesaReceiptNumber: string | undefined;
         let transactionDate: string | undefined;
+        let mpesaAmount: number | undefined;
         if (isSuccess && CallbackMetadata?.Item) {
             mpesaReceiptNumber = getCallbackValue(CallbackMetadata.Item, 'MpesaReceiptNumber') as string;
             transactionDate = getCallbackValue(CallbackMetadata.Item, 'TransactionDate')?.toString();
+            const rawAmount = getCallbackValue(CallbackMetadata.Item, 'Amount');
+            if (typeof rawAmount === 'number') mpesaAmount = rawAmount;
+            else if (typeof rawAmount === 'string') {
+                const parsed = Number.parseFloat(rawAmount);
+                if (Number.isFinite(parsed)) mpesaAmount = parsed;
+            }
         }
+
+        // Phase 3 (B-CRIT-6) — amount reconciliation. M-Pesa echoes the
+        // actual paid `Amount` on success. If it disagrees with what the
+        // STK push was initiated for (anything more than 0.5 KES off, to
+        // tolerate float weirdness), demote the success to a failure so
+        // we never credit the provider for a mismatched amount. Persist
+        // the discrepancy on `paymentData.amountMismatch` for ops.
+        let amountMismatch = false;
+        if (isSuccess && typeof mpesaAmount === 'number') {
+            const expected = paymentData.amount;
+            if (Math.abs(mpesaAmount - expected) > 0.5) {
+                console.error(
+                    `[mpesaCallback] amount mismatch: expected=${expected} ` +
+                    `received=${mpesaAmount} idemp=${paymentData.idempotencyKey}`
+                );
+                amountMismatch = true;
+                isSuccess = false;
+            }
+        }
+        const newStatus = isSuccess ? 'completed' : 'failed';
 
         const requestId = paymentData.requestId;
         const requestRef = db.collection('requests').doc(requestId);
@@ -180,9 +206,14 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
             tx.update(paymentRef, {
                 status: newStatus,
                 resultCode: ResultCode,
-                resultDesc: ResultDesc,
+                resultDesc: amountMismatch ? `${ResultDesc} (amount mismatch)` : ResultDesc,
                 ...(mpesaReceiptNumber ? { mpesaReceiptNumber } : {}),
                 ...(transactionDate ? { transactionDate } : {}),
+                ...(typeof mpesaAmount === 'number' ? { mpesaAmount } : {}),
+                ...(amountMismatch ? {
+                    amountMismatch: true,
+                    expectedAmount: paymentData.amount,
+                } : {}),
                 completedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
@@ -207,6 +238,14 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
                 // Provider earnings credit. Idempotent because the
                 // outer status guard ensures we run this exactly once
                 // per `pending → completed` transition.
+                //
+                // Phase 3 (B-HIGH-6 — escrow STRUCTURE ONLY): also
+                // mirror the credit into `escrow.*` so a future payout
+                // pipeline can settle real money against earnings vs.
+                // escrow without a schema migration. The
+                // PAYOUT_ESCROW_ENABLED feature flag (default OFF) lets
+                // a follow-up PR cut over the user-visible "available
+                // balance" computation; this commit changes no UI.
                 const providerRef = db.collection('providers').doc(requestData.providerId);
                 const share = paymentData.amount * 0.75;
                 tx.update(providerRef, {
@@ -214,25 +253,44 @@ export const mpesaCallback = functions.https.onRequest(async (req, res) => {
                     'earnings.thisWeek': admin.firestore.FieldValue.increment(share),
                     'earnings.thisMonth': admin.firestore.FieldValue.increment(share),
                     'earnings.allTime': admin.firestore.FieldValue.increment(share),
+                    'escrow.today': admin.firestore.FieldValue.increment(share),
+                    'escrow.thisWeek': admin.firestore.FieldValue.increment(share),
+                    'escrow.thisMonth': admin.firestore.FieldValue.increment(share),
+                    'escrow.allTime': admin.firestore.FieldValue.increment(share),
                 });
             }
         });
 
         // Notification (best-effort, outside transaction).
+        // Phase 3 (B-MED-3) — guard with `notificationSentAt` written
+        // by a cheap conditional update so a duplicate callback that
+        // sneaks past the in-transaction status guard cannot fan out a
+        // second push notification.
         if (isSuccess) {
             try {
-                const userDoc = await db.collection('users').doc(paymentData.userId).get();
-                const fcmToken = userDoc.data()?.fcmToken;
-                if (fcmToken) {
-                    await admin.messaging().send({
-                        token: fcmToken,
-                        notification: {
-                            title: 'Payment Successful',
-                            body: `Your payment of KES ${paymentData.amount} has been received.`
-                                + (mpesaReceiptNumber ? ` Receipt: ${mpesaReceiptNumber}` : ''),
-                        },
-                        data: { type: 'payment_completed', requestId },
+                const notificationGuard = await db.runTransaction(async (tx) => {
+                    const snap = await tx.get(paymentRef);
+                    if (snap.data()?.notificationSentAt) return false;
+                    tx.update(paymentRef, {
+                        notificationSentAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
+                    return true;
+                });
+
+                if (notificationGuard) {
+                    const userDoc = await db.collection('users').doc(paymentData.userId).get();
+                    const fcmToken = userDoc.data()?.fcmToken;
+                    if (fcmToken) {
+                        await admin.messaging().send({
+                            token: fcmToken,
+                            notification: {
+                                title: 'Payment Successful',
+                                body: `Your payment of KES ${paymentData.amount} has been received.`
+                                    + (mpesaReceiptNumber ? ` Receipt: ${mpesaReceiptNumber}` : ''),
+                            },
+                            data: { type: 'payment_completed', requestId },
+                        });
+                    }
                 }
             } catch (notifyError) {
                 const message = notifyError instanceof Error ? notifyError.message : 'Unknown error';
