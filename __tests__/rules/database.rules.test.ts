@@ -23,6 +23,12 @@ import {
     type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { ref, set, get } from 'firebase/database';
+// Import the canonical seed-node builder used by the production trigger.
+// Seeding the rules tests with the same shape closes the gap audit-v2
+// §N-HIGH-8 / §X-2 flagged: the previous tests inlined a customerId
+// field that production code did not actually write, exercising a state
+// that did not exist (test confidence was structurally inflated).
+import { buildActiveRequestSeed } from '../../functions/src/services/triggers';
 
 const PROJECT_ID = 'resq-kenya-rtdb-rules-test';
 
@@ -51,38 +57,60 @@ const CUSTOMER = 'customer-1';
 const PROVIDER = 'provider-1';
 const OTHER = 'someone-else';
 
-describe('activeRequests rules', () => {
-    it('customer can read their own active request', async () => {
-        await env.withSecurityRulesDisabled(async (ctx) => {
-            await set(ref(ctx.database(), 'activeRequests/req-1'), {
-                customerId: CUSTOMER,
-                providerId: PROVIDER,
-            });
+/**
+ * Seeds the RTDB through the *production* trigger's seed-node builder
+ * so the rules tests assert against the same shape that the live
+ * `onRequestStatusChange` trigger writes.
+ */
+function seedActiveRequest(
+    env: RulesTestEnvironment,
+    requestId: string,
+    overrides: Partial<Parameters<typeof buildActiveRequestSeed>[0]> = {}
+): Promise<void> {
+    return env.withSecurityRulesDisabled(async (ctx) => {
+        const seed = buildActiveRequestSeed({
+            requestId,
+            userId: CUSTOMER,
+            providerId: PROVIDER,
+            status: 'accepted',
+            ...overrides,
         });
+        await set(ref(ctx.database(), `activeRequests/${requestId}`), seed);
+    });
+}
+
+describe('activeRequests rules (seeded via production builder — audit-v2 §N-HIGH-8)', () => {
+    it('customer can read their own active request', async () => {
+        await seedActiveRequest(env, 'req-1');
         const ctx = env.authenticatedContext(CUSTOMER);
         await assertSucceeds(get(ref(ctx.database(), 'activeRequests/req-1')));
     });
 
     it('assigned provider can read the active request', async () => {
-        await env.withSecurityRulesDisabled(async (ctx) => {
-            await set(ref(ctx.database(), 'activeRequests/req-2'), {
-                customerId: CUSTOMER,
-                providerId: PROVIDER,
-            });
-        });
+        await seedActiveRequest(env, 'req-2');
         const ctx = env.authenticatedContext(PROVIDER);
         await assertSucceeds(get(ref(ctx.database(), 'activeRequests/req-2')));
     });
 
     it('unrelated user cannot read the active request', async () => {
-        await env.withSecurityRulesDisabled(async (ctx) => {
-            await set(ref(ctx.database(), 'activeRequests/req-3'), {
-                customerId: CUSTOMER,
-                providerId: PROVIDER,
-            });
-        });
+        await seedActiveRequest(env, 'req-3');
         const ctx = env.authenticatedContext(OTHER);
         await assertFails(get(ref(ctx.database(), 'activeRequests/req-3')));
+    });
+
+    it('audit-v2 §N-CRIT-2 regression: a seed without customerId denies the customer (rule predicate fails)', async () => {
+        // Mirrors the broken pre-fix production state: trigger wrote no
+        // customerId, so the rule's `customerId === auth.uid` check
+        // failed and the customer's tracking listener was denied.
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await set(ref(ctx.database(), 'activeRequests/req-no-customer'), {
+                requestId: 'req-no-customer',
+                providerId: PROVIDER,
+                status: 'accepted',
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(get(ref(ctx.database(), 'activeRequests/req-no-customer')));
     });
 
     it('client cannot write activeRequests directly', async () => {
