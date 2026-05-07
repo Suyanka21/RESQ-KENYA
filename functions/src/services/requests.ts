@@ -36,7 +36,7 @@ const db = admin.firestore();
 /* ───────────────────── Pure validation helpers ───────────────────── */
 
 export { VALID_STATUS_TRANSITIONS, isAllowedStatusTransition } from '../shared/status';
-import { isAllowedStatusTransition } from '../shared/status';
+import { planRequestStatusUpdate } from '../shared/status';
 import { idempotencyDocId as sharedIdempotencyDocId } from '../shared/crypto';
 
 /** Shape-check the create-request input. Returns null if valid. */
@@ -545,23 +545,13 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
             }
             const current = snap.data() as { status: string; providerId?: string; userId?: string };
 
-            // Authorization: provider for non-cancel transitions; customer
-            // may only cancel their own request.
-            if (status === 'cancelled') {
-                if (current.userId !== callerUid && current.providerId !== callerUid) {
-                    throw new functions.https.HttpsError('permission-denied', 'Not your request');
-                }
-            } else {
-                if (current.providerId !== callerUid) {
-                    throw new functions.https.HttpsError('permission-denied', 'Only the assigned provider may update status');
-                }
-            }
-
-            if (!isAllowedStatusTransition(current.status, status)) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    `Cannot transition from ${current.status} to ${status}`
-                );
+            // Pure decision helper — runs auth, transition graph, and
+            // (audit-v2 §N-CRIT-1) decides whether to release the
+            // provider on terminal transitions. Tests live next to the
+            // helper, not the wiring.
+            const plan = planRequestStatusUpdate(current, status, callerUid);
+            if (!plan.ok) {
+                throw new functions.https.HttpsError(plan.code, plan.message);
             }
 
             transaction.update(requestRef, {
@@ -569,6 +559,17 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 [`timeline.${status}At`]: admin.firestore.FieldValue.serverTimestamp(),
             });
+
+            // Release the provider on terminal transitions so the dispatch
+            // pool isn't single-use per provider (audit-v2 §N-CRIT-1).
+            // Without this, the idle invariant in `acceptServiceRequest`
+            // rejects the same provider's next accept forever.
+            if (plan.releaseProvider && current.providerId) {
+                const providerRef = db.collection('providers').doc(current.providerId);
+                transaction.update(providerRef, {
+                    'availability.currentRequestId': admin.firestore.FieldValue.delete(),
+                });
+            }
         });
 
         // Notify customer of status change
