@@ -5,10 +5,16 @@ import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Switch, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { ClipboardList, Banknote, Bell, BarChart3, MessageCircle } from 'lucide-react-native';
+import { getPendingRequestsNearby } from '../../services/firestore.service';
+// Phase 3 (Backend Stabilization, B-HIGH-7): location/online flips
+// must go through the canonical Cloud Function so the
+// `verificationStatus === 'verified'` gate, RTDB mirror, and geohash
+// generation stay server-authoritative. Direct client writes to
+// `providers/{uid}` are blocked by the Phase 3.5 Firestore rules.
 import {
-    updateProviderLocation,
-    getPendingRequestsNearby
-} from '../../services/firestore.service';
+    updateLocation as updateProviderLocationCallable,
+    setAvailability as setProviderAvailabilityCallable,
+} from '../../services/provider.service';
 import {
     startProviderBroadcast,
     stopProviderBroadcast
@@ -69,13 +75,10 @@ export default function ProviderDashboard() {
                     MOCK_PROVIDER.serviceTypes
                 );
 
-                // Update Firestore
-                await updateProviderLocation(
-                    MOCK_PROVIDER.id,
-                    location.latitude,
-                    location.longitude,
-                    true
-                );
+                // Phase 3: server-authoritative online flip + location.
+                // Throws if provider is not verified (B-HIGH-7).
+                await setProviderAvailabilityCallable(true, location);
+                await updateProviderLocationCallable(location.latitude, location.longitude);
 
                 // Fetch nearby pending requests
                 const requests = await getPendingRequestsNearby(
@@ -88,12 +91,7 @@ export default function ProviderDashboard() {
             } else {
                 // Go offline
                 await stopProviderBroadcast(MOCK_PROVIDER.id);
-                await updateProviderLocation(
-                    MOCK_PROVIDER.id,
-                    currentLocation.latitude,
-                    currentLocation.longitude,
-                    false
-                );
+                await setProviderAvailabilityCallable(false);
                 setNearbyRequests([]);
             }
 

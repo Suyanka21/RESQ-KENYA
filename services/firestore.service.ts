@@ -131,25 +131,33 @@ export async function getProvider(providerId: string): Promise<Provider | null> 
 }
 
 /**
- * Update provider availability and location
+ * Phase 3 (B-HIGH-7) — DEPRECATED.
+ *
+ * This client-side shim wrote `providers/{uid}` directly, bypassing
+ * the verification gate enforced by the `setProviderAvailability`
+ * Cloud Function. Real callers must use
+ * `services/provider.service.ts:updateLocation` /
+ * `setAvailability` (callables).
+ *
+ * Throwing at runtime guarantees any forgotten call-site fails
+ * loudly rather than silently corrupting state. The Firestore rules
+ * tightening in Phase 3.5 also blocks the legacy direct write.
+ *
+ * @deprecated Use `provider.service.ts:updateLocation` /
+ *             `setAvailability` instead.
  */
 export async function updateProviderLocation(
-    providerId: string,
-    latitude: number,
-    longitude: number,
-    isOnline: boolean = true
+    _providerId: string,
+    _latitude: number,
+    _longitude: number,
+    _isOnline: boolean = true
 ): Promise<void> {
-    const providerRef = doc(db, COLLECTIONS.PROVIDERS, providerId);
-
-    // Generate geohash for efficient geo queries
-    const geohash = geofire.geohashForLocation([latitude, longitude]);
-
-    await updateDoc(providerRef, {
-        'availability.isOnline': isOnline,
-        'availability.currentLocation': { latitude, longitude },
-        'availability.lastUpdated': serverTimestamp(),
-        geohash,
-    });
+    throw new Error(
+        '[deprecated] firestore.service.ts:updateProviderLocation removed. ' +
+        'Call `updateLocation` / `setAvailability` from ' +
+        '`services/provider.service.ts` (callable) so the verification ' +
+        'gate and atomic RTDB mirror are enforced server-side.'
+    );
 }
 
 /**
@@ -234,45 +242,28 @@ export async function getOnlineProviderCount(serviceType?: string): Promise<numb
 // ============================================
 
 /**
- * Create a new service request directly via Firestore.
+ * Phase 3 (B-CRIT-3) — DEPRECATED.
  *
- * @deprecated Phase 2 (Contract Stabilization): the canonical write path is
- *   the `createServiceRequest` Cloud Function. This function bypasses
- *   authorization, idempotency, and price-quote validation. Use
- *   `services/customer.service.ts:createServiceRequest` instead, which calls
- *   the canonical function. This shim is retained only for legacy admin /
- *   seed scripts and prints a one-time deprecation warning.
+ * Direct-write shim that created `requests/{id}` from the client. It
+ * bypassed the canonical `createServiceRequest` Cloud Function and
+ * therefore the idempotency, price-quote, and serviceType validation.
+ * Phase 3 escalates the previous one-time `console.warn` to a runtime
+ * throw so any forgotten call-site fails loudly. The Phase 3.5
+ * Firestore rules also block the legacy direct write.
+ *
+ * @deprecated Use
+ *             `services/customer.service.ts:createServiceRequest`,
+ *             which routes through the canonical callable.
  */
-let _legacyCreateWarned = false;
 export async function createServiceRequest(
-    requestData: Omit<ServiceRequest, 'id' | 'timeline'>
+    _requestData: Omit<ServiceRequest, 'id' | 'timeline'>
 ): Promise<string> {
-    if (!_legacyCreateWarned) {
-        _legacyCreateWarned = true;
-        console.warn(
-            '[deprecation] services/firestore.service.ts:createServiceRequest is deprecated. '
-                + 'Use services/customer.service.ts:createServiceRequest (calls the canonical Cloud Function).'
-        );
-    }
-
-    const requestRef = doc(collection(db, COLLECTIONS.REQUESTS));
-
-    // Generate geohash for customer location
-    const { latitude, longitude } = requestData.customerLocation.coordinates;
-    const geohash = geofire.geohashForLocation([latitude, longitude]);
-
-    await setDoc(requestRef, {
-        ...requestData,
-        id: requestRef.id,
-        status: 'pending',
-        geohash,
-        timeline: {
-            requestedAt: serverTimestamp(),
-        },
-        createdAt: serverTimestamp(),
-    });
-
-    return requestRef.id;
+    throw new Error(
+        '[deprecated] firestore.service.ts:createServiceRequest removed. ' +
+        'Call `createServiceRequest` from `services/customer.service.ts` ' +
+        '(calls the canonical Cloud Function) so idempotency + quote + ' +
+        'authorization are enforced server-side.'
+    );
 }
 
 /**

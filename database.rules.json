@@ -1,0 +1,30 @@
+{
+  "_comment": "ResQ Kenya — Firebase Realtime Database security rules. Phase 3 (B-LOW-5). Default deny at the root, then opt in per-path. Server-side writes through the Admin SDK bypass these rules; the goal here is to make client-side writes provably safe. Source: https://firebase.google.com/docs/database/security/rules-conditions",
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "activeRequests": {
+      "$requestId": {
+        "_comment": "Customer (data.customerId == auth.uid) and assigned provider (data.providerId == auth.uid) may read live tracking state. All client writes are denied — Cloud Functions write through the Admin SDK so providerLocation, providerStale, updatedAt, and status flips happen server-authoritatively.",
+        ".read": "auth != null && (data.child('customerId').val() === auth.uid || data.child('providerId').val() === auth.uid)",
+        ".write": false
+      }
+    },
+
+    "providerLocations": {
+      "$providerId": {
+        "_comment": "Each provider may write their own broadcast doc; nobody else may. Reads are server-only — clients should subscribe to activeRequests/{id}/providerLocation, which is filtered to the assigned customer.",
+        ".read": false,
+        ".write": "auth != null && auth.uid === $providerId",
+        ".validate": "newData.hasChildren(['location', 'isOnline', 'lastSeen']) || !newData.exists()",
+        "location": {
+          ".validate": "newData.hasChild('latitude') && newData.hasChild('longitude') && newData.child('latitude').isNumber() && newData.child('longitude').isNumber()"
+        },
+        "isOnline": {
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    }
+  }
+}

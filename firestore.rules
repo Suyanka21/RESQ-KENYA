@@ -1,55 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // =============================================
     // HELPER FUNCTIONS
     // =============================================
-    
-    // Check if user is authenticated
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Check if user owns this document
+
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
-    // Check if user is the assigned provider
+
     function isAssignedProvider(providerId) {
       return request.auth.uid == providerId;
     }
-    
+
+    // True iff the only fields changing in this update are in the
+    // allow-list. Used to scope provider/customer self-updates to a
+    // safe subset.
+    //
+    // `request.resource.data.diff(resource.data).affectedKeys()` is
+    // the canonical way to get the set of changed top-level keys.
+    // https://firebase.google.com/docs/firestore/security/rules-conditions#data_validation
+    function affectedKeysAreSubsetOf(allowedKeys) {
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(allowedKeys);
+    }
+
     // =============================================
     // USERS COLLECTION
     // =============================================
     match /users/{userId} {
-      // Users can only read/write their own profile
       allow read: if isAuthenticated() && isOwner(userId);
       allow create: if isAuthenticated() && isOwner(userId);
       allow update: if isAuthenticated() && isOwner(userId);
-
-      // Never allow direct deletion
       allow delete: if false;
 
       // ---- Vehicles subcollection (Phase 5) ----
-      // Owner can READ. All writes (create/update/delete) MUST go through
-      // the addVehicle / updateVehicle / deleteVehicle callables so the
-      // single-primary invariant + plate validation are enforced server-
-      // side. Direct client writes would let a malicious client bypass
-      // those callable checks (CodeRabbit PR #3, comment 2).
+      // Owner can READ. All writes (create/update/delete) MUST go
+      // through the addVehicle / updateVehicle / deleteVehicle
+      // callables so the single-primary invariant + plate validation
+      // are enforced server-side.
       match /vehicles/{vehicleId} {
         allow read: if isAuthenticated() && isOwner(userId);
         allow create, update, delete: if false;
       }
 
       // ---- Emergency contacts subcollection (Phase 5) ----
-      // Owner can READ. All writes (create/update/delete) MUST go
-      // through the addEmergencyContact / updateEmergencyContact /
+      // Owner can READ. All writes MUST go through the
+      // addEmergencyContact / updateEmergencyContact /
       // deleteEmergencyContact callables so MAX_CONTACTS=5 and phone
-      // normalisation are enforced server-side (CodeRabbit PR #3,
-      // comment 2).
+      // normalisation are enforced server-side.
       match /emergency_contacts/{contactId} {
         allow read: if isAuthenticated() && isOwner(userId);
         allow create, update, delete: if false;
@@ -59,8 +63,6 @@ service cloud.firestore {
     // =============================================
     // WALLETS COLLECTION (Phase 5)
     // =============================================
-    // Users can read their own wallet doc and ledger.
-    // Writes go through the wallet callables (admin SDK bypasses rules).
     match /wallets/{userId} {
       allow read: if isAuthenticated() && isOwner(userId);
       allow create, update, delete: if false;
@@ -70,92 +72,125 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
     }
-    
+
     // =============================================
     // PROVIDERS COLLECTION
     // =============================================
+    //
+    // Phase 3 (B-HIGH-7) hardening: clients can NOT write
+    // `verificationStatus`, `serviceTypes`, `earnings`, `escrow`, or
+    // `geohash`. Those fields are server-authoritative (admin SDK
+    // bypasses these rules). The setProviderAvailability /
+    // updateProviderLocation Cloud Functions enforce the
+    // "verified before online" gate and own the geohash.
     match /providers/{providerId} {
-      // Anyone authenticated can read providers (for matching)
       allow read: if isAuthenticated();
-      
-      // Providers can only update their own profile
-      allow create: if isAuthenticated() && isOwner(providerId);
-      allow update: if isAuthenticated() && isOwner(providerId);
-      
-      // Never allow direct deletion
+
+      // Provider self-create is fine — the verification workflow
+      // sets verificationStatus to 'pending' on the first write
+      // through the verifyProvider callable, but we still need to
+      // permit the initial doc.
+      allow create: if isAuthenticated()
+                    && isOwner(providerId)
+                    && request.resource.data.verificationStatus in ['pending', 'unverified'];
+
+      // Self-update is restricted to a presentation/profile subset.
+      // Anything else (verification, earnings, dispatch, escrow,
+      // currentRequestId, geohash, availability) MUST go through
+      // the corresponding callable.
+      allow update: if isAuthenticated()
+                    && isOwner(providerId)
+                    && affectedKeysAreSubsetOf([
+                         'displayName',
+                         'displayPhotoUrl',
+                         'phone',
+                         'email',
+                         'fcmToken',
+                         'pushTokens',
+                         'preferredLanguage',
+                         'updatedAt'
+                       ]);
+
       allow delete: if false;
     }
-    
+
     // =============================================
     // REQUESTS COLLECTION
     // =============================================
+    //
+    // Phase 3 (B-CRIT-3 / B-CRIT-4): no client-side direct creates
+    // or updates. createServiceRequest, acceptServiceRequest,
+    // updateRequestStatus, and cancelServiceRequest are all
+    // callables — they bypass these rules via admin SDK. Direct
+    // client writes would let a caller set status='accepted',
+    // self-assign providerId, or mutate pricing/payment/total.
     match /requests/{requestId} {
-      // Customers can read their own requests
-      // Providers can read requests assigned to them
-      // Providers can read pending requests (for matching)
+      // Read access: customer owner, assigned provider, or any
+      // provider when the request is still pending (for the
+      // "nearby pending requests" list).
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         resource.data.providerId == request.auth.uid ||
         resource.data.status == 'pending'
       );
-      
-      // Only Cloud Functions should create requests
-      // But allow if user is creating their own
-      allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid;
-      
-      // Customers can update their own pending requests (cancel)
-      // Providers can update assigned requests (status updates)
-      allow update: if isAuthenticated() && (
-        (resource.data.userId == request.auth.uid && resource.data.status == 'pending') ||
-        (resource.data.providerId == request.auth.uid)
-      );
-      
-      // Never allow direct deletion
-      allow delete: if false;
+
+      // No client-side writes.
+      allow create, update, delete: if false;
     }
-    
+
     // =============================================
     // PAYMENT REQUESTS COLLECTION
     // =============================================
-    match /payment_requests/{requestId} {
-      // Customers can read their own payment requests
-      allow read: if isAuthenticated() && 
-        resource.data.userId == request.auth.uid;
-      
-      // Only Cloud Functions should create/update payments
-      // Allow create if user is the authenticated user
-      allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid;
-      
-      // Updates only from Cloud Functions (admin SDK bypasses rules)
-      allow update: if false;
-      
-      // Never allow deletion
-      allow delete: if false;
+    //
+    // Phase 3 (B-CRIT-2): clients used to be allowed to create
+    // payment_requests rows with arbitrary status, including
+    // 'completed'. That let a malicious caller pre-create a
+    // "fake-paid" idempotency key that the legitimate STK push
+    // would then short-circuit through. Now: all writes server-
+    // only via admin SDK; clients can only READ their own row.
+    match /payment_requests/{paymentRequestId} {
+      allow read: if isAuthenticated()
+                  && resource.data.userId == request.auth.uid;
+
+      allow create, update, delete: if false;
     }
-    
+
+    // =============================================
+    // PRICE QUOTES (Phase 2 contract)
+    // =============================================
+    match /price_quotes/{quoteId} {
+      allow read: if isAuthenticated()
+                  && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     // =============================================
     // CORPORATE ACCOUNTS (B2B) - Future
     // =============================================
     match /corporate_accounts/{accountId} {
-      // Only corporate admins can access
-      allow read, write: if isAuthenticated() && 
-        get(/databases/$(database)/documents/corporate_accounts/$(accountId)).data.admins.hasAny([request.auth.uid]);
+      allow read, write: if isAuthenticated()
+        && get(/databases/$(database)/documents/corporate_accounts/$(accountId)).data.admins.hasAny([request.auth.uid]);
     }
-    
+
     // =============================================
     // LEGACY TOP-LEVEL VEHICLES COLLECTION (deprecated in Phase 5)
     // =============================================
     // Phase 5 migrated to users/{uid}/vehicles. This rule remains for
     // legacy READS while migration scripts move data over. All writes
-    // are blocked from clients; new writes must go through the
-    // addVehicle callable. Allowing client writes here would re-create
-    // the split-brain vehicle data the Phase 5 migration was meant to
-    // eliminate (CodeRabbit PR #3, comment 3).
+    // are blocked; new writes must go through the addVehicle callable.
     match /vehicles/{vehicleId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if false;
+    }
+
+    // =============================================
+    // DEFAULT DENY
+    // =============================================
+    // Anything not explicitly matched above is denied. Belt-and-
+    // braces protection against future collections being added
+    // without a corresponding rule block.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
