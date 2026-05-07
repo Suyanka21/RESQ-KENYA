@@ -72,45 +72,81 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
 }
 
 /**
- * Add vehicle to user profile
+ * Phase 4 (audit-v2 §N-HIGH-1) — DEPRECATED.
+ *
+ * The legacy shims below mutated **top-level array fields** on
+ * `users/{uid}` (e.g. `users/{uid}.vehicles[]`). The new data model
+ * stores these as **subcollections** (`users/{uid}/vehicles/{id}`,
+ * `/emergencyContacts/{id}`, `/savedLocations/{id}`) accessed via
+ * dedicated callables — see `functions/src/users/vehicles.ts:addVehicle`
+ * and `functions/src/users/emergencyContacts.ts:addEmergencyContact`.
+ *
+ * If anything still calls these shims, it would silently write to the
+ * deprecated array path and the new UI (which reads the subcollection)
+ * would render nothing — the audit's documented failure mode. Throwing
+ * at runtime guarantees forgotten call-sites fail loudly. The
+ * companion fix in `firestore.rules:36-40` (audit §N-HIGH-2) tightens
+ * `users/{userId}` updates with `affectedKeysAreSubsetOf([...])` so
+ * the rules also reject these field names server-side, even if a
+ * client somehow bypassed the throw.
+ *
+ * Skills: Deprecation-and-Migration (loud failure beats silent
+ * corruption), Security-and-Hardening (defense in depth — also
+ * blocked by the rule).
+ *
+ * @deprecated Use the `addVehicle` callable from
+ *             `services/provider.service.ts` /
+ *             `functions/src/users/vehicles.ts`.
  */
-export async function addVehicle(userId: string, vehicle: Vehicle): Promise<void> {
-    const user = await getUser(userId);
-    if (!user) throw new Error('User not found');
-
-    const vehicles = user.vehicles || [];
-
-    // If this is the first vehicle or marked as primary, update others
-    if (vehicle.isPrimary) {
-        vehicles.forEach(v => v.isPrimary = false);
-    }
-
-    vehicles.push(vehicle);
-    await updateUser(userId, { vehicles });
+export async function addVehicle(_userId: string, _vehicle: Vehicle): Promise<void> {
+    throw new Error(
+        '[deprecated] firestore.service.ts:addVehicle removed. ' +
+        'Call the `addVehicle` httpsCallable from ' +
+        '`functions/src/users/vehicles.ts` instead. The legacy path ' +
+        'wrote to `users/{uid}.vehicles[]` (deprecated array) while ' +
+        'the new UI reads from `users/{uid}/vehicles/{id}` ' +
+        '(subcollection) — silent data loss otherwise.'
+    );
 }
 
 /**
- * Add emergency contact
+ * Phase 4 (audit-v2 §N-HIGH-1) — DEPRECATED.
+ * @deprecated Use the `addEmergencyContact` httpsCallable from
+ *             `functions/src/users/emergencyContacts.ts`.
  */
-export async function addEmergencyContact(userId: string, contact: EmergencyContact): Promise<void> {
-    const user = await getUser(userId);
-    if (!user) throw new Error('User not found');
-
-    const contacts = user.emergencyContacts || [];
-    contacts.push(contact);
-    await updateUser(userId, { emergencyContacts: contacts });
+export async function addEmergencyContact(
+    _userId: string,
+    _contact: EmergencyContact
+): Promise<void> {
+    throw new Error(
+        '[deprecated] firestore.service.ts:addEmergencyContact removed. ' +
+        'Call the `addEmergencyContact` httpsCallable from ' +
+        '`functions/src/users/emergencyContacts.ts` instead. The legacy ' +
+        'path wrote to `users/{uid}.emergencyContacts[]` (deprecated ' +
+        'array) and bypassed the MAX_CONTACTS=5 invariant.'
+    );
 }
 
 /**
- * Add saved location
+ * Phase 4 (audit-v2 §N-HIGH-1) — DEPRECATED.
+ *
+ * NOTE: a canonical `addSavedLocation` callable does not yet exist;
+ * tracked in audit follow-ups. Throwing here is the safe interim:
+ * silent writes to a deprecated path are worse than a loud error.
+ *
+ * @deprecated Will be replaced by an `addSavedLocation` callable.
  */
-export async function addSavedLocation(userId: string, location: SavedLocation): Promise<void> {
-    const user = await getUser(userId);
-    if (!user) throw new Error('User not found');
-
-    const locations = user.savedLocations || [];
-    locations.push(location);
-    await updateUser(userId, { savedLocations: locations });
+export async function addSavedLocation(
+    _userId: string,
+    _location: SavedLocation
+): Promise<void> {
+    throw new Error(
+        '[deprecated] firestore.service.ts:addSavedLocation removed. ' +
+        'The canonical `addSavedLocation` callable is not yet ' +
+        'implemented; the legacy path wrote to ' +
+        '`users/{uid}.savedLocations[]` which the new UI does not read. ' +
+        'Track this in the audit follow-up before re-enabling.'
+    );
 }
 
 // ============================================

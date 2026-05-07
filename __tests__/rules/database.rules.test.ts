@@ -123,10 +123,19 @@ describe('activeRequests rules (seeded via production builder — audit-v2 §N-H
     });
 });
 
-describe('providerLocations rules', () => {
-    it('provider can write their own broadcast doc', async () => {
+describe('providerLocations rules (audit-v2 §N-HIGH-3 — locked to server-only)', () => {
+    // Phase 4 (audit-v2 §N-HIGH-3): the legacy rule allowed an
+    // authenticated user to write `providerLocations/{their-uid}`
+    // directly from the client. RTDB rules cannot query Firestore
+    // for `verificationStatus`, so an unverified provider could spoof
+    // location updates. The recommended fix locks this branch
+    // entirely; writes flow through the `setProviderAvailability` and
+    // `updateProviderLocation` Cloud Functions which use the Admin
+    // SDK and bypass these rules.
+
+    it('provider cannot write to their own provider-location doc from the client', async () => {
         const ctx = env.authenticatedContext(PROVIDER);
-        await assertSucceeds(set(ref(ctx.database(), `providerLocations/${PROVIDER}`), {
+        await assertFails(set(ref(ctx.database(), `providerLocations/${PROVIDER}`), {
             location: { latitude: -1.286, longitude: 36.817 },
             isOnline: true,
             lastSeen: Date.now(),
@@ -152,6 +161,18 @@ describe('providerLocations rules', () => {
         });
         const ctx = env.authenticatedContext(PROVIDER);
         await assertFails(get(ref(ctx.database(), `providerLocations/${OTHER}`)));
+    });
+
+    it('provider cannot read their own provider-location doc either', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await set(ref(ctx.database(), `providerLocations/${PROVIDER}`), {
+                location: { latitude: 0, longitude: 0 },
+                isOnline: true,
+                lastSeen: Date.now(),
+            });
+        });
+        const ctx = env.authenticatedContext(PROVIDER);
+        await assertFails(get(ref(ctx.database(), `providerLocations/${PROVIDER}`)));
     });
 });
 

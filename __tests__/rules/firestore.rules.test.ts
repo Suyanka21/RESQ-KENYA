@@ -312,6 +312,142 @@ describe('providers rules (B-HIGH-7)', () => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  users/{userId} allow-list — audit-v2 §N-HIGH-2                     */
+/* ------------------------------------------------------------------ */
+//
+// The pre-fix rule was `allow update: if isAuthenticated() && isOwner(userId)`
+// with no field allow-list, letting an authenticated user overwrite ANY
+// field on their own user doc — `role`, `wallet.balance`,
+// `referralCredits`, the deprecated `vehicles[]` / `emergencyContacts[]`
+// arrays. The fix mirrors the `providers/{providerId}` allow-list pattern:
+// only profile-presentation fields are writable; privileged data is
+// server-authoritative via dedicated callables.
+
+describe('users/{userId} rules (audit-v2 §N-HIGH-2)', () => {
+    it('owner can update an allowed presentation field', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'Old',
+                phoneNumber: '+254700000001',
+                membership: 'basic',
+                loyaltyPoints: 0,
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertSucceeds(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            displayName: 'New Name',
+        }));
+    });
+
+    it('owner CANNOT escalate role to admin', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'X',
+                membership: 'basic',
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            role: 'admin',
+        }));
+    });
+
+    it('owner CANNOT forge wallet balance', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'X',
+                membership: 'basic',
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            wallet: { balance: 999999 },
+        }));
+    });
+
+    it('owner CANNOT forge loyaltyPoints', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'X',
+                membership: 'basic',
+                loyaltyPoints: 0,
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            loyaltyPoints: 999999,
+        }));
+    });
+
+    it('owner CANNOT write deprecated vehicles[] array (audit-v2 §N-HIGH-1 path)', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'X',
+                membership: 'basic',
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            vehicles: [{ make: 'Toyota', model: 'Corolla', plateNumber: 'KAA001A' }],
+        }));
+    });
+
+    it('owner CANNOT write deprecated emergencyContacts[] array', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'X',
+                membership: 'basic',
+            });
+        });
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            emergencyContacts: [{ name: 'X', phone: '+254700000002' }],
+        }));
+    });
+
+    it('non-owner cannot update someone else\u2019s user doc', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+                id: CUSTOMER,
+                displayName: 'X',
+                membership: 'basic',
+            });
+        });
+        const ctx = env.authenticatedContext(OTHER);
+        await assertFails(updateDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            displayName: 'Hacked',
+        }));
+    });
+
+    it('owner CANNOT pre-seed membership=gold on first create', async () => {
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            id: CUSTOMER,
+            displayName: 'New User',
+            phoneNumber: '+254700000003',
+            membership: 'gold',
+        }));
+    });
+
+    it('owner CAN create with membership=basic + loyaltyPoints=0', async () => {
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertSucceeds(setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            id: CUSTOMER,
+            displayName: 'New User',
+            phoneNumber: '+254700000004',
+            membership: 'basic',
+            loyaltyPoints: 0,
+        }));
+    });
+});
+
+/* ------------------------------------------------------------------ */
 /*  default-deny                                                       */
 /* ------------------------------------------------------------------ */
 

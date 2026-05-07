@@ -125,16 +125,22 @@ async function createUserProfile(user: User): Promise<void> {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-        // First time user - create profile
+        // First time user - create profile.
+        //
+        // Phase 4 (audit-v2 §N-HIGH-1/§N-HIGH-2): the legacy seed
+        // wrote empty `vehicles[] / emergencyContacts[] / savedLocations[]`
+        // arrays on the user doc. Those array fields are now
+        // **deprecated** in favour of subcollections
+        // (`users/{uid}/vehicles/{id}` etc.), and the tightened
+        // `users/{userId}` rule rejects writes to those keys. Drop
+        // them from the seed; the new UI reads from subcollections
+        // anyway and the missing keys are rendered as empty.
         const userData: Partial<ResQUser> = {
             id: user.uid,
             phoneNumber: user.phoneNumber || '',
             displayName: '',
             membership: 'basic',
             loyaltyPoints: 0,
-            vehicles: [],
-            emergencyContacts: [],
-            savedLocations: [],
         };
 
         await setDoc(userRef, {

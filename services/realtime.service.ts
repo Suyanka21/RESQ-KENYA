@@ -144,52 +144,68 @@ export async function getActiveRequest(requestId: string): Promise<ActiveRequest
 // ============================================
 
 /**
- * Start provider location broadcasting
- * Called when provider goes online
+ * Phase 4 (audit-v2 §N-HIGH-3) — DEPRECATED.
+ *
+ * The legacy broadcast helpers wrote directly from the client to
+ * RTDB `providerLocations/{providerId}`. The audit flagged this as
+ * a forgeable surface: RTDB rules cannot query Firestore to check
+ * `providers/{uid}.verificationStatus`, so an unverified provider
+ * could spoof location updates. The companion fix in
+ * `database.rules.json` locks the `providerLocations` branch to
+ * server-only writes; the only legitimate online-flip path is now
+ * the `setProviderAvailability` Cloud Function (and `updateLocation`
+ * for streaming updates), both of which enforce the verification
+ * gate before mutating state.
+ *
+ * Throwing here guarantees that any forgotten client call-site fails
+ * loudly rather than silently getting permission-denied from the
+ * RTDB rule and confusing the provider's UI.
+ *
+ * Skills: Deprecation-and-Migration (loud failure beats silent
+ * permission-denied), Security-and-Hardening (defense in depth —
+ * also blocked by the RTDB rule).
+ *
+ * @deprecated Use `services/provider.service.ts:setAvailability` and
+ *             `services/provider.service.ts:updateLocation`.
  */
 export async function startProviderBroadcast(
-    providerId: string,
-    location: GeoLocation,
-    serviceTypes: string[]
+    _providerId: string,
+    _location: GeoLocation,
+    _serviceTypes: string[]
 ): Promise<void> {
-    const providerRef = ref(rtdb, `${PATHS.PROVIDER_LOCATIONS}/${providerId}`);
-
-    await set(providerRef, {
-        location: {
-            ...location,
-            timestamp: Date.now(),
-        },
-        serviceTypes,
-        isOnline: true,
-        lastSeen: Date.now(),
-    });
+    throw new Error(
+        '[deprecated] realtime.service.ts:startProviderBroadcast removed. ' +
+        'Call `setAvailability(true, location)` from ' +
+        '`services/provider.service.ts` instead — the callable ' +
+        'enforces the verification gate (audit-v2 §N-HIGH-3).'
+    );
 }
 
 /**
- * Update provider broadcast location
+ * Phase 4 (audit-v2 §N-HIGH-3) — DEPRECATED.
+ * @deprecated Use `services/provider.service.ts:updateLocation`.
  */
 export async function updateProviderBroadcast(
-    providerId: string,
-    location: GeoLocation
+    _providerId: string,
+    _location: GeoLocation
 ): Promise<void> {
-    const providerRef = ref(rtdb, `${PATHS.PROVIDER_LOCATIONS}/${providerId}`);
-
-    await update(providerRef, {
-        location: {
-            ...location,
-            timestamp: Date.now(),
-        },
-        lastSeen: Date.now(),
-    });
+    throw new Error(
+        '[deprecated] realtime.service.ts:updateProviderBroadcast removed. ' +
+        'Call `updateLocation(latitude, longitude)` from ' +
+        '`services/provider.service.ts` instead.'
+    );
 }
 
 /**
- * Stop provider location broadcasting
- * Called when provider goes offline
+ * Phase 4 (audit-v2 §N-HIGH-3) — DEPRECATED.
+ * @deprecated Use `services/provider.service.ts:setAvailability(false)`.
  */
-export async function stopProviderBroadcast(providerId: string): Promise<void> {
-    const providerRef = ref(rtdb, `${PATHS.PROVIDER_LOCATIONS}/${providerId}`);
-    await remove(providerRef);
+export async function stopProviderBroadcast(_providerId: string): Promise<void> {
+    throw new Error(
+        '[deprecated] realtime.service.ts:stopProviderBroadcast removed. ' +
+        'Call `setAvailability(false)` from ' +
+        '`services/provider.service.ts` instead.'
+    );
 }
 
 /**

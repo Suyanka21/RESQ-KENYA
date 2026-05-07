@@ -33,10 +33,81 @@ service cloud.firestore {
     // =============================================
     // USERS COLLECTION
     // =============================================
+    //
+    // Phase 4 (audit-v2 §N-HIGH-2) hardening: the previous rule was
+    // `allow update: if isAuthenticated() && isOwner(userId)` with
+    // **no field allow-list**, which let a logged-in user overwrite
+    // any field on their own user doc — including `role`,
+    // `wallet.balance`, `referralCredits`, `vehicles[]`, etc. The
+    // legacy `firestore.service.ts:addVehicle` shim (audit §N-HIGH-1)
+    // exploited that, writing to the deprecated `vehicles[]` array.
+    //
+    // The fix mirrors the `providers/{providerId}` allow-list
+    // pattern at firestore.rules:101-112: clients can only write
+    // profile-presentation fields. Privileged data (role, wallet,
+    // verification, balances) is server-authoritative.
+    //
+    // Skills: Security-and-Hardening (least privilege, default-deny
+    // on unspecified fields), API-and-Interface-Design (rule
+    // documents what the contract is, not what the client happens
+    // to send today).
     match /users/{userId} {
       allow read: if isAuthenticated() && isOwner(userId);
-      allow create: if isAuthenticated() && isOwner(userId);
-      allow update: if isAuthenticated() && isOwner(userId);
+
+      // Self-create on first sign-in. Restrict create-time fields
+      // to the safe initial subset and pin privileged values
+      // (membership = 'basic', loyaltyPoints = 0) so a malicious
+      // client cannot pre-seed `membership: 'gold'` or
+      // `loyaltyPoints: 999999`.
+      allow create: if isAuthenticated()
+                    && isOwner(userId)
+                    && request.resource.data.keys().hasOnly([
+                         'id',
+                         'displayName',
+                         'photoUrl',
+                         'phone',
+                         'phoneNumber',
+                         'email',
+                         'fcmToken',
+                         'pushTokens',
+                         'preferredLanguage',
+                         'role',
+                         'membership',
+                         'loyaltyPoints',
+                         'createdAt',
+                         'updatedAt'
+                       ])
+                    && (
+                      !('role' in request.resource.data) ||
+                      request.resource.data.role in ['customer', 'provider']
+                    )
+                    && (
+                      !('membership' in request.resource.data) ||
+                      request.resource.data.membership == 'basic'
+                    )
+                    && (
+                      !('loyaltyPoints' in request.resource.data) ||
+                      request.resource.data.loyaltyPoints == 0
+                    );
+
+      // Self-update is restricted to profile-presentation fields.
+      // Vehicles, emergency contacts, saved locations, role,
+      // wallet, balances, referralCredits all flow through their
+      // dedicated callables and bypass these rules via admin SDK.
+      allow update: if isAuthenticated()
+                    && isOwner(userId)
+                    && affectedKeysAreSubsetOf([
+                         'displayName',
+                         'photoUrl',
+                         'phone',
+                         'phoneNumber',
+                         'email',
+                         'fcmToken',
+                         'pushTokens',
+                         'preferredLanguage',
+                         'updatedAt'
+                       ]);
+
       allow delete: if false;
 
       // ---- Vehicles subcollection (Phase 5) ----
