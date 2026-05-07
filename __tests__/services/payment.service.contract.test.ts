@@ -50,7 +50,6 @@ describe('payment.service / initiatePayment — contract', () => {
     // `import()`; use CommonJS `require` for module loading after the
     // env flag is set.
     function loadInitiatePayment(): typeof import('../../services/payment.service').initiatePayment {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         return require('../../services/payment.service').initiatePayment;
     }
 
