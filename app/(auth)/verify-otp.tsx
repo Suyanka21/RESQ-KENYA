@@ -10,7 +10,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '../../services/AuthContext';
-import { verifyOTP } from '../../services/auth.service';
+import { verifyOTP, hasPendingOtpConfirmation, sendOTP } from '../../services/auth.service';
 import { colors, spacing, borderRadius, shadows, touchTargets, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
 
@@ -37,6 +37,26 @@ export default function VerifyOTPScreen() {
             router.replace('/(customer)');
         }
     }, [isAuthenticated, authLoading]);
+
+    // Phase 4 (audit-v2 §N-MED-4) — sendOTP stores the
+    // ConfirmationResult in module state. Hot reload, navigation
+    // away and back, or OS process kill clears it. Without this
+    // guard, the user would type the OTP and hit a cryptic
+    // "No OTP request pending" error with no recovery path.
+    //
+    // On mount, if there is no pending confirmation AND we aren't
+    // in __DEV__ (where the 123456 shortcut works regardless), we
+    // bounce back to the login screen with the phone pre-filled so
+    // the user just taps "Continue" again instead of being stuck.
+    useEffect(() => {
+        if (authLoading) return;
+        if (!__DEV__ && !hasPendingOtpConfirmation()) {
+            router.replace({
+                pathname: '/(auth)/login',
+                params: phoneNumber ? { lostOtp: '1' } : {},
+            });
+        }
+    }, [authLoading, phoneNumber]);
 
     // Entrance animation
     useEffect(() => {
@@ -83,8 +103,11 @@ export default function VerifyOTPScreen() {
         try {
             const fullOtp = otp.join('');
 
-            // Dev mode: accept test code
-            if (fullOtp === '123456') {
+            // Phase 4 (audit-v2 §F-CRIT-3) — the test-code shortcut
+            // is now gated by `__DEV__`. Metro sets `__DEV__` to
+            // false in production builds, so release apps reject
+            // 123456 and call the real Firebase verifier.
+            if (__DEV__ && fullOtp === '123456') {
                 setTimeout(() => {
                     router.replace('/(customer)');
                 }, 500);
@@ -105,13 +128,27 @@ export default function VerifyOTPScreen() {
         }
     };
 
-    const handleResend = () => {
+    const handleResend = async () => {
         setTimeLeft(45);
         setIsTimerActive(true);
         setOtp(new Array(OTP_LENGTH).fill(''));
         setFocusedIndex(0);
         setError('');
         inputRef.current?.focus();
+
+        // Phase 4 (audit-v2 §F-CRIT-3) — actually re-request the
+        // OTP. Pre-fix the resend button just reset the timer.
+        if (!phoneNumber) return;
+        try {
+            const result = await sendOTP(phoneNumber);
+            if (!result.success && !__DEV__) {
+                setError(result.error || 'Failed to resend code');
+            }
+        } catch (err: any) {
+            if (!__DEV__) {
+                setError(err.message || 'Failed to resend code');
+            }
+        }
     };
 
     if (authLoading) {

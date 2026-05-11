@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Phone, Check } from 'lucide-react-native';
-import { formatPhoneNumber } from '../../services/auth.service';
+import { formatPhoneNumber, sendOTP } from '../../services/auth.service';
 import { colors, spacing, borderRadius, shadows, touchTargets, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
 
@@ -41,12 +41,41 @@ export default function LoginScreen() {
             setError('Please enter a valid Kenyan phone number');
             return;
         }
+        if (!agreedToTerms) {
+            setError('Please accept the Terms of Service to continue');
+            return;
+        }
 
         setIsLoading(true);
         setError('');
 
         try {
             const fullNumber = formatPhoneNumber(phoneNumber);
+
+            // Phase 4 (audit-v2 §F-CRIT-3) — actually request the OTP
+            // BEFORE navigating to the verification screen. Pre-fix
+            // the navigation happened with no sendOTP call, so the
+            // OTP screen had nothing to verify against and only the
+            // hardcoded `123456` dev shortcut worked.
+            //
+            // In development builds (`__DEV__`), we let the user
+            // proceed even if sendOTP fails (the screen accepts
+            // `123456`) — that keeps emulator UX usable without a
+            // configured Firebase recaptcha provider. In production
+            // builds we hard-stop on failure with a clear error.
+            const result = await sendOTP(fullNumber);
+
+            if (!result.success) {
+                if (__DEV__) {
+                    // Allow dev navigation despite the failure so the
+                    // 123456 shortcut on verify-otp.tsx can be used.
+                    console.warn('[login] sendOTP failed in dev; proceeding to OTP screen:', result.error);
+                } else {
+                    setError(result.error || 'Failed to send verification code');
+                    return;
+                }
+            }
+
             router.push({
                 pathname: '/(auth)/verify-otp',
                 params: { phoneNumber: fullNumber }

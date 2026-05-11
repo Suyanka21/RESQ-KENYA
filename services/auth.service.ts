@@ -15,8 +15,34 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import type { User as ResQUser } from '../types';
 
-// Store verification result globally for OTP verification
+/**
+ * Phase 4 (audit-v2 §N-MED-4) — module-state for the pending OTP
+ * confirmation. ConfirmationResult is not serialisable, so we cannot
+ * persist it to AsyncStorage. To survive hot-reload / navigation
+ * loops, `verify-otp.tsx` calls `hasPendingOtpConfirmation()` on
+ * mount; if false (e.g. the module was hot-reloaded) it routes back
+ * to login so the user re-requests rather than hitting the cryptic
+ * "No OTP request pending" error.
+ */
 let confirmationResult: ConfirmationResult | null = null;
+
+/**
+ * True iff `sendOTP` succeeded and the user has not yet completed
+ * verifyOTP. Used by the OTP screen to detect hot-reload / lost-
+ * state scenarios (audit-v2 §N-MED-4) and bounce back to login.
+ */
+export function hasPendingOtpConfirmation(): boolean {
+    return confirmationResult !== null;
+}
+
+/**
+ * Test/dev-only escape hatch — clears the pending confirmation so
+ * a fresh sendOTP call starts cleanly. Never invoked by production
+ * UI flows.
+ */
+export function clearPendingOtpConfirmation(): void {
+    confirmationResult = null;
+}
 
 /**
  * Format phone number to international format
