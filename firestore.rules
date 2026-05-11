@@ -255,6 +255,19 @@ service cloud.firestore {
     }
 
     // =============================================
+    // SOS EVENTS — Phase 4 (audit-v2 §N-MED-7)
+    // =============================================
+    // Written exclusively by the `triggerEmergencySOS` callable
+    // (server-authoritative). Owner can read their own history;
+    // nobody can write directly. A future contact-fanout worker
+    // (server-side) updates `status` after dispatching.
+    match /sos_events/{eventId} {
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false; // server-only via callable
+    }
+
+    // =============================================
     // DEFAULT DENY
     // =============================================
     // Anything not explicitly matched above is denied. Belt-and-

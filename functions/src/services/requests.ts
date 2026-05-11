@@ -43,6 +43,7 @@ import {
     planAcceptServiceRequest,
     type AcceptRequestRejectionCode,
 } from '../shared/acceptRequestPlanner';
+import { resolveDispatchRadiusKm } from '../shared/dispatchRadius';
 
 /** Shape-check the create-request input. Returns null if valid. */
 export function validateCreateRequestInput(
@@ -248,10 +249,18 @@ async function notifyNearbyProviders(
     serviceType: string,
     latitude: number,
     longitude: number,
-    radiusKm: number = 15
+    /**
+     * Phase 4 (audit-v2 §N-MED-3 + §N-MED-9) — `retryCount` defaults
+     * to 0 (first attempt). The retry worker passes the request's
+     * `dispatch.retryCount` so the radius widens on each attempt.
+     * The PER-SERVICE baseline + widening schedule lives in
+     * `../shared/dispatchRadius.ts`. Do not hardcode radii here.
+     */
+    retryCount: number = 0
 ): Promise<void> {
     const requestRef = db.collection('requests').doc(requestId);
     const now = admin.firestore.FieldValue.serverTimestamp();
+    const radiusKm = resolveDispatchRadiusKm(serviceType, retryCount);
 
     try {
         const center = [latitude, longitude] as [number, number];
@@ -299,10 +308,12 @@ async function notifyNearbyProviders(
                 'dispatch.status': DISPATCH_STATUS.NoProviders,
                 'dispatch.notifiedCount': 0,
                 'dispatch.lastAttemptAt': now,
+                'dispatch.radiusKm': radiusKm,
                 'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
             });
             console.log(
-                `[dispatch] no_providers requestId=${requestId} serviceType=${serviceType}`
+                `[dispatch] no_providers requestId=${requestId} ` +
+                `serviceType=${serviceType} radiusKm=${radiusKm}`
             );
             return;
         }
@@ -337,10 +348,12 @@ async function notifyNearbyProviders(
             'dispatch.status': DISPATCH_STATUS.Notified,
             'dispatch.notifiedCount': providerTokens.length,
             'dispatch.lastAttemptAt': now,
+            'dispatch.radiusKm': radiusKm,
             'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
         });
         console.log(
-            `[dispatch] notified=${providerTokens.length} requestId=${requestId}`
+            `[dispatch] notified=${providerTokens.length} ` +
+            `requestId=${requestId} radiusKm=${radiusKm}`
         );
     } catch (dispatchError: unknown) {
         const message = dispatchError instanceof Error ? dispatchError.message : 'unknown';
@@ -504,11 +517,19 @@ export const retryFailedDispatches = functions.pubsub
                         );
                         continue;
                     }
+                    // Phase 4 (audit-v2 §N-MED-9) — pass the row's
+                    // current retryCount so dispatch widens its
+                    // radius on each attempt per the policy in
+                    // `../shared/dispatchRadius.ts`.
+                    const currentRetryCount = typeof data.dispatch?.retryCount === 'number'
+                        ? data.dispatch.retryCount
+                        : 0;
                     await notifyNearbyProviders(
                         requestId,
                         data.serviceType,
                         coords.latitude,
-                        coords.longitude
+                        coords.longitude,
+                        currentRetryCount
                     );
                     totalRetried += 1;
                 }

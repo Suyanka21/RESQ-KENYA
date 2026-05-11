@@ -1,4 +1,15 @@
 {
-    "indexes": [],
+    "indexes": [
+        {
+            "collectionGroup": "providers",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "serviceTypes", "arrayConfig": "CONTAINS" },
+                { "fieldPath": "availability.isOnline", "order": "ASCENDING" },
+                { "fieldPath": "verificationStatus", "order": "ASCENDING" },
+                { "fieldPath": "geohash", "order": "ASCENDING" }
+            ]
+        }
+    ],
     "fieldOverrides": []
 }

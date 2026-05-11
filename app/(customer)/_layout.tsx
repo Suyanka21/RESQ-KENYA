@@ -10,6 +10,7 @@ import { View, StyleSheet, Platform } from "react-native";
 import { Home, Clock, Wallet, User } from "lucide-react-native";
 import { colors, spacing } from "../../theme/voltage-premium";
 import EmergencySOS from "../../components/EmergencySOS";
+import { recordSosEvent, type SosEventType } from "../../services/sos.service";
 
 // Tab Icon Component with Lucide icons
 const TabIcon = ({
@@ -28,11 +29,17 @@ const TabIcon = ({
     </View>
 );
 
-function handleSosTrigger(type: 'medical' | 'fire' | 'police') {
-    // Logging only here — EmergencySOS itself dials the configured emergency
-    // line via `Linking.openURL`. Higher-level screens may also subscribe
-    // through analytics/server logging in the future.
-    console.log('[SOS] triggered:', type);
+function handleSosTrigger(type: SosEventType) {
+    // Phase 4 (audit-v2 §N-MED-7) — record the SOS server-side so it
+    // is observable, attributable to a user, and can be auto-escalated
+    // by a future contact-fanout worker. EmergencySOS.tsx still
+    // dials the configured emergency line via Linking.openURL — that
+    // path is independent so a network failure here does NOT block
+    // the dial.
+    //
+    // Fire-and-forget: we do not `await` here because the modal's
+    // onClose path must run synchronously to dismiss the countdown UI.
+    void recordSosEvent(type, null);
 }
 
 export default function CustomerLayout() {

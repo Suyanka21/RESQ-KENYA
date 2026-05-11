@@ -29,7 +29,12 @@ interface ActiveRequestData {
     providerId: string;
     customerId: string;
     serviceType: string;
-    providerLocation: GeoLocation;
+    /**
+     * Phase 4 (audit-v2 §N-MED-1) — null until the provider's FIRST
+     * location push. The seed (`triggers.buildActiveRequestSeed`)
+     * writes `providerLocation: null` so consumers MUST tolerate it.
+     */
+    providerLocation: GeoLocation | null;
     customerLocation: GeoLocation;
     eta: number; // seconds
     distance: number; // meters
@@ -81,7 +86,13 @@ export async function updateProviderLocationRT(
 export function subscribeToProviderLocation(
     requestId: string,
     callback: (data: {
-        location: GeoLocation;
+        /**
+         * Phase 4 (audit-v2 §N-MED-1) — `location` is null until the
+         * provider's first location push. Consumers MUST render a
+         * "locating provider…" placeholder rather than dereferencing
+         * `.latitude` / `.longitude`.
+         */
+        location: GeoLocation | null;
         eta: number;
         distance: number;
         status: string;
@@ -89,11 +100,11 @@ export function subscribeToProviderLocation(
 ): () => void {
     const requestRef = ref(rtdb, `${PATHS.ACTIVE_REQUESTS}/${requestId}`);
 
-    const unsubscribe = onValue(requestRef, (snapshot) => {
+    onValue(requestRef, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val() as ActiveRequestData;
             callback({
-                location: data.providerLocation,
+                location: data.providerLocation ?? null,
                 eta: data.eta,
                 distance: data.distance,
                 status: data.status,

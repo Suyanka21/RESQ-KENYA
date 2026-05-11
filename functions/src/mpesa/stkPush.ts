@@ -62,25 +62,30 @@ function isEmulator(): boolean {
 }
 
 /**
- * Read the HMAC secret used to sign callback URL tokens. Defaults to a
- * deterministic combination of consumerSecret + passkey when no dedicated
- * `callback_secret` is configured.
+ * Read the HMAC secret used to sign callback URL tokens.
  *
- * Fails CLOSED in production: when no explicit secret is configured AND the
- * fallback components are missing/empty, this throws so signing/verifying
- * cannot succeed against an attacker-known empty key (CodeRabbit PR #3,
- * comment 8). In the emulator we still allow an empty secret so local
- * sandbox flows keep working.
+ * Phase 4 (audit-v2 §N-MED-2) — REMOVED the production fallback that
+ * derived `${consumerSecret}|${passkey}` because both components are
+ * sent on the wire to Safaricom on every STK push. A leaked Daraja
+ * sandbox log or Safaricom log line would also leak the HMAC key,
+ * defeating the entire point of using a separate signing key.
+ *
+ * Fails CLOSED in production: if `callback_secret` is unset, the
+ * function throws on first call and the STK push never goes out.
+ * The emulator path is preserved so local sandbox flows keep working
+ * without a real secret.
+ *
+ * Skills: Security-and-Hardening (least privilege; signing material
+ * MUST NOT be derivable from over-the-wire components),
+ * API-and-Interface-Design (fail-closed on missing config rather
+ * than silently degrading), TRUSTLESS-AUDITOR (assumes Daraja
+ * logs/sandbox dumps will eventually leak — design for the leak).
  */
 export function getCallbackHmacSecret(): string {
     const config = functions.config().mpesa;
     const explicit = config?.callback_secret || process.env['MPESA_CALLBACK_SECRET'];
     if (explicit && typeof explicit === 'string' && explicit.length > 0) {
         return explicit;
-    }
-    const mpesa = getMpesaConfig();
-    if (mpesa.consumerSecret && mpesa.passkey) {
-        return `${mpesa.consumerSecret}|${mpesa.passkey}`;
     }
     if (isEmulator()) {
         // Emulator without secrets: stable but obviously-non-secret value
@@ -89,8 +94,12 @@ export function getCallbackHmacSecret(): string {
     }
     throw new Error(
         'M-Pesa callback HMAC secret is not configured. Set '
-        + 'functions:config:mpesa.callback_secret (or both '
-        + 'mpesa.consumer_secret and mpesa.passkey) before deploying.'
+        + 'functions:config:mpesa.callback_secret (or env '
+        + 'MPESA_CALLBACK_SECRET) to a fresh random value before '
+        + 'deploying. The previous consumer_secret+passkey '
+        + 'derivation has been removed (audit-v2 N-MED-2) because '
+        + 'both fields are sent on the wire to Safaricom on every '
+        + 'STK push.'
     );
 }
 
@@ -302,20 +311,35 @@ export const initiateStkPush = functions.https.onCall(async (data, context) => {
         const { MerchantRequestID, CheckoutRequestID, ResponseCode, ResponseDescription } = response.data;
 
         if (ResponseCode === '0') {
-            await paymentRef.update({
+            // Phase 4 (audit-v2 §N-MED-10) — the two writes below MUST
+            // land atomically. Pre-fix: paymentRef.update ran first,
+            // then requestRef.update ran with a `.catch(swallow)`. If
+            // the mirror failed, `payment_requests/{key}` said
+            // `pending` while `requests/{id}.payment.status` stayed at
+            // its initial value (`failed`/unset), the customer's
+            // tracking screen drifted from the source of truth, and
+            // the next dispatch decision read a stale payment state.
+            //
+            // Using a Firestore WriteBatch makes the two writes
+            // atomic per the SDK's guarantees: either both succeed or
+            // both fail. If the batch fails after the STK push
+            // already went out, the customer sees a clear error and
+            // can retry — the next attempt's idempotency key gates
+            // the duplicate (audit-v2 §X-1) and the stale-payment
+            // sweeper (audit-v2 §N-HIGH-6) clears the orphan row.
+            const batch = db.batch();
+            batch.update(paymentRef, {
                 merchantRequestID: MerchantRequestID,
                 checkoutRequestID: CheckoutRequestID,
                 status: 'pending',
                 pendingAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
-            await db.collection('requests').doc(requestId).update({
+            batch.update(db.collection('requests').doc(requestId), {
                 'payment.checkoutRequestID': CheckoutRequestID,
                 'payment.idempotencyKey': idempotencyKey,
                 'payment.status': 'processing',
-            }).catch((err) => {
-                console.warn('Failed to mirror payment.checkoutRequestID on request:', err.message);
             });
+            await batch.commit();
 
             return {
                 success: true,

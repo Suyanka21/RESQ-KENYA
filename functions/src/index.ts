@@ -35,6 +35,12 @@ export {
 } from './users/emergencyContacts';
 export { topupWallet, deductWallet, getWalletBalance } from './wallet/wallet';
 
+// Phase 4 (audit-v2 §N-MED-7) — SOS event logging callable.
+export { triggerEmergencySOS } from './users/sosEvents';
+
+// Phase 4 (audit-v2 §N-MED-8) — Owned `fcmToken` write path.
+export { setFcmToken } from './users/fcmToken';
+
 // Provider Functions
 export {
     updateProviderLocation,

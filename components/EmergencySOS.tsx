@@ -194,6 +194,18 @@ export default function EmergencySOS({
                                     </TouchableOpacity>
                                 </View>
 
+                                {/* Phase 4 (audit-v2 §N-MED-7) — disclaimer:
+                                    automatic contact fan-out is not yet
+                                    implemented. The SOS records server-side
+                                    and dials the configured emergency line,
+                                    but it does NOT yet notify the user's
+                                    listed emergency contacts. */}
+                                <Text style={styles.sosDisclaimer}>
+                                    Tapping SOS dials emergency services and
+                                    records the event. Your listed contacts
+                                    are not yet auto-notified.
+                                </Text>
+
                                 {/* Quick Call Buttons */}
                                 <View style={styles.quickCallSection}>
                                     <Text style={styles.quickCallTitle}>Quick Call</Text>
@@ -337,6 +349,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         marginTop: spacing.sm,
+    },
+    sosDisclaimer: {
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.sm,
+        fontSize: 11,
+        lineHeight: 15,
+        color: colors.text.muted,
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
     quickCallSection: {
         marginTop: spacing.md,
