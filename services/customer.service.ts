@@ -45,6 +45,49 @@ let USE_DEMO_MODE: boolean = (() => {
 })();
 
 /**
+ * Phase 4 (audit-v2 §N-HIGH-10) — boot-time demo-mode banner.
+ *
+ * The audit observed that `setDemoMode` mutates a module-level `let`
+ * from anywhere in the JS bundle, with no telemetry that records the
+ * runtime flag. A single bad call-site could permanently silence the
+ * entire customer backend integration for a session, and reviewers
+ * would have no signal that it happened.
+ *
+ * Fix posture: keep the public `setDemoMode` API (it has legitimate
+ * test-harness uses — see `__tests__/services/customer-demo-mode.test.ts`)
+ * but make every transition LOUD:
+ *   - log the runtime value at module load so the boot of a real build
+ *     is visible in production crash logs / `console`
+ *   - log every subsequent `setDemoMode(...)` call with a stack trace
+ *     hint so an accidental call-site can be located
+ *
+ * Two safety extensions on top of the audit recommendation:
+ *   - `setDemoMode` is a no-op when `__DEV__ === false` and the flag is
+ *     being set to `true` (the audit's stated worst case: production
+ *     accidentally simulating). Tests run with `__DEV__` truthy.
+ *   - `isDemoMode()` (existing helper) is the canonical read path; do
+ *     NOT read `USE_DEMO_MODE` directly anywhere outside this module.
+ *
+ * Skills: Security-and-Hardening (server / boundary-level posture
+ * applied to the client too — privileged flips must be observable),
+ * API-and-Interface-Design (loud boundary log so the contract
+ * "demo is OFF by default" cannot silently flip).
+ */
+if (USE_DEMO_MODE) {
+     
+    console.warn(
+        '[customer.service] DEMO MODE IS ACTIVE — backend calls are being SIMULATED. ' +
+        'EXPO_PUBLIC_DEMO_MODE=true is set at build time. If this is a real ' +
+        'production build, treat this as an immediate operational incident.'
+    );
+} else {
+    // Even the OFF path logs once at module load so production deploys
+    // have a positive signal that the flag was inspected and is OFF.
+     
+    console.log('[customer.service] demo mode OFF (live backend)');
+}
+
+/**
  * Re-export of the canonical idempotency-key generator from `types/api.ts`
  * (the contract layer). Phase 3 (X-1): single source of truth — frontend
  * wrappers and the `functions/src/shared/api.ts` mirror reference the
@@ -392,6 +435,46 @@ function simulateDelay(ms: number): Promise<void> {
  * without rebuilding.
  */
 export function setDemoMode(enabled: boolean): void {
+    // Phase 4 (audit-v2 §N-HIGH-10) — production safety + audit trail.
+    //
+    // The audit's worst case is a forgotten test or feature toggle that
+    // calls `setDemoMode(true)` against a real production build. The
+    // following guard refuses to enable demo mode unless either
+    // `__DEV__` is truthy (Expo/RN dev build) or `process.env.NODE_ENV`
+    // explicitly says we are running tests. The guard does NOT block
+    // disabling demo mode — turning the simulator OFF is always safe.
+    if (enabled) {
+        const isDev = (() => {
+            try {
+                // RN/Expo injects `__DEV__` at bundle time. Reading it
+                // directly avoids a `typeof` check that the bundler may
+                // tree-shake into `false`.
+                return Boolean((globalThis as { __DEV__?: boolean }).__DEV__);
+            } catch {
+                return false;
+            }
+        })();
+        const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+            .process?.env?.['NODE_ENV'];
+        const isTest = nodeEnv === 'test' || nodeEnv === 'development';
+
+        if (!isDev && !isTest) {
+             
+            console.error(
+                '[customer.service] REFUSED to enable demo mode in a non-dev/non-test build. ' +
+                'If you need to simulate the backend, set EXPO_PUBLIC_DEMO_MODE at build time.'
+            );
+            return;
+        }
+         
+        console.warn(
+            '[customer.service] setDemoMode(true) — demo mode now ON. ' +
+            'This will SIMULATE backend calls. Remember to flip it back to OFF.'
+        );
+    } else if (USE_DEMO_MODE) {
+         
+        console.log('[customer.service] setDemoMode(false) — back to live backend');
+    }
     USE_DEMO_MODE = enabled;
 }
 

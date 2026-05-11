@@ -73,4 +73,36 @@ describe('customer.service demo-mode default', () => {
         customer.setDemoMode(false);
         expect(customer.isDemoMode()).toBe(false);
     });
+
+    /**
+     * Phase 4 (audit-v2 §N-HIGH-10) — production safety guard.
+     *
+     * `setDemoMode(true)` must REFUSE to flip the flag when both
+     * `__DEV__` is falsy and `NODE_ENV` is neither `test` nor
+     * `development`. This protects against the audit's documented
+     * worst case: a forgotten test toggle or feature flag turning a
+     * real production build into a simulator.
+     */
+    it('setDemoMode(true) is REFUSED in a non-dev/non-test build', () => {
+        const customer = require('../../services/customer.service');
+        const originalDev = (globalThis as { __DEV__?: boolean }).__DEV__;
+        const originalNodeEnv = process.env.NODE_ENV;
+        try {
+            (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+            process.env.NODE_ENV = 'production';
+            // Silence the expected console.error so the assertion is the
+            // only signal in test output.
+            const errSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+            expect(customer.isDemoMode()).toBe(false);
+            customer.setDemoMode(true);
+            expect(customer.isDemoMode()).toBe(false);
+            expect(errSpy).toHaveBeenCalledWith(
+                expect.stringContaining('REFUSED to enable demo mode')
+            );
+            errSpy.mockRestore();
+        } finally {
+            (globalThis as { __DEV__?: boolean }).__DEV__ = originalDev;
+            process.env.NODE_ENV = originalNodeEnv;
+        }
+    });
 });

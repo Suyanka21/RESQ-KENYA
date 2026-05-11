@@ -351,28 +351,82 @@ export const initiateStkPush = functions.https.onCall(async (data, context) => {
  * `initiating` (the HTTP call to Safaricom never completed). Anything
  * older than 1 hour is moved to `failed` so the row stops blocking
  * fresh idempotency keys.
+ *
+ * Phase 4 (audit-v2 §N-HIGH-6) — pagination.
+ *
+ * The pre-fix version capped the run at the first 500 stale rows. If a
+ * Safaricom outage stalled more than 500 payments overnight, the surplus
+ * stayed in `initiating` forever and continued to short-circuit fresh
+ * idempotency keys with `duplicate: true, status: 'initiating'` —
+ * customers retrying after the outage would silently keep getting "in
+ * progress" for a key that would never resolve. The audit recommended
+ * paginating with a stable cursor (createdAt < cutoff) until the page
+ * is empty, capped at N pages per run so a runaway loop can't burn the
+ * cron's wall-clock budget. Mirrors the pagination pattern in
+ * `functions/src/services/triggers.ts:107-117` (resetDailyEarnings).
+ *
+ * Skills: Source-Driven-Development (Firestore paginated queries —
+ * https://firebase.google.com/docs/firestore/query-data/query-cursors),
+ * Security-and-Hardening (cap + metric so a runaway never blocks the
+ * function host's other scheduled work).
  */
+const STALE_PAYMENT_PAGE_SIZE = 500;
+const STALE_PAYMENT_MAX_PAGES = 50; // 25k rows / run hard cap
+
 export const cleanupStaleInitiatingPayments = functions.pubsub
     .schedule('every day 02:00')
     .timeZone('Africa/Nairobi')
     .onRun(async () => {
         const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
-        const stale = await db.collection('payment_requests')
-            .where('status', '==', 'initiating')
-            .where('createdAt', '<', cutoff)
-            .limit(500)
-            .get();
-        if (stale.empty) return null;
-        const batch = db.batch();
-        stale.docs.forEach((doc) => {
-            batch.update(doc.ref, {
-                status: 'failed',
-                failureReason: 'Stuck in initiating; auto-failed by cron',
-                failedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+        let totalFailed = 0;
+        let pages = 0;
+        // Order by createdAt so the cursor is stable across pages.
+        // Each batch updates `status='failed'`, which removes it from the
+        // `where status='initiating'` filter — so the next page's first
+        // row is always genuinely older than the cursor, never the same
+        // doc twice.
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            if (pages >= STALE_PAYMENT_MAX_PAGES) {
+                console.warn(
+                    `[cleanupStaleInitiatingPayments] hit max pages (${STALE_PAYMENT_MAX_PAGES}); ` +
+                    `failed=${totalFailed} so far, remaining will be picked up on the next run`
+                );
+                break;
+            }
+
+            const page = await db.collection('payment_requests')
+                .where('status', '==', 'initiating')
+                .where('createdAt', '<', cutoff)
+                .orderBy('createdAt', 'asc')
+                .limit(STALE_PAYMENT_PAGE_SIZE)
+                .get();
+
+            if (page.empty) break;
+
+            const batch = db.batch();
+            page.docs.forEach((doc) => {
+                batch.update(doc.ref, {
+                    status: 'failed',
+                    failureReason: 'Stuck in initiating; auto-failed by cron',
+                    failedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
             });
-        });
-        await batch.commit();
-        console.log(`cleanupStaleInitiatingPayments: failed ${stale.size} stuck rows`);
+            await batch.commit();
+
+            totalFailed += page.size;
+            pages += 1;
+
+            // Defensive: if a page was short (< PAGE_SIZE), there are no
+            // more matching rows. Break early instead of issuing one more
+            // round-trip just to confirm `empty`.
+            if (page.size < STALE_PAYMENT_PAGE_SIZE) break;
+        }
+
+        console.log(
+            `cleanupStaleInitiatingPayments: failed ${totalFailed} stuck rows across ${pages} page(s)`
+        );
         return null;
     });
 

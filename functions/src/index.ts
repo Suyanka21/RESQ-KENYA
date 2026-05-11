@@ -16,6 +16,11 @@ export {
     createServiceRequest,
     acceptServiceRequest,
     updateRequestStatus,
+    // Phase 4 (audit-v2 §N-HIGH-7) — dispatch retry worker. Picks up
+    // requests stuck in `dispatch.status in ['failed','no_providers']`,
+    // re-runs the dispatcher up to DISPATCH_MAX_RETRIES, then
+    // transitions to `cancelled` with a customer notification.
+    retryFailedDispatches,
 } from './services/requests';
 
 // Phase 3: Real-time tracking trigger + daily earnings reset

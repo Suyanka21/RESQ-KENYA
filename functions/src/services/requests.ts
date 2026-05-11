@@ -38,6 +38,7 @@ const db = admin.firestore();
 export { VALID_STATUS_TRANSITIONS, isAllowedStatusTransition } from '../shared/status';
 import { planRequestStatusUpdate } from '../shared/status';
 import { idempotencyDocId as sharedIdempotencyDocId } from '../shared/crypto';
+import { estimateETA } from '../shared/eta';
 
 /** Shape-check the create-request input. Returns null if valid. */
 export function validateCreateRequestInput(
@@ -359,6 +360,169 @@ async function notifyNearbyProviders(
 }
 
 /**
+ * Phase 4 (audit-v2 §N-HIGH-7) — dispatch retry worker.
+ *
+ * `notifyNearbyProviders` already persists a structured failure
+ * marker (`dispatch.status = 'failed' | 'no_providers'`,
+ * `dispatch.retryCount`, `dispatch.lastError`) so a future scheduled
+ * worker can pick up the row and try again. The pre-fix audit found
+ * NO such worker — a request that landed in `dispatch.status='failed'`
+ * was permanently stuck, visible only as "still searching" forever
+ * to the customer, with no notification, no retry, no surfaced error.
+ *
+ * This worker:
+ *   - runs every 2 minutes (Firebase Scheduler minimum granularity)
+ *   - scans `requests` where `dispatch.status in ['failed','no_providers']`
+ *     AND `dispatch.retryCount < DISPATCH_MAX_RETRIES` AND request
+ *     `status === 'pending'` (still un-accepted)
+ *   - re-runs `notifyNearbyProviders` for each row, which will either
+ *     succeed (status → 'notified') or bump `retryCount` again
+ *   - after `DISPATCH_MAX_RETRIES`, transitions the request to a
+ *     terminal `cancelled` status with a customer-facing notification
+ *     so the user is no longer left stranded
+ *   - paginates so a backlog cannot exceed Firestore's per-query cost
+ *
+ * Limit: this is a *retry* worker, not a Cloud Tasks queue. Per-row
+ * backoff is implicit (the worker only re-runs once per 2-minute tick).
+ * A future Cloud Tasks implementation can extend `DISPATCH_STATUS`
+ * with a `pending_retry` state and use scheduled-time queueing.
+ *
+ * Skills: Source-Driven-Development (Firebase Scheduled Functions
+ * docs: https://firebase.google.com/docs/functions/schedule-functions),
+ * Security-and-Hardening (bounded retries + terminal cancellation so
+ * a request never silently hangs), Code-Review-and-Quality (single
+ * source of truth for max retries + customer-facing terminal state).
+ */
+const DISPATCH_MAX_RETRIES = 3;
+const DISPATCH_RETRY_PAGE_SIZE = 20;
+const DISPATCH_RETRY_MAX_PAGES = 10;
+
+export const retryFailedDispatches = functions.pubsub
+    .schedule('every 2 minutes')
+    .onRun(async () => {
+        // Query for rows that still need a provider, where the
+        // dispatcher previously failed (or simply found nobody) AND
+        // we haven't burnt our retry budget yet.
+        //
+        // We scan 'failed' and 'no_providers' separately because
+        // Firestore's `in` operator is fine but combining with another
+        // `<` requires the right composite index; doing two simple
+        // queries keeps the deploy path index-free.
+        const retryableStatuses = [
+            DISPATCH_STATUS.Failed,
+            DISPATCH_STATUS.NoProviders,
+        ];
+
+        let totalRetried = 0;
+        let totalCancelled = 0;
+
+        for (const status of retryableStatuses) {
+            let pages = 0;
+            while (pages < DISPATCH_RETRY_MAX_PAGES) {
+                const page = await db.collection('requests')
+                    .where('status', '==', 'pending')
+                    .where('dispatch.status', '==', status)
+                    .limit(DISPATCH_RETRY_PAGE_SIZE)
+                    .get();
+
+                if (page.empty) break;
+
+                for (const doc of page.docs) {
+                    const data = doc.data();
+                    const retryCount = (data.dispatch?.retryCount ?? 0) as number;
+                    const requestId = doc.id;
+
+                    if (retryCount >= DISPATCH_MAX_RETRIES) {
+                        // Terminal: transition to 'cancelled' so the
+                        // customer's listener can flip the UI to a
+                        // recoverable error state rather than "still
+                        // searching" forever.
+                        try {
+                            await doc.ref.update({
+                                status: 'cancelled',
+                                'dispatch.status': DISPATCH_STATUS.Failed,
+                                cancellationReason: 'no_provider_found',
+                                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                            totalCancelled += 1;
+
+                            // Best-effort customer notification. Wrapped so
+                            // a missing FCM token does not block other rows.
+                            try {
+                                const userDoc = await db.collection('users')
+                                    .doc(data.userId)
+                                    .get();
+                                const fcmToken = userDoc.data()?.fcmToken;
+                                if (fcmToken) {
+                                    await admin.messaging().send({
+                                        token: fcmToken,
+                                        notification: {
+                                            title: 'No provider available',
+                                            body:
+                                                'We could not find a provider for your request. ' +
+                                                'Please try again or contact support.',
+                                        },
+                                        data: {
+                                            type: 'request_cancelled',
+                                            requestId,
+                                            reason: 'no_provider_found',
+                                        },
+                                    });
+                                }
+                            } catch (notifyError) {
+                                console.warn(
+                                    `[retryFailedDispatches] notify failed requestId=${requestId}`,
+                                    notifyError
+                                );
+                            }
+                        } catch (cancelError) {
+                            console.error(
+                                `[retryFailedDispatches] cancel failed requestId=${requestId}`,
+                                cancelError
+                            );
+                        }
+                        continue;
+                    }
+
+                    // Retry path: re-run the dispatcher. It will bump
+                    // retryCount via FieldValue.increment(1) on its own
+                    // failure path, or flip status → 'notified' on
+                    // success.
+                    const coords = data.customerLocation?.coordinates;
+                    if (
+                        !coords ||
+                        typeof coords.latitude !== 'number' ||
+                        typeof coords.longitude !== 'number' ||
+                        typeof data.serviceType !== 'string'
+                    ) {
+                        console.warn(
+                            `[retryFailedDispatches] missing fields, skipping requestId=${requestId}`
+                        );
+                        continue;
+                    }
+                    await notifyNearbyProviders(
+                        requestId,
+                        data.serviceType,
+                        coords.latitude,
+                        coords.longitude
+                    );
+                    totalRetried += 1;
+                }
+
+                pages += 1;
+                if (page.size < DISPATCH_RETRY_PAGE_SIZE) break;
+            }
+        }
+
+        if (totalRetried > 0 || totalCancelled > 0) {
+            console.log(
+                `[retryFailedDispatches] retried=${totalRetried} cancelled=${totalCancelled}`
+            );
+        }
+        return null;
+    });
+
+/**
  * Cloud Function: Accept Service Request.
  *
  * Phase 3 (B-CRIT-5) hardening: the transaction now reads the calling
@@ -486,11 +650,65 @@ export const acceptServiceRequest = functions.https.onCall(async (data, context)
             const providerDoc = await db.collection('providers').doc(providerId).get();
             const providerData = providerDoc.data();
 
+            // Phase 4 (audit-v2 §N-HIGH-4) — derive ETA from real
+            // distance (geohash-driven) plus a configurable urban
+            // average speed, instead of a uniformly-random 8-20 min
+            // integer. The earlier `estimateETA()` had ZERO correlation
+            // with provider distance and was the audit's textbook
+            // "fake number, trust collapses on first mismatch" finding.
+            //
+            // We also persist the result to `requests/{id}.eta.{minutes,
+            // distanceKm, computedAt}` so the customer's live
+            // subscription can render the same number that goes into
+            // the FCM body — single source of truth, no drift between
+            // notification text and tracking screen.
+            const providerLoc = providerData?.availability?.currentLocation;
+            const customerLoc = requestData.customerLocation?.coordinates;
+            const distanceKm = (
+                providerLoc &&
+                typeof providerLoc.latitude === 'number' &&
+                typeof providerLoc.longitude === 'number' &&
+                customerLoc &&
+                typeof customerLoc.latitude === 'number' &&
+                typeof customerLoc.longitude === 'number'
+            )
+                ? geofire.distanceBetween(
+                    [providerLoc.latitude, providerLoc.longitude],
+                    [customerLoc.latitude, customerLoc.longitude]
+                )
+                : null;
+            if (distanceKm === null) {
+                console.warn(
+                    `[eta] distance unknown for requestId=${requestId} ` +
+                    'provider/customer coords missing; using fallback ETA'
+                );
+            }
+            const etaMinutes = estimateETA(distanceKm);
+
+            try {
+                await requestRef.update({
+                    eta: {
+                        minutes: etaMinutes,
+                        distanceKm: distanceKm,
+                        computedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                });
+            } catch (etaPersistError) {
+                // Non-fatal: the FCM message still goes out with the
+                // ETA value the function used. Worst case the live
+                // subscription shows nothing until the next status
+                // change writes again.
+                const message = etaPersistError instanceof Error
+                    ? etaPersistError.message
+                    : 'unknown';
+                console.warn('[eta] persist failed (non-fatal):', message);
+            }
+
             await admin.messaging().send({
                 token: fcmToken,
                 notification: {
                     title: 'Provider Found! 🎉',
-                    body: `${providerData?.displayName || 'A provider'} is on the way. ETA: ~${estimateETA()} mins`,
+                    body: `${providerData?.displayName || 'A provider'} is on the way. ETA: ~${etaMinutes} mins`,
                 },
                 data: {
                     type: 'request_accepted',
@@ -613,11 +831,6 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
     }
 });
 
-/**
- * Helper: Estimate ETA (simple version)
- */
-function estimateETA(): number {
-    // Random between 8-20 minutes for now
-    // TODO: Calculate based on actual distance
-    return Math.floor(Math.random() * 12) + 8;
-}
+// Phase 4 (audit-v2 §N-HIGH-4) — `estimateETA` extracted to
+// `../shared/eta.ts` so it can be unit-tested without bootstrapping the
+// firebase-admin SDK. Imported at the top of this file.
