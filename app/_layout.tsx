@@ -87,8 +87,20 @@ export default function RootLayout() {
                         }}
                     >
                         <Stack.Screen name="index" />
-                        <Stack.Screen name="firebase-test" />
-                        <Stack.Screen name="database-test" />
+                        {/* Phase 4 (audit-v2 §N-LOW-1) — debug routes
+                            registered ONLY in dev. `__DEV__` is a global
+                            constant set to false by Metro on production
+                            builds, so production bundles never include
+                            these screens in the navigator. The .tsx
+                            files still exist on disk for local testing
+                            but the routes are unreachable via deep link
+                            in release builds. */}
+                        {__DEV__ && (
+                            <>
+                                <Stack.Screen name="firebase-test" />
+                                <Stack.Screen name="database-test" />
+                            </>
+                        )}
                         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                         <Stack.Screen name="(customer)" options={{ headerShown: false }} />
                         <Stack.Screen name="(provider)" options={{ headerShown: false }} />

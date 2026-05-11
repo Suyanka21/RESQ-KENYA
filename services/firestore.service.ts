@@ -197,7 +197,25 @@ export async function updateProviderLocation(
 }
 
 /**
- * Find nearest providers within radius using geohash
+ * Find nearest providers within radius using geohash.
+ *
+ * Phase 4 (audit-v2 §N-LOW-5) — DEV-ONLY. The canonical
+ * implementation is `notifyNearbyProviders` in
+ * `functions/src/services/requests.ts`, which runs server-side with
+ * the per-service radius policy from `functions/src/shared/
+ * dispatchRadius.ts`. This client shim is retained because
+ * `app/database-test.tsx` (a `__DEV__`-only diagnostic screen, see
+ * N-LOW-1) calls it directly to verify Firestore seeding.
+ *
+ * Production callers MUST NOT use this. The two implementations
+ * will drift; the audit-v2 finding flagged exactly that risk.
+ * Throwing in non-dev builds makes the divergence impossible to
+ * trigger in production while keeping the dev tooling usable.
+ *
+ * Skills: Security-and-Hardening (least privilege — debug-only
+ * code must not be reachable in production), Code-Simplification
+ * (one canonical implementation owns the contract), Deprecation-
+ * and-Migration (clear deprecation banner + runtime guard).
  */
 export async function findNearestProviders(
     serviceType: string,
@@ -206,6 +224,14 @@ export async function findNearestProviders(
     radiusKm: number = 10,
     maxResults: number = 5
 ): Promise<(Provider & { distance: number })[]> {
+    if (!__DEV__) {
+        throw new Error(
+            '[firestore.service] findNearestProviders is dev-only. ' +
+            'Production code must go through the server-side ' +
+            'dispatcher (notifyNearbyProviders in functions/). ' +
+            'See audit-v2 §N-LOW-5.'
+        );
+    }
     // Generate geohash bounds for the search area
     const center = [latitude, longitude] as [number, number];
     const radiusM = radiusKm * 1000;
