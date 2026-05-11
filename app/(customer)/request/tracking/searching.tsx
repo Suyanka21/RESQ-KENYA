@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import TrackingMap from '../../../../components/maps/TrackingMap';
 import { colors, spacing } from '../../../../theme/voltage-premium';
 import { ErrorState } from '../../../../components/ui/ErrorState';
+import { useRequestTracking, useStatusNavigation } from '../../../../hooks/useRequestTracking';
 
 const { width } = Dimensions.get('window');
 
@@ -23,9 +24,19 @@ const LOADING_MESSAGES = [
 
 export default function SearchingScreen() {
     const insets = useSafeAreaInsets();
-    const params = useLocalSearchParams<{ serviceType?: string; price?: string }>();
+    const params = useLocalSearchParams<{ serviceType?: string; price?: string; requestId?: string }>();
     const serviceType = params.serviceType || 'Service Request';
     const price = params.price ? parseInt(params.price, 10) : 0;
+    const requestId = params.requestId;
+
+    // Phase 4 (audit-v2 §F-CRIT-2) — subscribe to the real backend
+    // row. Pre-fix this screen auto-advanced on a 9s setTimeout with
+    // no knowledge of whether a provider had actually accepted.
+    const { request } = useRequestTracking(requestId);
+    useStatusNavigation(request?.status, 'searching', requestId, {
+        serviceType: String(serviceType),
+        price: String(price),
+    });
 
     // --- State ---
     const [messageIdx, setMessageIdx] = useState(0);
@@ -105,18 +116,13 @@ export default function SearchingScreen() {
         return () => clearInterval(interval);
     }, []);
 
-    // Auto-transition after 9 seconds
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            router.replace({
-                pathname: '/(customer)/request/tracking/en-route',
-                params: { serviceType, price: String(price) },
-            });
-        }, 9000);
-        return () => clearTimeout(timer);
-    }, []);
+    // Phase 4 (audit-v2 §F-CRIT-2) — the previous 9-second
+    // setTimeout auto-advance has been removed. The screen now
+    // advances ONLY when `useStatusNavigation` observes the real
+    // request transition. The 60-second timeout below is still a
+    // safety valve for the "no provider accepted" case.
 
-    // 60-second timeout fallback
+    // 60-second timeout fallback (no provider accepted)
     useEffect(() => {
         const timeout = setTimeout(() => {
             setHasTimedOut(true);

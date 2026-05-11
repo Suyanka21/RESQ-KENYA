@@ -23,42 +23,42 @@ import {
     getTraveledRoute,
     getRemainingRoute,
 } from '../../../../constants/nairobiRoutes';
+import { useRequestTracking, useStatusNavigation } from '../../../../hooks/useRequestTracking';
 
 const { width, height } = Dimensions.get('window');
 const TOTAL_DISTANCE = 2.4; // km
 
 export default function EnRouteScreen() {
     const insets = useSafeAreaInsets();
-    const params = useLocalSearchParams<{ serviceType?: string; price?: string }>();
+    const params = useLocalSearchParams<{ serviceType?: string; price?: string; requestId?: string }>();
     const serviceType = params.serviceType || 'Service Request';
+    const requestId = params.requestId;
 
-    const [distance, setDistance] = useState(TOTAL_DISTANCE);
-    const [progress, setProgress] = useState(30);
+    // Phase 4 (audit-v2 §F-CRIT-2) — the previous distance counter
+    // and 1-second-per-200m timer have been removed. The screen now
+    // shows the live distance reported by the backend (RTDB
+    // `activeRequests/{id}.distance`) and advances to /arriving only
+    // when the request row's `status` transitions to `arrived`.
+    const { request, distance: liveDistance, eta: liveEta } = useRequestTracking(requestId);
+    useStatusNavigation(request?.status, 'en-route', requestId, {
+        serviceType: String(serviceType),
+        price: String(params.price || ''),
+    });
 
-    // Simulate movement
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setDistance(prev => Math.max(0, prev - 0.2));
-            setProgress(prev => Math.min(100, prev + 2.5));
-        }, 1000);
-        return () => clearInterval(interval);
-    }, []);
-
-    // Trigger arrival transition
-    useEffect(() => {
-        if (distance <= 0.2) {
-            const timeout = setTimeout(() => {
-                router.replace({
-                    pathname: '/(customer)/request/tracking/arriving',
-                    params: { serviceType, price: params.price },
-                });
-            }, 1000);
-            return () => clearTimeout(timeout);
-        }
-    }, [distance]);
+    // For the visual progress bar, derive percentage from live
+    // distance against TOTAL_DISTANCE (or use 30% pre-first-push).
+    const distance = liveDistance ?? TOTAL_DISTANCE;
+    const progress = liveDistance != null
+        ? Math.max(0, Math.min(100, ((TOTAL_DISTANCE - liveDistance) / TOTAL_DISTANCE) * 100))
+        : 30;
 
     const providerProgress = Math.min(progress / 100, 1);
-    const etaMinutes = Math.ceil(distance * 3);
+    // ETA preference: live RTDB value (in seconds), else derived
+    // from distance using a conservative 3 min/km Nairobi traffic
+    // heuristic. Clamped to >= 1 so the UI never shows "0 min".
+    const etaMinutes = liveEta != null
+        ? Math.max(1, Math.ceil(liveEta / 60))
+        : Math.max(1, Math.ceil(distance * 3));
 
     // Provider follows pre-computed Nairobi road waypoints
     const providerLocation = getPointAlongRoute(providerProgress);
