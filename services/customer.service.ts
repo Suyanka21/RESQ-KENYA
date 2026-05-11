@@ -393,6 +393,63 @@ export function calculateServicePrice(
 }
 
 /**
+ * Phase 4 (audit-v2 §N-HIGH-5) — wallet balance subscription.
+ *
+ * Source-Driven-Development reference: the `wallets/{userId}` doc is
+ * the canonical balance store, owner-readable per
+ * `firestore.rules:137-139` (`allow read: if isAuthenticated() &&
+ * isOwner(userId)`). The wallet ledger lives in the
+ * `wallets/{userId}/ledger` subcollection (see
+ * `functions/src/wallet/wallet.ts:11-30`); we only need the top-level
+ * `balance` field here.
+ *
+ * Returns a teardown function so callers can unsubscribe on unmount.
+ * Demo mode returns a stable mock balance and a noop teardown so the
+ * sidebar still has something to render during local testing.
+ *
+ * Skills: API-and-Interface-Design (subscription returns the canonical
+ * teardown callback shape used by every other subscribe* helper in
+ * this file), Security-and-Hardening (the read is owner-scoped — the
+ * Firestore rule denies any caller that isn't `request.auth.uid ===
+ * userId`).
+ */
+export function subscribeToWalletBalance(
+    userId: string,
+    callback: (balance: number) => void
+): () => void {
+    if (USE_DEMO_MODE) {
+        // Stable mock so the sidebar renders something during local
+        // testing. The real wallet helper returns whole KES; the demo
+        // value matches that contract.
+        callback(2450);
+        return () => undefined;
+    }
+    const walletRef = doc(db, 'wallets', userId);
+    return onSnapshot(
+        walletRef,
+        (snapshot) => {
+            if (!snapshot.exists()) {
+                // Wallet not yet created (new user; the first M-Pesa
+                // top-up will provision it). Render 0 — better than
+                // surfacing a permission-denied or null.
+                callback(0);
+                return;
+            }
+            const raw = snapshot.data()?.balance;
+            callback(typeof raw === 'number' ? raw : 0);
+        },
+        (error) => {
+            // Don't surface to the user — the sidebar is non-essential
+            // chrome and the rest of the app keeps working. Log so the
+            // failure is observable in Crashlytics / dev logs.
+             
+            console.warn('[wallet] subscription error:', error.message);
+            callback(0);
+        }
+    );
+}
+
+/**
  * Format ETA display
  */
 export function formatETA(minutes: number): string {

@@ -1,7 +1,17 @@
 // ResQ Kenya — Sidebar Drawer (extracted from Home screen)
-// Preserves all logic: animated slide, nav items, user profile, CTA, sign out.
+//
+// Phase 4 (audit-v2 §N-HIGH-5) — Replaced hardcoded identity and wallet
+// balance with the real authenticated user and a live wallet
+// subscription. The pre-fix file rendered 'JM' avatar / 'John Mwangi' /
+// 'KES 2,450' as literal strings so every customer saw the same fake
+// identity. That single bug destroyed trust in the wallet feature and
+// suggested the customer was signed into the wrong account.
+//
+// All visual layout, typography, spacing and animations are unchanged
+// — this is a pure data-source swap (Frontend-UI-Engineering: "data
+// changes, not visual changes").
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, StyleSheet, Pressable, ScrollView, Animated,
     Modal, Platform,
@@ -12,13 +22,9 @@ import {
     Wallet as WalletIcon, Car, History, ShieldAlert,
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, typography } from '../../theme/voltage-premium';
-
-const NAV_ITEMS = [
-    { icon: WalletIcon, label: 'ResQ Wallet', sublabel: 'KES 2,450', route: '/(customer)/wallet' },
-    { icon: Car, label: 'My Garage', sublabel: 'Digital Glovebox', route: '/(customer)/profile' },
-    { icon: History, label: 'Service History', route: '/(customer)/history' },
-    { icon: ShieldAlert, label: 'Emergency Safety Hub', route: '/(customer)/help' },
-];
+import { useAuth } from '../../services/AuthContext';
+import { subscribeToWalletBalance } from '../../services/customer.service';
+import { deriveInitials, formatWalletBalance } from './SidebarDrawer.helpers';
 
 interface SidebarDrawerProps {
     isOpen: boolean;
@@ -26,6 +32,49 @@ interface SidebarDrawerProps {
 }
 
 export function SidebarDrawer({ isOpen, onClose }: SidebarDrawerProps) {
+    const { user } = useAuth();
+    const [walletBalance, setWalletBalance] = useState<number | null>(null);
+
+    // Live wallet subscription. Re-subscribe whenever the user.id
+    // changes (sign-out → sign-in flow). The Firestore rule
+    // (firestore.rules:137-139) is `isOwner(userId)`, so the read is
+    // automatically scoped to the right doc.
+    useEffect(() => {
+        if (!user?.id) {
+            setWalletBalance(null);
+            return undefined;
+        }
+        const unsubscribe = subscribeToWalletBalance(user.id, (balance) => {
+            setWalletBalance(balance);
+        });
+        return unsubscribe;
+    }, [user?.id]);
+
+    // Display strings are derived from the real auth state. `useMemo`
+    // avoids recomputing on every animation tick of the drawer slide.
+    const displayName = useMemo(() => {
+        const raw = user?.displayName?.trim();
+        return raw && raw.length > 0 ? raw : 'ResQ Customer';
+    }, [user?.displayName]);
+    const initials = useMemo(() => deriveInitials(user?.displayName), [user?.displayName]);
+    const walletSublabel = useMemo(
+        () => (walletBalance === null ? 'KES —' : formatWalletBalance(walletBalance)),
+        [walletBalance]
+    );
+
+    // Nav items live inside the component now because the wallet
+    // sublabel is dynamic. Routes and icons are unchanged from the
+    // pre-fix file.
+    const navItems = useMemo(
+        () => [
+            { icon: WalletIcon, label: 'ResQ Wallet', sublabel: walletSublabel, route: '/(customer)/wallet' as const },
+            { icon: Car, label: 'My Garage', sublabel: 'Digital Glovebox', route: '/(customer)/profile' as const },
+            { icon: History, label: 'Service History', sublabel: undefined, route: '/(customer)/history' as const },
+            { icon: ShieldAlert, label: 'Emergency Safety Hub', sublabel: undefined, route: '/(customer)/help' as const },
+        ],
+        [walletSublabel]
+    );
+
     const slideAnim = useRef(new Animated.Value(-280)).current;
     const backdropAnim = useRef(new Animated.Value(0)).current;
 
@@ -82,16 +131,21 @@ export function SidebarDrawer({ isOpen, onClose }: SidebarDrawerProps) {
                         </Pressable>
                     </View>
 
-                    {/* User Profile */}
+                    {/* User Profile — Phase 4 (audit-v2 §N-HIGH-5):
+                        identity is now derived from the authenticated
+                        user. Safety Rating shows the stable "—" glyph
+                        until a real per-user rating field exists on
+                        `users/{uid}` (current rule allow-list does not
+                        include it). */}
                     <View style={styles.userProfile}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>JM</Text>
+                            <Text style={styles.avatarText}>{initials}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.userName}>John Mwangi</Text>
+                            <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
                             <View style={styles.ratingRow}>
                                 <Star size={14} color={colors.voltage} fill={colors.voltage} />
-                                <Text style={styles.ratingValue}>4.74</Text>
+                                <Text style={styles.ratingValue}>—</Text>
                                 <Text style={styles.ratingLabel}>Safety Rating</Text>
                             </View>
                         </View>
@@ -107,7 +161,7 @@ export function SidebarDrawer({ isOpen, onClose }: SidebarDrawerProps) {
 
                 {/* Nav Items */}
                 <ScrollView style={styles.navList} showsVerticalScrollIndicator={false}>
-                    {NAV_ITEMS.map((item) => (
+                    {navItems.map((item) => (
                         <Pressable key={item.label}
                             style={({ pressed }) => [styles.navItem, pressed && { backgroundColor: `${colors.voltage}0F` }]}
                             onPress={() => { onClose(); router.push(item.route as any); }}

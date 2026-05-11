@@ -39,6 +39,10 @@ export { VALID_STATUS_TRANSITIONS, isAllowedStatusTransition } from '../shared/s
 import { planRequestStatusUpdate } from '../shared/status';
 import { idempotencyDocId as sharedIdempotencyDocId } from '../shared/crypto';
 import { estimateETA } from '../shared/eta';
+import {
+    planAcceptServiceRequest,
+    type AcceptRequestRejectionCode,
+} from '../shared/acceptRequestPlanner';
 
 /** Shape-check the create-request input. Returns null if valid. */
 export function validateCreateRequestInput(
@@ -539,6 +543,32 @@ export const retryFailedDispatches = functions.pubsub
  * enforcement), API-and-Interface-Design (clear failure codes per
  * invariant via HttpsError so client can react sensibly).
  */
+/**
+ * Map planner rejection codes back to the canonical `HttpsError` code
+ * the live callable used before extraction. Keeping this mapping in
+ * the callable (not the planner) means the planner stays free of any
+ * firebase-functions / admin SDK coupling — TDD-friendly.
+ */
+function rejectionCodeToHttpsErrorCode(code: AcceptRequestRejectionCode):
+    functions.https.FunctionsErrorCode {
+    switch (code) {
+        case 'unauthenticated':
+            return 'unauthenticated';
+        case 'invalid-argument':
+            return 'invalid-argument';
+        case 'not-found':
+            return 'not-found';
+        case 'permission-denied':
+        case 'not-verified':
+            return 'permission-denied';
+        case 'already-assigned':
+        case 'not-online':
+        case 'service-type-mismatch':
+        case 'already-busy':
+            return 'failed-precondition';
+    }
+}
+
 export const acceptServiceRequest = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
@@ -556,87 +586,38 @@ export const acceptServiceRequest = functions.https.onCall(async (data, context)
         const providerRef = db.collection('providers').doc(providerId);
 
         // Use transaction to prevent race conditions and to enforce the
-        // five invariants atomically with the assignment write.
+        // five invariants atomically with the assignment write. The
+        // invariant decisions themselves live in the pure planner
+        // `planAcceptServiceRequest` (functions/src/shared/...) so they
+        // can be unit-tested without an emulator (audit-v2 §N-HIGH-9).
         await db.runTransaction(async (transaction) => {
             const [requestDoc, providerDoc] = await Promise.all([
                 transaction.get(requestRef),
                 transaction.get(providerRef),
             ]);
 
-            if (!requestDoc.exists) {
-                throw new functions.https.HttpsError('not-found', 'Request not found');
-            }
-            if (!providerDoc.exists) {
-                throw new functions.https.HttpsError(
-                    'permission-denied',
-                    'Caller is not registered as a provider'
-                );
-            }
-
-            const requestData = requestDoc.data()!;
-            const providerData = providerDoc.data()!;
-
-            // (5) Request must still be pending.
-            if (requestData.status !== 'pending') {
-                throw new functions.https.HttpsError('failed-precondition', 'Request already assigned');
-            }
-
-            // (1) Verification gate.
-            if (providerData.verificationStatus !== 'verified') {
-                throw new functions.https.HttpsError(
-                    'permission-denied',
-                    'Provider is not verified'
-                );
-            }
-
-            // (2) Online gate.
-            const availability = (providerData.availability ?? {}) as {
-                isOnline?: boolean;
-                currentRequestId?: string | null;
-            };
-            if (availability.isOnline !== true) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    'Provider is not online'
-                );
-            }
-
-            // (3) Service-type gate.
-            const serviceTypes = Array.isArray(providerData.serviceTypes)
-                ? (providerData.serviceTypes as unknown[])
-                : [];
-            if (!serviceTypes.includes(requestData.serviceType)) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    'Provider does not offer this service type'
-                );
-            }
-
-            // (4) Idle gate — reject if already on another job.
-            if (
-                typeof availability.currentRequestId === 'string' &&
-                availability.currentRequestId.length > 0 &&
-                availability.currentRequestId !== requestId
-            ) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    'Provider already has an active request'
-                );
-            }
-
-            // Assign provider to request.
-            transaction.update(requestRef, {
+            const plan = planAcceptServiceRequest({
+                requestId,
                 providerId,
-                status: 'accepted',
+                request: requestDoc.exists ? (requestDoc.data() ?? null) : null,
+                provider: providerDoc.exists ? (providerDoc.data() ?? null) : null,
+            });
+
+            if (plan.kind === 'reject') {
+                throw new functions.https.HttpsError(
+                    rejectionCodeToHttpsErrorCode(plan.code),
+                    plan.message
+                );
+            }
+
+            // Apply the planner's accept patches inside the same txn.
+            transaction.update(requestRef, {
+                providerId: plan.requestUpdate.providerId,
+                status: plan.requestUpdate.status,
                 'timeline.acceptedAt': admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
-            // Pin the provider to the request so a second concurrent
-            // accept call observes invariant (4).
-            transaction.update(providerRef, {
-                'availability.currentRequestId': requestId,
-            });
+            transaction.update(providerRef, plan.providerUpdate);
         });
 
         // Get customer FCM token and notify
