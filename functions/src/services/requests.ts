@@ -304,12 +304,17 @@ async function notifyNearbyProviders(
         }
 
         if (providerTokens.length === 0) {
+            // CodeRabbit feedback (PR #9): incrementing retryCount by 0
+            // was a no-op that left stuck rows churning forever at the
+            // same radius. Increment by 1 so the retry worker can
+            // observe progress and eventually flip the row to
+            // `cancelled` once DISPATCH_MAX_RETRIES is reached.
             await requestRef.update({
                 'dispatch.status': DISPATCH_STATUS.NoProviders,
                 'dispatch.notifiedCount': 0,
                 'dispatch.lastAttemptAt': now,
                 'dispatch.radiusKm': radiusKm,
-                'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
+                'dispatch.retryCount': admin.firestore.FieldValue.increment(1),
             });
             console.log(
                 `[dispatch] no_providers requestId=${requestId} ` +
@@ -435,14 +440,34 @@ export const retryFailedDispatches = functions.pubsub
 
         for (const status of retryableStatuses) {
             let pages = 0;
+            // CodeRabbit feedback (PR #9): the loop previously kept
+            // re-fetching the same 20 rows because there was no
+            // pagination cursor. With the retryCount-increment fix
+            // above the rows do eventually drain (rolling off the
+            // status filter once they hit MAX_RETRIES and flip to
+            // 'cancelled'), but driving pagination via `startAfter`
+            // is the canonical Firestore pattern and guarantees
+            // forward progress even before retryCount changes
+            // propagate.
+            //
+            // Skills: Source-Driven Development (Firestore pagination
+            // docs), TRUSTLESS-AUDITOR (a worker that re-processes
+            // the same rows is the textbook DoS-on-self pattern).
+            let cursor: FirebaseFirestore.QueryDocumentSnapshot | null = null;
             while (pages < DISPATCH_RETRY_MAX_PAGES) {
-                const page = await db.collection('requests')
+                let query = db.collection('requests')
                     .where('status', '==', 'pending')
                     .where('dispatch.status', '==', status)
-                    .limit(DISPATCH_RETRY_PAGE_SIZE)
-                    .get();
+                    .orderBy('createdAt', 'asc')
+                    .limit(DISPATCH_RETRY_PAGE_SIZE);
+                if (cursor) {
+                    query = query.startAfter(cursor);
+                }
+                const page = await query.get();
 
                 if (page.empty) break;
+
+                cursor = page.docs[page.docs.length - 1];
 
                 for (const doc of page.docs) {
                     const data = doc.data();

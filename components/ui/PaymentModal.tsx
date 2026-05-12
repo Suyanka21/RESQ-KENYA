@@ -1,7 +1,7 @@
 // ResQ Kenya - Payment Modal Component
 // M-Pesa STK Push payment flow
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -70,7 +70,13 @@ export default function PaymentModal({
 
     // Cleanup helper — invoked on every state transition that ends a
     // pending payment, plus on unmount.
-    const teardownSubscription = () => {
+    //
+    // CodeRabbit feedback (PR #9): wrapped in `useCallback` because
+    // this helper is referenced by multiple effects + the
+    // `subscribeToPaymentStatus` error callback. An unstable
+    // reference would re-run unmount-cleanup effects on every
+    // render.
+    const teardownSubscription = useCallback(() => {
         if (unsubRef.current) {
             unsubRef.current();
             unsubRef.current = null;
@@ -79,11 +85,11 @@ export default function PaymentModal({
             clearTimeout(successTimerRef.current);
             successTimerRef.current = null;
         }
-    };
+    }, []);
 
     useEffect(() => {
         return () => teardownSubscription();
-    }, []);
+    }, [teardownSubscription]);
 
     // Reset state when modal opens
     useEffect(() => {
@@ -96,7 +102,7 @@ export default function PaymentModal({
         } else {
             teardownSubscription();
         }
-    }, [visible]);
+    }, [visible, defaultPhone, teardownSubscription]);
 
     // Countdown timer when waiting
     useEffect(() => {
@@ -196,11 +202,32 @@ export default function PaymentModal({
                                     : 'Payment failed. Please try again.'
                             );
                         }
+                    },
+                    // CodeRabbit feedback (PR #9): surface listener
+                    // errors instead of waiting 90s for the timeout.
+                    // Most likely cause is a rules denial on the
+                    // payment_requests row, which is actionable.
+                    (listenerError) => {
+                        teardownSubscription();
+                        setStatus('failed');
+                        setError(
+                            `Could not track payment: ${listenerError.message}. Please contact support.`
+                        );
                     }
                 );
-            } else {
+            } else if (!result.success) {
                 setStatus('failed');
                 setError(result.error || 'Payment initiation failed');
+            } else {
+                // CodeRabbit feedback (PR #9): success=true with no
+                // idempotencyKey is an invariant violation — the
+                // backend contract guarantees one is echoed on every
+                // success. Surface it as a distinct failure so the
+                // bug is visible rather than hidden in a generic
+                // "initiation failed" message.
+                console.error('[PaymentModal] initiatePayment returned success without idempotencyKey');
+                setStatus('failed');
+                setError('Payment service returned an unexpected response. Please try again.');
             }
         } catch (err: any) {
             setStatus('failed');

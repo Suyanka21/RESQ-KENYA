@@ -165,20 +165,41 @@ export async function queryPaymentStatus(checkoutRequestID: string): Promise<Pay
  */
 export function subscribeToPaymentStatus(
     idempotencyKey: string,
-    callback: (status: PaymentStatusResult) => void
+    callback: (status: PaymentStatusResult) => void,
+    onError?: (error: Error) => void
 ): () => void {
     const paymentRef = doc(db, 'payment_requests', idempotencyKey);
 
-    return onSnapshot(paymentRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            callback({
-                status: data.status as PaymentStatus,
-                mpesaReceiptNumber: data.mpesaReceiptNumber,
-                transactionDate: data.transactionDate,
-            });
+    // CodeRabbit feedback (PR #9): `onSnapshot` swallows listener
+    // errors when no error callback is provided. If the security rule
+    // ever denies the read (e.g. the M-Pesa callback writes the row
+    // under a slightly different uid path), the customer just stares
+    // at the spinner until the 90s timeout. Forward the error so
+    // PaymentModal can show an actionable failure instead.
+    //
+    // Skills: API-and-Interface-Design (every async surface gets an
+    // error channel), TRUSTLESS-AUDITOR (silent failures are the
+    // worst kind on a payment screen).
+    return onSnapshot(
+        paymentRef,
+        (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                callback({
+                    status: data.status as PaymentStatus,
+                    mpesaReceiptNumber: data.mpesaReceiptNumber,
+                    transactionDate: data.transactionDate,
+                });
+            }
+        },
+        (error) => {
+            // Default: log only — never throw across the listener
+            // boundary. Callers can opt-in to a richer reaction
+            // (failure state, retry button) by supplying `onError`.
+            console.warn('[payment.subscribe] listener error:', error.message);
+            if (onError) onError(error);
         }
-    });
+    );
 }
 
 /**

@@ -144,4 +144,49 @@ describe('payment.service / subscribeToPaymentStatus — contract', () => {
 
         expect(cb).not.toHaveBeenCalled();
     });
+
+    // CodeRabbit feedback (PR #9): listener errors must propagate to
+    // the optional onError handler so PaymentModal can show a real
+    // failure instead of waiting 90s for the timeout.
+    it('forwards listener errors to the optional onError handler', () => {
+        let errorHandler: ((err: Error) => void) | null = null;
+        mockOnSnapshot.mockImplementation((_ref, _next, onError) => {
+            errorHandler = onError as (err: Error) => void;
+            return () => undefined;
+        });
+        mockDoc.mockReturnValue({ __ref: 'payment_requests/idem-rules' });
+
+        const subscribe = loadSubscribe();
+        const cb = jest.fn();
+        const onError = jest.fn();
+        subscribe('idem-rules', cb, onError);
+
+        // Simulate a Firestore rules denial.
+        const err = new Error('Missing or insufficient permissions.');
+        errorHandler!(err);
+
+        expect(onError).toHaveBeenCalledWith(err);
+        expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('still logs listener errors when no onError is supplied (back-compat)', () => {
+        let errorHandler: ((err: Error) => void) | null = null;
+        mockOnSnapshot.mockImplementation((_ref, _next, onError) => {
+            errorHandler = onError as (err: Error) => void;
+            return () => undefined;
+        });
+        mockDoc.mockReturnValue({ __ref: 'payment_requests/idem-rules2' });
+        const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const subscribe = loadSubscribe();
+        subscribe('idem-rules2', () => undefined);
+
+        errorHandler!(new Error('network down'));
+
+        expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining('[payment.subscribe]'),
+            expect.stringContaining('network down')
+        );
+        warnSpy.mockRestore();
+    });
 });
