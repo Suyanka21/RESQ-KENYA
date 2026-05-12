@@ -1,8 +1,16 @@
 // ResQ Kenya - Database Test Screen
-// Test and seed the Firestore database
+// Test and seed the Firestore database.
+//
+// Phase 4 (audit-v3 §HIGH-2) — DEV-ONLY route. This screen contains write
+// actions (Seed All Data / Seed Providers / Create Test User) that would
+// pollute production Firestore if reachable. The previous gate in
+// app/_layout.tsx only controlled the navigator entry, not the file-based
+// route, so production users could deep-link here. The component-level
+// __DEV__ early-return below is dead-code-eliminated in production
+// bundles so the seed functions never reach end users.
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { colors } from '../theme/voltage-premium';
 import {
     seedProviders,
@@ -18,6 +26,14 @@ import {
 const NAIROBI_CBD = { lat: -1.2921, lng: 36.8219 };
 
 export default function DatabaseTestScreen() {
+    // audit-v3 §HIGH-2 — block production access before any state/effect
+    // hook runs. __DEV__ is replaced by Metro with the literal `false` in
+    // release builds, so this early-return is statically eliminated and
+    // the seed-button JSX below is never bundled for end users.
+    if (!__DEV__) {
+        return <Redirect href="/" />;
+    }
+
     const [isLoading, setIsLoading] = useState(false);
     const [results, setResults] = useState<string[]>([]);
     const [providerCount, setProviderCount] = useState<number | null>(null);

@@ -1,8 +1,9 @@
 // ResQ Kenya - Provider Tab Layout
-import { Tabs } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import { View, StyleSheet } from "react-native";
 import { Home, ClipboardList, Wallet, Settings } from "lucide-react-native";
 import { colors, spacing } from "../../theme/voltage-premium";
+import { useAuth } from "../../services/AuthContext";
 
 // Lucide icon-based TabIcon component (replaces emoji icons per design system)
 const TabIcon = ({
@@ -22,6 +23,15 @@ const TabIcon = ({
 );
 
 export default function ProviderLayout() {
+    // Phase 4 (audit-v3 §CRIT-1) — same rationale as the customer layout.
+    // The splash at app/index.tsx is not a sufficient gate; expo-router
+    // exposes every .tsx file in app/(provider)/ regardless. Enforce here.
+    const { isAuthenticated, isLoading, userRole } = useAuth();
+
+    if (isLoading) return null;
+    if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
+    if (userRole !== 'provider') return <Redirect href="/(customer)" />;
+
     return (
         <Tabs
             screenOptions={{
@@ -78,6 +88,16 @@ export default function ProviderLayout() {
                     ),
                 }}
             />
+            {/* Phase 4 (audit-v3 §MED-3) — internal screens that should
+                only be reached via in-app navigation, not as tab entries.
+                Without href:null, expo-router auto-discovers every .tsx in
+                this directory and adds it to the tab bar (alphabetical),
+                which was leaking `active-job`, `medical-dashboard`, and
+                `medical-onboarding` as visible tabs. Mirror the pattern
+                used by `(customer)/_layout.tsx` for request/vehicles/help. */}
+            <Tabs.Screen name="active-job" options={{ href: null }} />
+            <Tabs.Screen name="medical-dashboard" options={{ href: null }} />
+            <Tabs.Screen name="medical-onboarding" options={{ href: null }} />
         </Tabs>
     );
 }

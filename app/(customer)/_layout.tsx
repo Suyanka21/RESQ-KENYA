@@ -5,12 +5,13 @@
 // instantiate it.
 
 import React from "react";
-import { Tabs } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import { View, StyleSheet, Platform } from "react-native";
 import { Home, Clock, Wallet, User } from "lucide-react-native";
 import { colors, spacing } from "../../theme/voltage-premium";
 import EmergencySOS from "../../components/EmergencySOS";
 import { recordSosEvent, type SosEventType } from "../../services/sos.service";
+import { useAuth } from "../../services/AuthContext";
 
 // Tab Icon Component with Lucide icons
 const TabIcon = ({
@@ -43,6 +44,25 @@ function handleSosTrigger(type: SosEventType) {
 }
 
 export default function CustomerLayout() {
+    // Phase 4 (audit-v3 §CRIT-1) — route-level auth guard. The splash at
+    // app/index.tsx redirects on auth state, but it only runs when the user
+    // enters via `/`. Deep-linking straight to `/(customer)` or any nested
+    // tab (wallet, history, profile) used to bypass the splash entirely
+    // because expo-router file-based routing exposes every .tsx file in
+    // app/(customer)/ as a reachable URL regardless of what app/_layout.tsx
+    // declares. The guard below is the authoritative gate for this group.
+    const { isAuthenticated, isLoading, userRole } = useAuth();
+
+    // While the AuthProvider is still resolving the Firebase session, render
+    // nothing rather than the tab chrome. The splash on `/` is already
+    // mounted in parallel and will navigate once loading completes.
+    if (isLoading) return null;
+    if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
+    // A provider account opening a customer URL should be routed to their
+    // own surface — the customer screens render mocked customer chrome that
+    // would otherwise mislead a provider.
+    if (userRole === 'provider') return <Redirect href="/(provider)" />;
+
     return (
         <View style={styles.layoutRoot}>
         <Tabs

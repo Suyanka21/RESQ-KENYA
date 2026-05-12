@@ -1,8 +1,16 @@
 // ResQ Kenya - Firebase Connection Test Screen
-// This screen tests if Firebase is properly configured
+// This screen tests if Firebase is properly configured.
+//
+// Phase 4 (audit-v3 §HIGH-2) — DEV-ONLY route. expo-router is file-based,
+// so the existence of this .tsx in app/ would make the route reachable in
+// production builds (the previous gate in app/_layout.tsx only controlled
+// the navigator entry, not the route itself). __DEV__ is a Metro-injected
+// global that resolves to the literal `false` in production bundles, so
+// the early-return below is dead-code-eliminated for end users and the
+// screen content never ships.
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 
 // Test Firebase imports
 let firebaseApp: any = null;
@@ -23,6 +31,15 @@ interface ConfigCheck {
 }
 
 export default function FirebaseTestScreen() {
+    // audit-v3 §HIGH-2 — production builds must not expose this screen
+    // (it discloses Firebase project metadata and env-var schema). The
+    // Redirect runs before any state/effect hooks; in production
+    // bundles `__DEV__` is the literal `false`, so the rest of the
+    // function is unreachable and gets DCE'd.
+    if (!__DEV__) {
+        return <Redirect href="/" />;
+    }
+
     const [checks, setChecks] = useState<ConfigCheck[]>([]);
     const [connectionStatus, setConnectionStatus] = useState<'checking' | 'success' | 'error'>('checking');
     const [errorMessage, setErrorMessage] = useState<string>('');
