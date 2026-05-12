@@ -125,11 +125,21 @@ export async function verifyOTP(
         const result = await confirmationResult.confirm(code);
         const user = result.user;
 
-        // Create or update user profile in Firestore
-        await createUserProfile(user);
-
-        // Clear confirmation result
+        // CodeRabbit feedback (PR #9): the ConfirmationResult is a
+        // one-shot token. Once `confirm()` resolves it has been
+        // consumed regardless of whether downstream `createUserProfile`
+        // succeeds; leaving the module-state set after a profile-create
+        // failure means the next verifyOTP call would re-use a spent
+        // confirmation and Firebase rejects with a cryptic
+        // `auth/code-expired`. Clear it BEFORE the profile-create so a
+        // retry triggers a fresh sendOTP path.
         confirmationResult = null;
+
+        // Create or update user profile in Firestore (best-effort —
+        // failure here does not invalidate the auth, just means the
+        // profile row is missing and will be created lazily on next
+        // login).
+        await createUserProfile(user);
 
         return { success: true, user };
     } catch (error: any) {
@@ -161,10 +171,16 @@ async function createUserProfile(user: User): Promise<void> {
         // `users/{userId}` rule rejects writes to those keys. Drop
         // them from the seed; the new UI reads from subcollections
         // anyway and the missing keys are rendered as empty.
+        // CodeRabbit feedback (PR #9): pin role to 'customer' on first
+        // create so the schema and firestore.rules `role` allow-list
+        // match what the auth flow actually writes. Provider sign-up
+        // goes through a separate callable (`verifyProvider`) so this
+        // path is customer-only.
         const userData: Partial<ResQUser> = {
             id: user.uid,
             phoneNumber: user.phoneNumber || '',
             displayName: '',
+            role: 'customer',
             membership: 'basic',
             loyaltyPoints: 0,
         };

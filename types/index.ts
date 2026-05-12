@@ -10,6 +10,12 @@ export interface User {
     email?: string;
     profilePhoto?: string;
     createdAt: Date;
+    /**
+     * Role marker — used by clients to route between customer and
+     * provider home screens. The firestore.rules `users/{userId}`
+     * create allow-list pins this to `'customer' | 'provider'`.
+     */
+    role?: 'customer' | 'provider';
     membership: 'basic' | 'plus';
     loyaltyPoints: number;
     vehicles: Vehicle[];

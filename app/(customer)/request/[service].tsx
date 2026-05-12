@@ -15,7 +15,7 @@ import { AmbulanceForm } from '../../../components/request/forms/AmbulanceForm';
 import { createServiceRequest, generateIdempotencyKey } from '../../../services/customer.service';
 import { getCurrentLocation, NAIROBI_DEFAULT } from '../../../services/location.service';
 
-import type { ServiceType } from '../../../types/api';
+import { isValidServiceType, type ServiceType } from '../../../types/api';
 
 /**
  * Phase 4 (audit-v2 §F-CRIT-1) — normalise the legacy form `service`
@@ -23,14 +23,21 @@ import type { ServiceType } from '../../../types/api';
  * AmbulanceForm historically emitted `'medical'`; the backend's
  * `ServiceType` union uses `'ambulance'`. Centralise the mapping so
  * forms remain stable while the contract advances.
+ *
+ * CodeRabbit feedback (PR #9): the previous body did `raw as
+ * ServiceType` which silently accepts any string and lets a typo in
+ * the route param hit the backend (where it would be rejected with a
+ * cryptic 400). Validate with `isValidServiceType` instead and
+ * return `null` for unknown values; callers must handle that case
+ * explicitly.
  */
 function normaliseServiceType(
     formService: string | undefined,
     routeService: string | undefined
-): ServiceType {
+): ServiceType | null {
     const raw = (formService || routeService || '').toLowerCase();
-    if (raw === 'medical') return 'ambulance';
-    return raw as ServiceType;
+    const candidate = raw === 'medical' ? 'ambulance' : raw;
+    return isValidServiceType(candidate) ? candidate : null;
 }
 
 export default function ServiceRequestScreen() {
@@ -75,6 +82,17 @@ export default function ServiceRequestScreen() {
         setSubmitting(true);
 
         const canonicalService = normaliseServiceType(data?.service, service);
+        if (!canonicalService) {
+            // CodeRabbit feedback (PR #9): surface the contract
+            // violation early instead of round-tripping a 400.
+            setSubmitting(false);
+            Alert.alert(
+                'Unknown service',
+                'This service is not currently supported. Please choose another service from the dashboard.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
         const addressText: string = data?.location || data?.pickupLocation || '';
         const dropoff: string | undefined = data?.dropoffLocation;
 

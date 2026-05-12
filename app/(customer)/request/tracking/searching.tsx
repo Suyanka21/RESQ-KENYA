@@ -42,6 +42,11 @@ export default function SearchingScreen() {
     const [messageIdx, setMessageIdx] = useState(0);
     const [isExpanded, setIsExpanded] = useState(false);
     const [hasTimedOut, setHasTimedOut] = useState(false);
+    // CodeRabbit feedback (PR #9): incrementing this state in the
+    // ErrorState retry handler re-runs the 60s timeout effect so the
+    // safety-valve actually re-arms; the previous `[]`-dep effect
+    // only ran once on mount and never recovered from a retry.
+    const [retryNonce, setRetryNonce] = useState(0);
 
     // --- Animations ---
     const ring1 = useRef(new Animated.Value(0.5)).current;
@@ -128,7 +133,7 @@ export default function SearchingScreen() {
             setHasTimedOut(true);
         }, 60000);
         return () => clearTimeout(timeout);
-    }, []);
+    }, [retryNonce]);
 
     if (hasTimedOut) {
         return (
@@ -140,6 +145,7 @@ export default function SearchingScreen() {
                     icon="offline"
                     onRetry={() => {
                         setHasTimedOut(false);
+                        setRetryNonce(n => n + 1);
                     }}
                     retryLabel="Search Again"
                 />
