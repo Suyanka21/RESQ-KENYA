@@ -394,8 +394,14 @@ export const initiateStkPush = functions.https.onCall(async (data, context) => {
  * Security-and-Hardening (cap + metric so a runaway never blocks the
  * function host's other scheduled work).
  */
-const STALE_PAYMENT_PAGE_SIZE = 500;
-const STALE_PAYMENT_MAX_PAGES = 50; // 25k rows / run hard cap
+// CodeRabbit feedback (PR #9): 500 sits exactly on Firestore's
+// batched-writes ceiling. Today we issue one update per doc per loop
+// (well within limits), but a future contributor adding any
+// secondary write inside the page-loop would silently break. Match
+// the sibling `resetDailyEarnings` worker (PAGE_SIZE = 400) so the
+// headroom is uniform across scheduled cleanups.
+const STALE_PAYMENT_PAGE_SIZE = 400;
+const STALE_PAYMENT_MAX_PAGES = 60; // 24k rows / run hard cap (~ unchanged)
 
 export const cleanupStaleInitiatingPayments = functions.pubsub
     .schedule('every day 02:00')

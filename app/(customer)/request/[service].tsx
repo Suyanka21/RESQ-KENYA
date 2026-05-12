@@ -40,6 +40,25 @@ function normaliseServiceType(
     return isValidServiceType(candidate) ? candidate : null;
 }
 
+/**
+ * Sanitise a form-supplied price string into a typed `Pricing`
+ * payload. Strips commas / currency markers, then validates via
+ * Number.isFinite plus a non-negative check. Anything else returns
+ * `undefined` so the caller can omit `pricing` rather than send NaN
+ * across the wire. See CodeRabbit feedback comment for context.
+ */
+function parsePricing(rawCost: unknown):
+    | { baseServiceFee: number; total: number }
+    | undefined {
+    if (rawCost === undefined || rawCost === null || rawCost === '') return undefined;
+    const cleaned =
+        typeof rawCost === 'number'
+            ? rawCost
+            : Number(String(rawCost).replace(/[^\d.-]/g, ''));
+    if (!Number.isFinite(cleaned) || cleaned < 0) return undefined;
+    return { baseServiceFee: cleaned, total: cleaned };
+}
+
 export default function ServiceRequestScreen() {
     const { service } = useLocalSearchParams<{ service: string }>();
     const [submitting, setSubmitting] = useState(false);
@@ -114,9 +133,16 @@ export default function ServiceRequestScreen() {
                     address: addressText || 'Unknown',
                     ...(dropoff ? { instructions: `Drop-off: ${dropoff}` } : {}),
                 },
-                pricing: data?.totalCost
-                    ? { baseServiceFee: Number(data.totalCost), total: Number(data.totalCost) }
-                    : undefined,
+                // CodeRabbit feedback (PR #9): the previous body
+                // passed `Number(data.totalCost)` straight through,
+                // so any non-numeric string from the form ('1,500',
+                // 'KES 1500', '') would arrive at the backend as
+                // NaN — bypassing the typed Pricing contract and
+                // poisoning downstream M-Pesa amount validation.
+                // Sanitize commas/currency prefixes, parse, and only
+                // include `pricing` when the result is finite and
+                // non-negative.
+                pricing: parsePricing(data?.totalCost),
                 serviceDetails: data,
                 idempotencyKey: generateIdempotencyKey(),
             };

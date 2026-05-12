@@ -38,8 +38,14 @@ describe('medical-compliance demo-mode flag (audit-v2 §N-CRIT-3)', () => {
     });
 
     it('defaults to OFF (production safety: no fabricated registrations)', () => {
-        setMedicalDemoMode(false);
-        expect(isMedicalDemoMode()).toBe(false);
+        // CodeRabbit feedback (PR #9): the previous body called
+        // `setMedicalDemoMode(false)` first, which made the assertion
+        // tautological (the setter set the value the assertion then
+        // read back). Reload the module fresh so the assertion
+        // exercises the actual initial state.
+        jest.resetModules();
+        const fresh = require('../../services/medical-compliance.service');
+        expect(fresh.isMedicalDemoMode()).toBe(false);
     });
 
     it('setMedicalDemoMode(true) opts in for local development / tests', () => {
@@ -90,9 +96,15 @@ describe('medical-compliance demo-mode flag (audit-v2 §N-CRIT-3)', () => {
         // success:false), or the real call fails — what we *forbid*
         // is success:true with a fabricated reportId.
         if (result.success) {
+            // Forbid the fabricated dev-pattern id when demo is OFF.
             expect(result.reportId).not.toMatch(/^report_\d+$/);
         } else {
-            expect(result.success).toBe(false);
+            // CodeRabbit feedback (PR #9): tightened from the
+            // tautological `expect(result.success).toBe(false)` —
+            // assert the failure carries an actionable error and
+            // never an opportunistic reportId.
+            expect(typeof result.error === 'string' && result.error.length > 0).toBe(true);
+            expect((result as { reportId?: unknown }).reportId).toBeUndefined();
         }
     });
 });

@@ -59,9 +59,20 @@ export async function recordSosEvent(
         });
         return result.data;
     } catch (error) {
-        // Log only the error message, NOT the GPS payload.
+        // CodeRabbit feedback (PR #9): firebase/functions returns
+        // FunctionsError objects with a `.code` (e.g.
+        // `functions/unauthenticated`, `functions/resource-exhausted`
+        // for the new SOS rate limit). Surfacing the code alongside
+        // the message turns a generic "[sos] recordSosEvent failed"
+        // log into actionable telemetry without leaking the GPS
+        // payload.
+        //
+        // Skills: Debugging-and-Error-Recovery (preserve diagnostic
+        // signal), TRUSTLESS-AUDITOR (silent SOS failures are exactly
+        // the unrecoverable scenario).
         const message = error instanceof Error ? error.message : 'unknown';
-        console.warn('[sos] recordSosEvent failed:', message);
+        const code = (error as { code?: string } | null)?.code ?? 'unknown';
+        console.warn(`[sos] recordSosEvent failed: code=${code} message=${message}`);
         return null;
     }
 }

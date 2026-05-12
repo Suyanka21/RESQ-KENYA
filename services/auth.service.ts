@@ -38,9 +38,15 @@ export function hasPendingOtpConfirmation(): boolean {
 /**
  * Test/dev-only escape hatch — clears the pending confirmation so
  * a fresh sendOTP call starts cleanly. Never invoked by production
- * UI flows.
+ * UI flows; the underscore prefix and `_ForTests` suffix make the
+ * intent obvious and discourage accidental production use.
+ *
+ * CodeRabbit feedback (PR #9): the previous name
+ * `clearPendingOtpConfirmation` advertised the helper on the
+ * production surface. Renamed (no callers existed) per
+ * Deprecation-and-Migration + Code-Review-and-Quality skills.
  */
-export function clearPendingOtpConfirmation(): void {
+export function _clearPendingOtpConfirmationForTests(): void {
     confirmationResult = null;
 }
 

@@ -91,6 +91,28 @@ describe('planAcceptServiceRequest — happy path', () => {
         const plan = planAcceptServiceRequest(input);
         expect(plan.kind).toBe('accept');
     });
+
+    // CodeRabbit feedback (PR #9): the previous test pinned the
+    // "retry while request still pending" idempotency shape. The
+    // companion shape — a retry that happens AFTER the first accept
+    // has already flipped the request to 'accepted' — must hit the
+    // `already-assigned` branch (NOT the accept branch), and must
+    // emit no patches.
+    it('rejects retry-after-success (request already accepted) with no patches', () => {
+        const input = baseInput({
+            request: { status: 'accepted', serviceType: 'towing' },
+            provider: { availability: { isOnline: true, currentRequestId: REQUEST_ID } },
+        });
+        const plan = planAcceptServiceRequest(input);
+        expect(plan.kind).toBe('reject');
+        if (plan.kind === 'reject') {
+            expect(plan.code).toBe('already-assigned');
+        }
+        // Type-narrowing guarantee: a reject plan exposes neither
+        // requestUpdate nor providerUpdate.
+        expect((plan as { requestUpdate?: unknown }).requestUpdate).toBeUndefined();
+        expect((plan as { providerUpdate?: unknown }).providerUpdate).toBeUndefined();
+    });
 });
 
 describe('planAcceptServiceRequest — boundary rejections', () => {

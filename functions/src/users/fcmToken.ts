@@ -40,9 +40,28 @@ export interface SetFcmTokenResult {
     cleared: boolean;
 }
 
-/** FCM tokens are URL-safe base64-ish; require length + char-set. */
+/**
+ * FCM tokens have no documented format guarantee. Google explicitly
+ * advises against pattern-validation of the registration token
+ * (https://firebase.google.com/docs/cloud-messaging/manage-tokens):
+ *
+ *   "The format may change in the future; please do not validate
+ *    this input against any pattern, as this may cause your app to
+ *    break if this happens."
+ *
+ * CodeRabbit feedback (PR #9): the previous regex
+ * (`/^[A-Za-z0-9_\-:]+$/`) would reject any future token containing
+ * `.`, `/`, `+`, or `=` (all plausible for base64/JWT-like
+ * encodings), silently dropping push notifications for affected
+ * clients. We keep the length + type check (defensive) and drop the
+ * character-set assertion.
+ *
+ * Skills: Source-Driven Development (cite Google's guidance),
+ * TRUSTLESS-AUDITOR (silent FCM drops are exactly the "real user,
+ * no recovery path" scenario).
+ */
 function isValidFcmToken(value: string): boolean {
-    return value.length >= 32 && value.length <= 4096 && /^[A-Za-z0-9_\-:]+$/.test(value);
+    return value.length >= 32 && value.length <= 4096;
 }
 
 export const setFcmToken = functions.https.onCall(
