@@ -129,10 +129,21 @@ export function planAssignMedicalProvider(input: AssignMedicalProviderInput): As
 
     // (6) Provider must be idle — neither toggled-off nor mid-emergency.
     // Audit-v2 §N-CRIT-4 invariants 2 + 3.
+    //
+    // CodeRabbit feedback (PR #9): `isAvailable === false` was a
+    // default-ALLOW check — a missing or `undefined` `isAvailable`
+    // counted as available, which means a provider doc that never
+    // wrote the field could be dispatched even though they never
+    // toggled on. For a medical / life-safety dispatch the
+    // invariant must be default-DENY: only an explicit `true`
+    // permits dispatch.
+    //
+    // Skills: Security-and-Hardening (default-deny on safety-critical
+    // gates), TRUSTLESS-AUDITOR (life-safety paths fail closed).
     const onAnotherEmergency =
         typeof input.provider.currentRequestId === 'string' &&
         input.provider.currentRequestId.length > 0;
-    const toggledOff = input.provider.isAvailable === false;
+    const toggledOff = input.provider.isAvailable !== true;
     if (onAnotherEmergency || toggledOff) {
         return {
             ok: false,

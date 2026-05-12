@@ -59,13 +59,21 @@ service cloud.firestore {
       // (membership = 'basic', loyaltyPoints = 0) so a malicious
       // client cannot pre-seed `membership: 'gold'` or
       // `loyaltyPoints: 999999`.
+      //
+      // CodeRabbit feedback (PR #9):
+      //   1. `phone` and `phoneNumber` both used to be in the allow-
+      //      list. The auth-service seed only writes `phoneNumber`
+      //      (Firebase Auth's canonical name); standardise on
+      //      `phoneNumber` to avoid schema drift.
+      //   2. If the client supplies an `id` field it MUST equal the
+      //      doc path — otherwise a caller could pre-seed a row with
+      //      a foreign id and confuse downstream readers.
       allow create: if isAuthenticated()
                     && isOwner(userId)
                     && request.resource.data.keys().hasOnly([
                          'id',
                          'displayName',
                          'photoUrl',
-                         'phone',
                          'phoneNumber',
                          'email',
                          'fcmToken',
@@ -77,6 +85,10 @@ service cloud.firestore {
                          'createdAt',
                          'updatedAt'
                        ])
+                    && (
+                      !('id' in request.resource.data) ||
+                      request.resource.data.id == userId
+                    )
                     && (
                       !('role' in request.resource.data) ||
                       request.resource.data.role in ['customer', 'provider']
@@ -99,7 +111,6 @@ service cloud.firestore {
                     && affectedKeysAreSubsetOf([
                          'displayName',
                          'photoUrl',
-                         'phone',
                          'phoneNumber',
                          'email',
                          'fcmToken',
@@ -261,6 +272,17 @@ service cloud.firestore {
     // (server-authoritative). Owner can read their own history;
     // nobody can write directly. A future contact-fanout worker
     // (server-side) updates `status` after dispatching.
+    //
+    // LISTING-QUERY REQUIREMENT (CodeRabbit feedback on PR #9):
+    // The read rule below evaluates `resource.data.userId` per
+    // document. Firestore rules engine therefore requires any client
+    // *list* query to constrain the query itself with the same
+    // predicate — i.e. callers MUST use
+    //   collection('sos_events').where('userId', '==', auth.uid)
+    // A bare `collection('sos_events').orderBy('createdAt')` will be
+    // rejected even though every returned doc would have matched,
+    // because the engine refuses to fan out evaluation across docs
+    // the client never proved access to up-front.
     match /sos_events/{eventId} {
       allow read: if isAuthenticated()
         && resource.data.userId == request.auth.uid;

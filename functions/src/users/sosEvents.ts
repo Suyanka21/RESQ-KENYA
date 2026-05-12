@@ -58,16 +58,53 @@ export interface TriggerEmergencySosResult {
 
 const VALID_TYPES: ReadonlySet<SosEventType> = new Set(['medical', 'fire', 'police']);
 
-/** Type guard for client-supplied location. */
+/**
+ * Minimum interval between two SOS events from the same authenticated
+ * user. Below this threshold the second call is rejected with
+ * `resource-exhausted` so a compromised client cannot flood
+ * `sos_events`, the future contact-fanout worker, or downstream
+ * pagers. The threshold is intentionally generous (real users tap
+ * SOS once per genuine incident; 30s covers accidental double-taps
+ * and post-failure retries without throttling legitimate use).
+ *
+ * Skills: Security-and-Hardening (least-rate-limit needed to defeat
+ * an authenticated abuse vector), TRUSTLESS-AUDITOR (every
+ * authenticated callable that writes user-visible state is rate-
+ * limited per uid).
+ */
+const SOS_MIN_INTERVAL_MS = 30_000;
+
+/**
+ * Type guard for client-supplied location. Beyond the basic
+ * `Number.isFinite` check, this rejects:
+ *   - latitudes outside [-90, 90]
+ *   - longitudes outside [-180, 180]
+ *   - negative or non-finite `accuracy`
+ *   - non-finite `capturedAt` (rejects NaN / Infinity / parsed-as-NaN
+ *     ISO strings)
+ *
+ * The audit (CodeRabbit nitpick on lines 61-71) flagged the previous
+ * `isFinite`-only validator as accepting out-of-range coordinates,
+ * which would poison the downstream geohash + contact-fanout
+ * pipelines.
+ */
 function isValidLocation(loc: unknown): loc is SosEventLocation {
     if (!loc || typeof loc !== 'object') return false;
     const l = loc as Record<string, unknown>;
-    return (
-        typeof l['latitude'] === 'number' &&
-        Number.isFinite(l['latitude']) &&
-        typeof l['longitude'] === 'number' &&
-        Number.isFinite(l['longitude'])
-    );
+    const lat = l['latitude'];
+    const lng = l['longitude'];
+    if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) return false;
+    if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) return false;
+
+    if ('accuracy' in l) {
+        const acc = l['accuracy'];
+        if (typeof acc !== 'number' || !Number.isFinite(acc) || acc < 0) return false;
+    }
+    if ('capturedAt' in l) {
+        const captured = l['capturedAt'];
+        if (typeof captured !== 'number' || !Number.isFinite(captured)) return false;
+    }
+    return true;
 }
 
 export const triggerEmergencySOS = functions.https.onCall(
@@ -97,6 +134,34 @@ export const triggerEmergencySOS = functions.https.onCall(
         const location = isValidLocation(input.location) ? input.location : null;
 
         const userId = context.auth.uid;
+
+        // Per-user rate limit: reject if this user fired an SOS within
+        // the last `SOS_MIN_INTERVAL_MS`. Real incidents do not repeat
+        // sub-30s; anything that does is either accidental double-tap
+        // or abuse. We rely on the `sos_events` write rules (server-
+        // only) so this query is the authoritative gate.
+        //
+        // Skills: Security-and-Hardening (rate limit on auth'd state-
+        // writing callable), TRUSTLESS-AUDITOR (anything touching
+        // personal safety also needs to defend against denial-of-
+        // service of the very service it provides).
+        const recent = await db.collection('sos_events')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'desc')
+            .limit(1)
+            .get();
+        if (!recent.empty) {
+            const last = recent.docs[0].data();
+            const lastCreatedAt = last.createdAt as admin.firestore.Timestamp | undefined;
+            const lastMs = lastCreatedAt?.toMillis?.() ?? 0;
+            if (lastMs > 0 && Date.now() - lastMs < SOS_MIN_INTERVAL_MS) {
+                throw new functions.https.HttpsError(
+                    'resource-exhausted',
+                    'SOS rate limit: please wait before sending another emergency'
+                );
+            }
+        }
+
         const eventRef = db.collection('sos_events').doc();
 
         await eventRef.set({

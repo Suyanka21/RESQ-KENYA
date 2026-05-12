@@ -128,6 +128,22 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
             });
             expectFail(plan, 'failed-precondition');
         });
+
+        // CodeRabbit feedback (PR #9): the idle-gate must default-
+        // DENY — an absent `isAvailable` field is treated as offline.
+        it('rejects when provider.isAvailable is undefined (default-deny)', () => {
+            const plan = planAssignMedicalProvider({
+                callerUid: PROVIDER,
+                providerId: PROVIDER,
+                request: { status: 'pending', triageLevel: 'green' },
+                provider: {
+                    status: 'active',
+                    emtLevel: 'first_responder',
+                    // isAvailable intentionally omitted
+                },
+            });
+            expectFail(plan, 'failed-precondition');
+        });
     });
 
     describe('invariant 6 — EMT level matches triage level', () => {
@@ -136,7 +152,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'red' },
-                provider: { status: 'active', emtLevel: 'first_responder' },
+                provider: { status: 'active', emtLevel: 'first_responder', isAvailable: true },
             });
             expectFail(plan, 'failed-precondition');
             expect(plan.message).toContain('not suitable');
@@ -147,7 +163,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'red' },
-                provider: { status: 'active', emtLevel: 'emt_basic' },
+                provider: { status: 'active', emtLevel: 'emt_basic', isAvailable: true },
             });
             expectFail(plan, 'failed-precondition');
         });
@@ -157,7 +173,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'red' },
-                provider: { status: 'active', emtLevel: 'emt_intermediate' },
+                provider: { status: 'active', emtLevel: 'emt_intermediate', isAvailable: true },
             });
             expectOk(plan);
         });
@@ -167,7 +183,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'red' },
-                provider: { status: 'active', emtLevel: 'emt_paramedic' },
+                provider: { status: 'active', emtLevel: 'emt_paramedic', isAvailable: true },
             });
             expectOk(plan);
         });
@@ -177,7 +193,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'yellow' },
-                provider: { status: 'active', emtLevel: 'emt_basic' },
+                provider: { status: 'active', emtLevel: 'emt_basic', isAvailable: true },
             });
             expectOk(plan);
         });
@@ -187,7 +203,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'green' },
-                provider: { status: 'active', emtLevel: 'first_responder' },
+                provider: { status: 'active', emtLevel: 'first_responder', isAvailable: true },
             });
             expectOk(plan);
         });
@@ -199,7 +215,7 @@ describe('planAssignMedicalProvider (audit-v2 §N-CRIT-4)', () => {
                 callerUid: PROVIDER,
                 providerId: PROVIDER,
                 request: { status: 'pending', triageLevel: 'green' },
-                provider: { status: 'active', emtLevel: 'first_responder' },
+                provider: { status: 'active', emtLevel: 'first_responder', isAvailable: true },
             });
             expectOk(plan);
         });

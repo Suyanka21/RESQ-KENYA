@@ -445,6 +445,41 @@ describe('users/{userId} rules (audit-v2 §N-HIGH-2)', () => {
             loyaltyPoints: 0,
         }));
     });
+
+    // CodeRabbit feedback (PR #9): drop `phone` from the create allow-
+    // list (standardise on `phoneNumber`).
+    it('owner CANNOT create with the deprecated `phone` field', async () => {
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            id: CUSTOMER,
+            displayName: 'New User',
+            phone: '+254700000005', // dropped from allow-list
+            membership: 'basic',
+        }));
+    });
+
+    // CodeRabbit feedback (PR #9): if `id` is supplied it must equal
+    // the doc path.
+    it('owner CANNOT create with a spoofed `id` mismatching the doc path', async () => {
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertFails(setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            id: 'someone-else-uid',
+            displayName: 'New User',
+            phoneNumber: '+254700000006',
+            membership: 'basic',
+        }));
+    });
+
+    it('owner CAN create with `id` equal to the doc path', async () => {
+        const ctx = env.authenticatedContext(CUSTOMER);
+        await assertSucceeds(setDoc(doc(ctx.firestore(), `users/${CUSTOMER}`), {
+            id: CUSTOMER,
+            displayName: 'New User',
+            phoneNumber: '+254700000007',
+            membership: 'basic',
+            loyaltyPoints: 0,
+        }));
+    });
 });
 
 /* ------------------------------------------------------------------ */
