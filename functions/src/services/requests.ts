@@ -667,14 +667,37 @@ async function processRetryDoc(
         `[dispatch.retry] attempted requestId=${requestId} ` +
         `serviceType=${serviceType} attemptNo=${currentRetryCount + 1}`
     );
-    await notifyNearbyProviders(
-        requestId,
-        data.serviceType,
-        coords.latitude,
-        coords.longitude,
-        currentRetryCount
-    );
-    return 'retried';
+    // CodeRabbit feedback (PR #10): the cancellation branch above is
+    // wrapped in try/catch, but the retry branch wasn't —
+    // `notifyNearbyProviders` is internally defensive today, but if
+    // it ever did throw (Firestore transient, FCM quota), the
+    // unhandled rejection would propagate to the chunk's
+    // `Promise.all`, discarding results from the other 4 rows in
+    // that chunk for the rest of the tick. Wrap and return
+    // `'skipped'` so each row stays isolated. Logged with full
+    // context so an operator can correlate the failure to a single
+    // requestId/serviceType/attempt.
+    //
+    // Skills: TRUSTLESS-AUDITOR (one bad row must not poison the
+    // rest of the chunk), Debugging-and-Error-Recovery (preserve
+    // diagnostic context — requestId, serviceType, attemptNo).
+    try {
+        await notifyNearbyProviders(
+            requestId,
+            data.serviceType,
+            coords.latitude,
+            coords.longitude,
+            currentRetryCount
+        );
+        return 'retried';
+    } catch (retryError) {
+        console.error(
+            `[dispatch.retry] unexpected error requestId=${requestId} ` +
+            `serviceType=${serviceType} attemptNo=${currentRetryCount + 1}`,
+            retryError
+        );
+        return 'skipped';
+    }
 }
 
 /**
