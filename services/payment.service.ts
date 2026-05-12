@@ -146,24 +146,60 @@ export async function queryPaymentStatus(checkoutRequestID: string): Promise<Pay
 }
 
 /**
- * Subscribe to payment status updates in real-time
+ * Phase 4 (audit-v2 §N-CRIT-5) — subscribe to the live status of an
+ * STK push.
+ *
+ * The `payment_requests` collection is keyed by **idempotencyKey**
+ * (see `functions/src/mpesa/stkPush.ts` and
+ * `functions/src/mpesa/callback.ts`), not by the customer-facing
+ * `requestId`. The pre-fix wrapper passed `requestId` here, which
+ * meant the customer's UI could never observe the real M-Pesa
+ * outcome — it had to rely on the local `setTimeout` fake-success
+ * path that the audit flagged as a "shows fake state" bug. Now the
+ * argument name matches the storage key and the UI gets the real
+ * server status as soon as the M-Pesa callback writes it.
+ *
+ * Skills: API-and-Interface-Design (parameter name matches storage
+ * contract), Source-Driven Development (Firestore `payment_requests`
+ * schema is the single source of truth).
  */
 export function subscribeToPaymentStatus(
-    requestId: string,
-    callback: (status: PaymentStatusResult) => void
+    idempotencyKey: string,
+    callback: (status: PaymentStatusResult) => void,
+    onError?: (error: Error) => void
 ): () => void {
-    const paymentRef = doc(db, 'payment_requests', requestId);
+    const paymentRef = doc(db, 'payment_requests', idempotencyKey);
 
-    return onSnapshot(paymentRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            callback({
-                status: data.status as PaymentStatus,
-                mpesaReceiptNumber: data.mpesaReceiptNumber,
-                transactionDate: data.transactionDate,
-            });
+    // CodeRabbit feedback (PR #9): `onSnapshot` swallows listener
+    // errors when no error callback is provided. If the security rule
+    // ever denies the read (e.g. the M-Pesa callback writes the row
+    // under a slightly different uid path), the customer just stares
+    // at the spinner until the 90s timeout. Forward the error so
+    // PaymentModal can show an actionable failure instead.
+    //
+    // Skills: API-and-Interface-Design (every async surface gets an
+    // error channel), TRUSTLESS-AUDITOR (silent failures are the
+    // worst kind on a payment screen).
+    return onSnapshot(
+        paymentRef,
+        (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                callback({
+                    status: data.status as PaymentStatus,
+                    mpesaReceiptNumber: data.mpesaReceiptNumber,
+                    transactionDate: data.transactionDate,
+                });
+            }
+        },
+        (error) => {
+            // Default: log only — never throw across the listener
+            // boundary. Callers can opt-in to a richer reaction
+            // (failure state, retry button) by supplying `onError`.
+            console.warn('[payment.subscribe] listener error:', error.message);
+            if (onError) onError(error);
         }
-    });
+    );
 }
 
 /**

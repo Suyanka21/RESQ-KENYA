@@ -16,6 +16,7 @@ import TrackingMap from '../../../../components/maps/TrackingMap';
 import ProgressSteps from '../../../../components/tracking/ProgressSteps';
 import type { Step } from '../../../../components/tracking/ProgressSteps';
 import { colors, spacing } from '../../../../theme/voltage-premium';
+import { useRequestTracking, useStatusNavigation } from '../../../../hooks/useRequestTracking';
 
 interface UpdateItem {
     id: number;
@@ -26,8 +27,19 @@ interface UpdateItem {
 
 export default function InProgressScreen() {
     const insets = useSafeAreaInsets();
-    const params = useLocalSearchParams<{ serviceType?: string; price?: string }>();
+    const params = useLocalSearchParams<{ serviceType?: string; price?: string; requestId?: string }>();
     const serviceType = params.serviceType || 'Service Request';
+    const requestId = params.requestId;
+
+    // Phase 4 (audit-v2 §F-CRIT-2) — advance to /complete only when
+    // the backend transitions status to `completed`. Pre-fix the
+    // "Mark complete" button locally jumped routes regardless of
+    // the server state.
+    const { request } = useRequestTracking(requestId);
+    useStatusNavigation(request?.status, 'in-progress', requestId, {
+        serviceType: String(serviceType),
+        price: String(params.price || ''),
+    });
 
     const [elapsed, setElapsed] = useState(0);
     const [updates, setUpdates] = useState<UpdateItem[]>([
@@ -90,10 +102,14 @@ export default function InProgressScreen() {
         );
     };
 
+    // Phase 4 (audit-v2 §F-CRIT-2) — dev-only fallback so emulator
+    // testing can advance the screen without a real provider
+    // flipping status. Hidden in production builds.
     const handleCompleteDemo = () => {
+        if (!__DEV__) return;
         router.replace({
             pathname: '/(customer)/request/tracking/complete',
-            params: { serviceType, price: params.price },
+            params: { serviceType, price: params.price, requestId: requestId ?? '' },
         });
     };
 

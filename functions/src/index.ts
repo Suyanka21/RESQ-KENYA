@@ -16,6 +16,11 @@ export {
     createServiceRequest,
     acceptServiceRequest,
     updateRequestStatus,
+    // Phase 4 (audit-v2 §N-HIGH-7) — dispatch retry worker. Picks up
+    // requests stuck in `dispatch.status in ['failed','no_providers']`,
+    // re-runs the dispatcher up to DISPATCH_MAX_RETRIES, then
+    // transitions to `cancelled` with a customer notification.
+    retryFailedDispatches,
 } from './services/requests';
 
 // Phase 3: Real-time tracking trigger + daily earnings reset
@@ -29,6 +34,12 @@ export {
     deleteEmergencyContact,
 } from './users/emergencyContacts';
 export { topupWallet, deductWallet, getWalletBalance } from './wallet/wallet';
+
+// Phase 4 (audit-v2 §N-MED-7) — SOS event logging callable.
+export { triggerEmergencySOS } from './users/sosEvents';
+
+// Phase 4 (audit-v2 §N-MED-8) — Owned `fcmToken` write path.
+export { setFcmToken } from './users/fcmToken';
 
 // Provider Functions
 export {
@@ -49,6 +60,7 @@ export {
     createEmergencyRequest,
     findNearestMedicalProviders,
     assignMedicalProvider,
+    onEmergencyRequestStatusChange,
     notifyNearbyHospitals
 } from './medical/dispatch';
 

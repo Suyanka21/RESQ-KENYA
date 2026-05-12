@@ -36,8 +36,14 @@ const db = admin.firestore();
 /* ───────────────────── Pure validation helpers ───────────────────── */
 
 export { VALID_STATUS_TRANSITIONS, isAllowedStatusTransition } from '../shared/status';
-import { isAllowedStatusTransition } from '../shared/status';
+import { planRequestStatusUpdate } from '../shared/status';
 import { idempotencyDocId as sharedIdempotencyDocId } from '../shared/crypto';
+import { estimateETA } from '../shared/eta';
+import {
+    planAcceptServiceRequest,
+    type AcceptRequestRejectionCode,
+} from '../shared/acceptRequestPlanner';
+import { resolveDispatchRadiusKm } from '../shared/dispatchRadius';
 
 /** Shape-check the create-request input. Returns null if valid. */
 export function validateCreateRequestInput(
@@ -243,10 +249,18 @@ async function notifyNearbyProviders(
     serviceType: string,
     latitude: number,
     longitude: number,
-    radiusKm: number = 15
+    /**
+     * Phase 4 (audit-v2 §N-MED-3 + §N-MED-9) — `retryCount` defaults
+     * to 0 (first attempt). The retry worker passes the request's
+     * `dispatch.retryCount` so the radius widens on each attempt.
+     * The PER-SERVICE baseline + widening schedule lives in
+     * `../shared/dispatchRadius.ts`. Do not hardcode radii here.
+     */
+    retryCount: number = 0
 ): Promise<void> {
     const requestRef = db.collection('requests').doc(requestId);
     const now = admin.firestore.FieldValue.serverTimestamp();
+    const radiusKm = resolveDispatchRadiusKm(serviceType, retryCount);
 
     try {
         const center = [latitude, longitude] as [number, number];
@@ -290,14 +304,21 @@ async function notifyNearbyProviders(
         }
 
         if (providerTokens.length === 0) {
+            // CodeRabbit feedback (PR #9): incrementing retryCount by 0
+            // was a no-op that left stuck rows churning forever at the
+            // same radius. Increment by 1 so the retry worker can
+            // observe progress and eventually flip the row to
+            // `cancelled` once DISPATCH_MAX_RETRIES is reached.
             await requestRef.update({
                 'dispatch.status': DISPATCH_STATUS.NoProviders,
                 'dispatch.notifiedCount': 0,
                 'dispatch.lastAttemptAt': now,
-                'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
+                'dispatch.radiusKm': radiusKm,
+                'dispatch.retryCount': admin.firestore.FieldValue.increment(1),
             });
             console.log(
-                `[dispatch] no_providers requestId=${requestId} serviceType=${serviceType}`
+                `[dispatch] no_providers requestId=${requestId} ` +
+                `serviceType=${serviceType} radiusKm=${radiusKm}`
             );
             return;
         }
@@ -332,10 +353,12 @@ async function notifyNearbyProviders(
             'dispatch.status': DISPATCH_STATUS.Notified,
             'dispatch.notifiedCount': providerTokens.length,
             'dispatch.lastAttemptAt': now,
+            'dispatch.radiusKm': radiusKm,
             'dispatch.retryCount': admin.firestore.FieldValue.increment(0),
         });
         console.log(
-            `[dispatch] notified=${providerTokens.length} requestId=${requestId}`
+            `[dispatch] notified=${providerTokens.length} ` +
+            `requestId=${requestId} radiusKm=${radiusKm}`
         );
     } catch (dispatchError: unknown) {
         const message = dispatchError instanceof Error ? dispatchError.message : 'unknown';
@@ -359,6 +382,197 @@ async function notifyNearbyProviders(
 }
 
 /**
+ * Phase 4 (audit-v2 §N-HIGH-7) — dispatch retry worker.
+ *
+ * `notifyNearbyProviders` already persists a structured failure
+ * marker (`dispatch.status = 'failed' | 'no_providers'`,
+ * `dispatch.retryCount`, `dispatch.lastError`) so a future scheduled
+ * worker can pick up the row and try again. The pre-fix audit found
+ * NO such worker — a request that landed in `dispatch.status='failed'`
+ * was permanently stuck, visible only as "still searching" forever
+ * to the customer, with no notification, no retry, no surfaced error.
+ *
+ * This worker:
+ *   - runs every 2 minutes (Firebase Scheduler minimum granularity)
+ *   - scans `requests` where `dispatch.status in ['failed','no_providers']`
+ *     AND `dispatch.retryCount < DISPATCH_MAX_RETRIES` AND request
+ *     `status === 'pending'` (still un-accepted)
+ *   - re-runs `notifyNearbyProviders` for each row, which will either
+ *     succeed (status → 'notified') or bump `retryCount` again
+ *   - after `DISPATCH_MAX_RETRIES`, transitions the request to a
+ *     terminal `cancelled` status with a customer-facing notification
+ *     so the user is no longer left stranded
+ *   - paginates so a backlog cannot exceed Firestore's per-query cost
+ *
+ * Limit: this is a *retry* worker, not a Cloud Tasks queue. Per-row
+ * backoff is implicit (the worker only re-runs once per 2-minute tick).
+ * A future Cloud Tasks implementation can extend `DISPATCH_STATUS`
+ * with a `pending_retry` state and use scheduled-time queueing.
+ *
+ * Skills: Source-Driven-Development (Firebase Scheduled Functions
+ * docs: https://firebase.google.com/docs/functions/schedule-functions),
+ * Security-and-Hardening (bounded retries + terminal cancellation so
+ * a request never silently hangs), Code-Review-and-Quality (single
+ * source of truth for max retries + customer-facing terminal state).
+ */
+const DISPATCH_MAX_RETRIES = 3;
+const DISPATCH_RETRY_PAGE_SIZE = 20;
+const DISPATCH_RETRY_MAX_PAGES = 10;
+
+export const retryFailedDispatches = functions.pubsub
+    .schedule('every 2 minutes')
+    .onRun(async () => {
+        // Query for rows that still need a provider, where the
+        // dispatcher previously failed (or simply found nobody) AND
+        // we haven't burnt our retry budget yet.
+        //
+        // We scan 'failed' and 'no_providers' separately because
+        // Firestore's `in` operator is fine but combining with another
+        // `<` requires the right composite index; doing two simple
+        // queries keeps the deploy path index-free.
+        const retryableStatuses = [
+            DISPATCH_STATUS.Failed,
+            DISPATCH_STATUS.NoProviders,
+        ];
+
+        let totalRetried = 0;
+        let totalCancelled = 0;
+
+        for (const status of retryableStatuses) {
+            let pages = 0;
+            // CodeRabbit feedback (PR #9): the loop previously kept
+            // re-fetching the same 20 rows because there was no
+            // pagination cursor. With the retryCount-increment fix
+            // above the rows do eventually drain (rolling off the
+            // status filter once they hit MAX_RETRIES and flip to
+            // 'cancelled'), but driving pagination via `startAfter`
+            // is the canonical Firestore pattern and guarantees
+            // forward progress even before retryCount changes
+            // propagate.
+            //
+            // Skills: Source-Driven Development (Firestore pagination
+            // docs), TRUSTLESS-AUDITOR (a worker that re-processes
+            // the same rows is the textbook DoS-on-self pattern).
+            let cursor: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+            while (pages < DISPATCH_RETRY_MAX_PAGES) {
+                let query = db.collection('requests')
+                    .where('status', '==', 'pending')
+                    .where('dispatch.status', '==', status)
+                    .orderBy('createdAt', 'asc')
+                    .limit(DISPATCH_RETRY_PAGE_SIZE);
+                if (cursor) {
+                    query = query.startAfter(cursor);
+                }
+                const page = await query.get();
+
+                if (page.empty) break;
+
+                cursor = page.docs[page.docs.length - 1];
+
+                for (const doc of page.docs) {
+                    const data = doc.data();
+                    const retryCount = (data.dispatch?.retryCount ?? 0) as number;
+                    const requestId = doc.id;
+
+                    if (retryCount >= DISPATCH_MAX_RETRIES) {
+                        // Terminal: transition to 'cancelled' so the
+                        // customer's listener can flip the UI to a
+                        // recoverable error state rather than "still
+                        // searching" forever.
+                        try {
+                            await doc.ref.update({
+                                status: 'cancelled',
+                                'dispatch.status': DISPATCH_STATUS.Failed,
+                                cancellationReason: 'no_provider_found',
+                                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                            totalCancelled += 1;
+
+                            // Best-effort customer notification. Wrapped so
+                            // a missing FCM token does not block other rows.
+                            try {
+                                const userDoc = await db.collection('users')
+                                    .doc(data.userId)
+                                    .get();
+                                const fcmToken = userDoc.data()?.fcmToken;
+                                if (fcmToken) {
+                                    await admin.messaging().send({
+                                        token: fcmToken,
+                                        notification: {
+                                            title: 'No provider available',
+                                            body:
+                                                'We could not find a provider for your request. ' +
+                                                'Please try again or contact support.',
+                                        },
+                                        data: {
+                                            type: 'request_cancelled',
+                                            requestId,
+                                            reason: 'no_provider_found',
+                                        },
+                                    });
+                                }
+                            } catch (notifyError) {
+                                console.warn(
+                                    `[retryFailedDispatches] notify failed requestId=${requestId}`,
+                                    notifyError
+                                );
+                            }
+                        } catch (cancelError) {
+                            console.error(
+                                `[retryFailedDispatches] cancel failed requestId=${requestId}`,
+                                cancelError
+                            );
+                        }
+                        continue;
+                    }
+
+                    // Retry path: re-run the dispatcher. It will bump
+                    // retryCount via FieldValue.increment(1) on its own
+                    // failure path, or flip status → 'notified' on
+                    // success.
+                    const coords = data.customerLocation?.coordinates;
+                    if (
+                        !coords ||
+                        typeof coords.latitude !== 'number' ||
+                        typeof coords.longitude !== 'number' ||
+                        typeof data.serviceType !== 'string'
+                    ) {
+                        console.warn(
+                            `[retryFailedDispatches] missing fields, skipping requestId=${requestId}`
+                        );
+                        continue;
+                    }
+                    // Phase 4 (audit-v2 §N-MED-9) — pass the row's
+                    // current retryCount so dispatch widens its
+                    // radius on each attempt per the policy in
+                    // `../shared/dispatchRadius.ts`.
+                    const currentRetryCount = typeof data.dispatch?.retryCount === 'number'
+                        ? data.dispatch.retryCount
+                        : 0;
+                    await notifyNearbyProviders(
+                        requestId,
+                        data.serviceType,
+                        coords.latitude,
+                        coords.longitude,
+                        currentRetryCount
+                    );
+                    totalRetried += 1;
+                }
+
+                pages += 1;
+                if (page.size < DISPATCH_RETRY_PAGE_SIZE) break;
+            }
+        }
+
+        if (totalRetried > 0 || totalCancelled > 0) {
+            console.log(
+                `[retryFailedDispatches] retried=${totalRetried} cancelled=${totalCancelled}`
+            );
+        }
+        return null;
+    });
+
+/**
  * Cloud Function: Accept Service Request.
  *
  * Phase 3 (B-CRIT-5) hardening: the transaction now reads the calling
@@ -375,6 +589,32 @@ async function notifyNearbyProviders(
  * enforcement), API-and-Interface-Design (clear failure codes per
  * invariant via HttpsError so client can react sensibly).
  */
+/**
+ * Map planner rejection codes back to the canonical `HttpsError` code
+ * the live callable used before extraction. Keeping this mapping in
+ * the callable (not the planner) means the planner stays free of any
+ * firebase-functions / admin SDK coupling — TDD-friendly.
+ */
+function rejectionCodeToHttpsErrorCode(code: AcceptRequestRejectionCode):
+    functions.https.FunctionsErrorCode {
+    switch (code) {
+        case 'unauthenticated':
+            return 'unauthenticated';
+        case 'invalid-argument':
+            return 'invalid-argument';
+        case 'not-found':
+            return 'not-found';
+        case 'permission-denied':
+        case 'not-verified':
+            return 'permission-denied';
+        case 'already-assigned':
+        case 'not-online':
+        case 'service-type-mismatch':
+        case 'already-busy':
+            return 'failed-precondition';
+    }
+}
+
 export const acceptServiceRequest = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
@@ -392,87 +632,38 @@ export const acceptServiceRequest = functions.https.onCall(async (data, context)
         const providerRef = db.collection('providers').doc(providerId);
 
         // Use transaction to prevent race conditions and to enforce the
-        // five invariants atomically with the assignment write.
+        // five invariants atomically with the assignment write. The
+        // invariant decisions themselves live in the pure planner
+        // `planAcceptServiceRequest` (functions/src/shared/...) so they
+        // can be unit-tested without an emulator (audit-v2 §N-HIGH-9).
         await db.runTransaction(async (transaction) => {
             const [requestDoc, providerDoc] = await Promise.all([
                 transaction.get(requestRef),
                 transaction.get(providerRef),
             ]);
 
-            if (!requestDoc.exists) {
-                throw new functions.https.HttpsError('not-found', 'Request not found');
-            }
-            if (!providerDoc.exists) {
-                throw new functions.https.HttpsError(
-                    'permission-denied',
-                    'Caller is not registered as a provider'
-                );
-            }
-
-            const requestData = requestDoc.data()!;
-            const providerData = providerDoc.data()!;
-
-            // (5) Request must still be pending.
-            if (requestData.status !== 'pending') {
-                throw new functions.https.HttpsError('failed-precondition', 'Request already assigned');
-            }
-
-            // (1) Verification gate.
-            if (providerData.verificationStatus !== 'verified') {
-                throw new functions.https.HttpsError(
-                    'permission-denied',
-                    'Provider is not verified'
-                );
-            }
-
-            // (2) Online gate.
-            const availability = (providerData.availability ?? {}) as {
-                isOnline?: boolean;
-                currentRequestId?: string | null;
-            };
-            if (availability.isOnline !== true) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    'Provider is not online'
-                );
-            }
-
-            // (3) Service-type gate.
-            const serviceTypes = Array.isArray(providerData.serviceTypes)
-                ? (providerData.serviceTypes as unknown[])
-                : [];
-            if (!serviceTypes.includes(requestData.serviceType)) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    'Provider does not offer this service type'
-                );
-            }
-
-            // (4) Idle gate — reject if already on another job.
-            if (
-                typeof availability.currentRequestId === 'string' &&
-                availability.currentRequestId.length > 0 &&
-                availability.currentRequestId !== requestId
-            ) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    'Provider already has an active request'
-                );
-            }
-
-            // Assign provider to request.
-            transaction.update(requestRef, {
+            const plan = planAcceptServiceRequest({
+                requestId,
                 providerId,
-                status: 'accepted',
+                request: requestDoc.exists ? (requestDoc.data() ?? null) : null,
+                provider: providerDoc.exists ? (providerDoc.data() ?? null) : null,
+            });
+
+            if (plan.kind === 'reject') {
+                throw new functions.https.HttpsError(
+                    rejectionCodeToHttpsErrorCode(plan.code),
+                    plan.message
+                );
+            }
+
+            // Apply the planner's accept patches inside the same txn.
+            transaction.update(requestRef, {
+                providerId: plan.requestUpdate.providerId,
+                status: plan.requestUpdate.status,
                 'timeline.acceptedAt': admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
-            // Pin the provider to the request so a second concurrent
-            // accept call observes invariant (4).
-            transaction.update(providerRef, {
-                'availability.currentRequestId': requestId,
-            });
+            transaction.update(providerRef, plan.providerUpdate);
         });
 
         // Get customer FCM token and notify
@@ -486,11 +677,65 @@ export const acceptServiceRequest = functions.https.onCall(async (data, context)
             const providerDoc = await db.collection('providers').doc(providerId).get();
             const providerData = providerDoc.data();
 
+            // Phase 4 (audit-v2 §N-HIGH-4) — derive ETA from real
+            // distance (geohash-driven) plus a configurable urban
+            // average speed, instead of a uniformly-random 8-20 min
+            // integer. The earlier `estimateETA()` had ZERO correlation
+            // with provider distance and was the audit's textbook
+            // "fake number, trust collapses on first mismatch" finding.
+            //
+            // We also persist the result to `requests/{id}.eta.{minutes,
+            // distanceKm, computedAt}` so the customer's live
+            // subscription can render the same number that goes into
+            // the FCM body — single source of truth, no drift between
+            // notification text and tracking screen.
+            const providerLoc = providerData?.availability?.currentLocation;
+            const customerLoc = requestData.customerLocation?.coordinates;
+            const distanceKm = (
+                providerLoc &&
+                typeof providerLoc.latitude === 'number' &&
+                typeof providerLoc.longitude === 'number' &&
+                customerLoc &&
+                typeof customerLoc.latitude === 'number' &&
+                typeof customerLoc.longitude === 'number'
+            )
+                ? geofire.distanceBetween(
+                    [providerLoc.latitude, providerLoc.longitude],
+                    [customerLoc.latitude, customerLoc.longitude]
+                )
+                : null;
+            if (distanceKm === null) {
+                console.warn(
+                    `[eta] distance unknown for requestId=${requestId} ` +
+                    'provider/customer coords missing; using fallback ETA'
+                );
+            }
+            const etaMinutes = estimateETA(distanceKm);
+
+            try {
+                await requestRef.update({
+                    eta: {
+                        minutes: etaMinutes,
+                        distanceKm: distanceKm,
+                        computedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                });
+            } catch (etaPersistError) {
+                // Non-fatal: the FCM message still goes out with the
+                // ETA value the function used. Worst case the live
+                // subscription shows nothing until the next status
+                // change writes again.
+                const message = etaPersistError instanceof Error
+                    ? etaPersistError.message
+                    : 'unknown';
+                console.warn('[eta] persist failed (non-fatal):', message);
+            }
+
             await admin.messaging().send({
                 token: fcmToken,
                 notification: {
                     title: 'Provider Found! 🎉',
-                    body: `${providerData?.displayName || 'A provider'} is on the way. ETA: ~${estimateETA()} mins`,
+                    body: `${providerData?.displayName || 'A provider'} is on the way. ETA: ~${etaMinutes} mins`,
                 },
                 data: {
                     type: 'request_accepted',
@@ -545,23 +790,13 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
             }
             const current = snap.data() as { status: string; providerId?: string; userId?: string };
 
-            // Authorization: provider for non-cancel transitions; customer
-            // may only cancel their own request.
-            if (status === 'cancelled') {
-                if (current.userId !== callerUid && current.providerId !== callerUid) {
-                    throw new functions.https.HttpsError('permission-denied', 'Not your request');
-                }
-            } else {
-                if (current.providerId !== callerUid) {
-                    throw new functions.https.HttpsError('permission-denied', 'Only the assigned provider may update status');
-                }
-            }
-
-            if (!isAllowedStatusTransition(current.status, status)) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    `Cannot transition from ${current.status} to ${status}`
-                );
+            // Pure decision helper — runs auth, transition graph, and
+            // (audit-v2 §N-CRIT-1) decides whether to release the
+            // provider on terminal transitions. Tests live next to the
+            // helper, not the wiring.
+            const plan = planRequestStatusUpdate(current, status, callerUid);
+            if (!plan.ok) {
+                throw new functions.https.HttpsError(plan.code, plan.message);
             }
 
             transaction.update(requestRef, {
@@ -569,6 +804,17 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 [`timeline.${status}At`]: admin.firestore.FieldValue.serverTimestamp(),
             });
+
+            // Release the provider on terminal transitions so the dispatch
+            // pool isn't single-use per provider (audit-v2 §N-CRIT-1).
+            // Without this, the idle invariant in `acceptServiceRequest`
+            // rejects the same provider's next accept forever.
+            if (plan.releaseProvider && current.providerId) {
+                const providerRef = db.collection('providers').doc(current.providerId);
+                transaction.update(providerRef, {
+                    'availability.currentRequestId': admin.firestore.FieldValue.delete(),
+                });
+            }
         });
 
         // Notify customer of status change
@@ -612,11 +858,6 @@ export const updateRequestStatus = functions.https.onCall(async (data, context) 
     }
 });
 
-/**
- * Helper: Estimate ETA (simple version)
- */
-function estimateETA(): number {
-    // Random between 8-20 minutes for now
-    // TODO: Calculate based on actual distance
-    return Math.floor(Math.random() * 12) + 8;
-}
+// Phase 4 (audit-v2 §N-HIGH-4) — `estimateETA` extracted to
+// `../shared/eta.ts` so it can be unit-tested without bootstrapping the
+// firebase-admin SDK. Imported at the top of this file.

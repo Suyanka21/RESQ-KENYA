@@ -1,7 +1,7 @@
 // ResQ Kenya - Emergency SOS Component
 // One-tap emergency button with Kenya emergency numbers
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -65,6 +65,19 @@ export default function EmergencySOS({
         return () => pulse.stop();
     }, []);
 
+    // Phase 4 (audit-v2 §N-LOW-2) — triggerEmergency hoisted into a
+    // useCallback so it can be listed in the countdown effect's
+    // dependency array without triggering a re-run every render.
+    // Pre-fix: the effect omitted triggerEmergency from its deps,
+    // exhaustive-deps lint was silenced, and any future change to
+    // triggerEmergency could capture stale state.
+    const triggerEmergency = useCallback(() => {
+        setIsCountingDown(false);
+        setShowModal(false);
+        Vibration.vibrate([0, 1000]); // Long vibration
+        onEmergencyTrigger(selectedType);
+    }, [onEmergencyTrigger, selectedType]);
+
     // Countdown effect
     useEffect(() => {
         if (isCountingDown && countdown > 0) {
@@ -84,7 +97,7 @@ export default function EmergencySOS({
                 clearTimeout(countdownTimer.current);
             }
         };
-    }, [isCountingDown, countdown]);
+    }, [isCountingDown, countdown, triggerEmergency]);
 
     const handleSOSPress = () => {
         if (disabled) return;
@@ -105,13 +118,6 @@ export default function EmergencySOS({
         if (countdownTimer.current) {
             clearTimeout(countdownTimer.current);
         }
-    };
-
-    const triggerEmergency = () => {
-        setIsCountingDown(false);
-        setShowModal(false);
-        Vibration.vibrate([0, 1000]); // Long vibration
-        onEmergencyTrigger(selectedType);
     };
 
     const callEmergencyNumber = async (number: string) => {
@@ -194,6 +200,18 @@ export default function EmergencySOS({
                                     </TouchableOpacity>
                                 </View>
 
+                                {/* Phase 4 (audit-v2 §N-MED-7) — disclaimer:
+                                    automatic contact fan-out is not yet
+                                    implemented. The SOS records server-side
+                                    and dials the configured emergency line,
+                                    but it does NOT yet notify the user's
+                                    listed emergency contacts. */}
+                                <Text style={styles.sosDisclaimer}>
+                                    Tapping SOS dials emergency services and
+                                    records the event. Your listed contacts
+                                    are not yet auto-notified.
+                                </Text>
+
                                 {/* Quick Call Buttons */}
                                 <View style={styles.quickCallSection}>
                                     <Text style={styles.quickCallTitle}>Quick Call</Text>
@@ -218,8 +236,14 @@ export default function EmergencySOS({
                                             style={styles.quickCallButton}
                                             onPress={() => callEmergencyNumber(KENYA_EMERGENCY_NUMBERS.gsmStandard)}
                                         >
+                                            {/* Phase 4 (audit-v2 §N-LOW-3) —
+                                                "GSM Emergency" is meaningless to
+                                                a panicked user. "Mobile Emergency"
+                                                is plain language; 112 is the
+                                                international GSM-network code that
+                                                works without SIM/credit. */}
                                             <Text style={styles.quickCallNumber}>112</Text>
-                                            <Text style={styles.quickCallLabel}>GSM Emergency</Text>
+                                            <Text style={styles.quickCallLabel}>Mobile Emergency</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -337,6 +361,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         marginTop: spacing.sm,
+    },
+    sosDisclaimer: {
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.sm,
+        fontSize: 11,
+        lineHeight: 15,
+        color: colors.text.muted,
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
     quickCallSection: {
         marginTop: spacing.md,

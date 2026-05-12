@@ -29,6 +29,65 @@ export { summariseStatusChange } from '../shared/status';
 import { summariseStatusChange } from '../shared/status';
 
 /**
+ * Phase 4 (audit-v2 §N-CRIT-2 / §N-HIGH-8) — pure builder for the
+ * `activeRequests/{requestId}` seed node.
+ *
+ * The RTDB rule at `database.rules.json:8` requires the node to expose
+ * a `customerId` field so the customer's own read can be authorized
+ * (`data.child('customerId').val() === auth.uid`). Before this commit
+ * the trigger never wrote that field, so the customer's tracking
+ * subscription was silently denied — an unrecoverable failure path
+ * (audit-v2 §N-CRIT-2). The rules tests, in turn, seeded the node
+ * via `withSecurityRulesDisabled` *with* a `customerId` — exercising
+ * a state production never produced (audit-v2 §N-HIGH-8 / §X-2). The
+ * fix on both is to flow the production seed shape through one
+ * builder that is used by the trigger AND imported by the rules
+ * tests.
+ *
+ * Source: Realtime Database security rules require `customerId` for
+ * the per-user read, see
+ * https://firebase.google.com/docs/database/security/rules-conditions
+ *
+ * Skills: Source-Driven Development (RTDB rule semantics from official
+ * docs), API-and-Interface-Design (single source of truth for the
+ * RTDB seed shape), TDD (helper is the unit-test surface).
+ */
+export interface ActiveRequestSeedInput {
+    requestId: string;
+    userId?: string | null;
+    providerId?: string | null;
+    status?: string | null;
+    customerLocation?: { latitude: number; longitude: number } | null;
+    providerLocation?: { latitude: number; longitude: number } | null;
+}
+
+export type ActiveRequestSeed = {
+    requestId: string;
+    customerId: string | null;
+    providerId: string | null;
+    status: string | null;
+    customerLocation: { latitude: number; longitude: number } | null;
+    providerLocation: { latitude: number; longitude: number } | null;
+    providerStale: false;
+};
+
+export function buildActiveRequestSeed(input: ActiveRequestSeedInput): ActiveRequestSeed {
+    const customerId =
+        typeof input.userId === 'string' && input.userId.length > 0 ? input.userId : null;
+    const providerId =
+        typeof input.providerId === 'string' && input.providerId.length > 0 ? input.providerId : null;
+    return {
+        requestId: input.requestId,
+        customerId,
+        providerId,
+        status: input.status ?? null,
+        customerLocation: input.customerLocation ?? null,
+        providerLocation: input.providerLocation ?? null,
+        providerStale: false,
+    };
+}
+
+/**
  * Firestore trigger on `requests/{requestId}` writes. Mirrors lifecycle
  * transitions into RTDB at `activeRequests/{requestId}`.
  */
@@ -40,6 +99,7 @@ export const onRequestStatusChange = functions.firestore
         const after = change.after.data() as {
             status?: string;
             providerId?: string;
+            userId?: string;
             providerLocation?: { latitude: number; longitude: number };
             customerLocation?: { coordinates?: { latitude: number; longitude: number } };
         } | undefined;
@@ -68,32 +128,45 @@ export const onRequestStatusChange = functions.firestore
             }
         }
 
-        // Only fire on the `pending → accepted` transition (kind === 'accepted').
-        // Use update() with explicit paths instead of set() so we never
-        // stomp the live `providerLocation` / `updatedAt` that
-        // `updateProviderLocation` writes continuously between status
-        // transitions (CodeRabbit PR #3, comment 10).
-        const seedNode: Record<string, unknown> = {
+        // (audit-v2 §N-CRIT-2) Build the seed node through the canonical
+        // builder so it always carries the `customerId` field that the
+        // RTDB rule predicates on. Server timestamp is appended after
+        // the build because it's a sentinel value, not part of the
+        // shape contract the rules tests assert.
+        const seed = buildActiveRequestSeed({
             requestId,
+            userId: after?.userId ?? null,
             providerId: after?.providerId ?? null,
             status: after?.status ?? null,
             customerLocation: after?.customerLocation?.coordinates ?? null,
-            providerStale: false,
+            providerLocation,
+        });
+        const seedNode: Record<string, unknown> = {
+            ...seed,
             updatedAt: admin.database.ServerValue.TIMESTAMP,
         };
-        // Only seed providerLocation if the RTDB node doesn't already
-        // have a fresher one written by updateProviderLocation. We do
-        // this with a transaction so the read+write is atomic.
+
+        // Only fire on the `pending → accepted` transition (kind === 'accepted').
+        // Use a transaction so we never stomp the live `providerLocation`
+        // that `updateProviderLocation` writes continuously between
+        // status transitions (CodeRabbit PR #3, comment 10).
         await rtdbRef.transaction((current: unknown) => {
             if (!current || typeof current !== 'object') {
-                return { ...seedNode, providerLocation };
+                return seedNode;
             }
             const existing = current as { providerLocation?: unknown };
             if (existing.providerLocation) {
-                // Keep the live location written by updateProviderLocation.
-                return { ...(current as object), ...seedNode };
+                // Keep the live location written by updateProviderLocation —
+                // copy every field of seedNode except `providerLocation`.
+                const merged: Record<string, unknown> = { ...(current as object) };
+                for (const key of Object.keys(seedNode)) {
+                    if (key !== 'providerLocation') {
+                        merged[key] = seedNode[key];
+                    }
+                }
+                return merged;
             }
-            return { ...(current as object), ...seedNode, providerLocation };
+            return { ...(current as object), ...seedNode };
         });
         return null;
     });

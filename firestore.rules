@@ -33,10 +33,92 @@ service cloud.firestore {
     // =============================================
     // USERS COLLECTION
     // =============================================
+    //
+    // Phase 4 (audit-v2 §N-HIGH-2) hardening: the previous rule was
+    // `allow update: if isAuthenticated() && isOwner(userId)` with
+    // **no field allow-list**, which let a logged-in user overwrite
+    // any field on their own user doc — including `role`,
+    // `wallet.balance`, `referralCredits`, `vehicles[]`, etc. The
+    // legacy `firestore.service.ts:addVehicle` shim (audit §N-HIGH-1)
+    // exploited that, writing to the deprecated `vehicles[]` array.
+    //
+    // The fix mirrors the `providers/{providerId}` allow-list
+    // pattern at firestore.rules:101-112: clients can only write
+    // profile-presentation fields. Privileged data (role, wallet,
+    // verification, balances) is server-authoritative.
+    //
+    // Skills: Security-and-Hardening (least privilege, default-deny
+    // on unspecified fields), API-and-Interface-Design (rule
+    // documents what the contract is, not what the client happens
+    // to send today).
     match /users/{userId} {
       allow read: if isAuthenticated() && isOwner(userId);
-      allow create: if isAuthenticated() && isOwner(userId);
-      allow update: if isAuthenticated() && isOwner(userId);
+
+      // Self-create on first sign-in. Restrict create-time fields
+      // to the safe initial subset and pin privileged values
+      // (membership = 'basic', loyaltyPoints = 0) so a malicious
+      // client cannot pre-seed `membership: 'gold'` or
+      // `loyaltyPoints: 999999`.
+      //
+      // CodeRabbit feedback (PR #9):
+      //   1. `phone` and `phoneNumber` both used to be in the allow-
+      //      list. The auth-service seed only writes `phoneNumber`
+      //      (Firebase Auth's canonical name); standardise on
+      //      `phoneNumber` to avoid schema drift.
+      //   2. If the client supplies an `id` field it MUST equal the
+      //      doc path — otherwise a caller could pre-seed a row with
+      //      a foreign id and confuse downstream readers.
+      allow create: if isAuthenticated()
+                    && isOwner(userId)
+                    && request.resource.data.keys().hasOnly([
+                         'id',
+                         'displayName',
+                         'photoUrl',
+                         'phoneNumber',
+                         'email',
+                         'fcmToken',
+                         'pushTokens',
+                         'preferredLanguage',
+                         'role',
+                         'membership',
+                         'loyaltyPoints',
+                         'createdAt',
+                         'updatedAt'
+                       ])
+                    && (
+                      !('id' in request.resource.data) ||
+                      request.resource.data.id == userId
+                    )
+                    && (
+                      !('role' in request.resource.data) ||
+                      request.resource.data.role in ['customer', 'provider']
+                    )
+                    && (
+                      !('membership' in request.resource.data) ||
+                      request.resource.data.membership == 'basic'
+                    )
+                    && (
+                      !('loyaltyPoints' in request.resource.data) ||
+                      request.resource.data.loyaltyPoints == 0
+                    );
+
+      // Self-update is restricted to profile-presentation fields.
+      // Vehicles, emergency contacts, saved locations, role,
+      // wallet, balances, referralCredits all flow through their
+      // dedicated callables and bypass these rules via admin SDK.
+      allow update: if isAuthenticated()
+                    && isOwner(userId)
+                    && affectedKeysAreSubsetOf([
+                         'displayName',
+                         'photoUrl',
+                         'phoneNumber',
+                         'email',
+                         'fcmToken',
+                         'pushTokens',
+                         'preferredLanguage',
+                         'updatedAt'
+                       ]);
+
       allow delete: if false;
 
       // ---- Vehicles subcollection (Phase 5) ----
@@ -181,6 +263,30 @@ service cloud.firestore {
     match /vehicles/{vehicleId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if false;
+    }
+
+    // =============================================
+    // SOS EVENTS — Phase 4 (audit-v2 §N-MED-7)
+    // =============================================
+    // Written exclusively by the `triggerEmergencySOS` callable
+    // (server-authoritative). Owner can read their own history;
+    // nobody can write directly. A future contact-fanout worker
+    // (server-side) updates `status` after dispatching.
+    //
+    // LISTING-QUERY REQUIREMENT (CodeRabbit feedback on PR #9):
+    // The read rule below evaluates `resource.data.userId` per
+    // document. Firestore rules engine therefore requires any client
+    // *list* query to constrain the query itself with the same
+    // predicate — i.e. callers MUST use
+    //   collection('sos_events').where('userId', '==', auth.uid)
+    // A bare `collection('sos_events').orderBy('createdAt')` will be
+    // rejected even though every returned doc would have matched,
+    // because the engine refuses to fan out evaluation across docs
+    // the client never proved access to up-front.
+    match /sos_events/{eventId} {
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false; // server-only via callable
     }
 
     // =============================================

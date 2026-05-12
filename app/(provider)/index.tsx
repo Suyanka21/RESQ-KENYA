@@ -16,10 +16,6 @@ import {
     setAvailability as setProviderAvailabilityCallable,
 } from '../../services/provider.service';
 import {
-    startProviderBroadcast,
-    stopProviderBroadcast
-} from '../../services/realtime.service';
-import {
     getCurrentLocation,
     startLocationUpdates,
     NAIROBI_DEFAULT
@@ -68,15 +64,14 @@ export default function ProviderDashboard() {
                 const location = await getCurrentLocation();
                 setCurrentLocation(location);
 
-                // Start broadcasting location
-                await startProviderBroadcast(
-                    MOCK_PROVIDER.id,
-                    location,
-                    MOCK_PROVIDER.serviceTypes
-                );
-
-                // Phase 3: server-authoritative online flip + location.
-                // Throws if provider is not verified (B-HIGH-7).
+                // Phase 3 (B-HIGH-7) + Phase 4 (audit-v2 §N-HIGH-3):
+                // server-authoritative online flip + location. The
+                // legacy `startProviderBroadcast` wrote directly to
+                // RTDB `providerLocations/{uid}` from the client —
+                // a forgeable surface (RTDB rules cannot query
+                // Firestore for verificationStatus). The companion
+                // RTDB rules tightening locks that path; the only
+                // online-flip path is now this verified callable.
                 await setProviderAvailabilityCallable(true, location);
                 await updateProviderLocationCallable(location.latitude, location.longitude);
 
@@ -89,8 +84,9 @@ export default function ProviderDashboard() {
                 );
                 setNearbyRequests(requests);
             } else {
-                // Go offline
-                await stopProviderBroadcast(MOCK_PROVIDER.id);
+                // Go offline. The setAvailability callable clears
+                // `availability.currentRequestId` server-side; no
+                // client-side RTDB cleanup needed.
                 await setProviderAvailabilityCallable(false);
                 setNearbyRequests([]);
             }

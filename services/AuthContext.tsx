@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { onAuthChange, getUserProfile, signOut as authSignOut, checkIsProvider } from '../services/auth.service';
+import { clearFcmToken } from '../services/fcmToken.service';
 import type { User as ResQUser, Provider, AuthState } from '../types';
 
 interface AuthContextType extends AuthState {
@@ -78,6 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const handleSignOut = async () => {
+        // Phase 4 (audit-v2 §N-MED-8) — clear the server-stored FCM
+        // token BEFORE we drop the auth session. After signOut the
+        // callable would reject as unauthenticated, leaving this
+        // device's token attached to the next user that signs in
+        // here (a confidentiality leak).
+        await clearFcmToken();
         await authSignOut();
     };
 

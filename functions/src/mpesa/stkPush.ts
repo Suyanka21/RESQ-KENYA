@@ -62,25 +62,30 @@ function isEmulator(): boolean {
 }
 
 /**
- * Read the HMAC secret used to sign callback URL tokens. Defaults to a
- * deterministic combination of consumerSecret + passkey when no dedicated
- * `callback_secret` is configured.
+ * Read the HMAC secret used to sign callback URL tokens.
  *
- * Fails CLOSED in production: when no explicit secret is configured AND the
- * fallback components are missing/empty, this throws so signing/verifying
- * cannot succeed against an attacker-known empty key (CodeRabbit PR #3,
- * comment 8). In the emulator we still allow an empty secret so local
- * sandbox flows keep working.
+ * Phase 4 (audit-v2 §N-MED-2) — REMOVED the production fallback that
+ * derived `${consumerSecret}|${passkey}` because both components are
+ * sent on the wire to Safaricom on every STK push. A leaked Daraja
+ * sandbox log or Safaricom log line would also leak the HMAC key,
+ * defeating the entire point of using a separate signing key.
+ *
+ * Fails CLOSED in production: if `callback_secret` is unset, the
+ * function throws on first call and the STK push never goes out.
+ * The emulator path is preserved so local sandbox flows keep working
+ * without a real secret.
+ *
+ * Skills: Security-and-Hardening (least privilege; signing material
+ * MUST NOT be derivable from over-the-wire components),
+ * API-and-Interface-Design (fail-closed on missing config rather
+ * than silently degrading), TRUSTLESS-AUDITOR (assumes Daraja
+ * logs/sandbox dumps will eventually leak — design for the leak).
  */
 export function getCallbackHmacSecret(): string {
     const config = functions.config().mpesa;
     const explicit = config?.callback_secret || process.env['MPESA_CALLBACK_SECRET'];
     if (explicit && typeof explicit === 'string' && explicit.length > 0) {
         return explicit;
-    }
-    const mpesa = getMpesaConfig();
-    if (mpesa.consumerSecret && mpesa.passkey) {
-        return `${mpesa.consumerSecret}|${mpesa.passkey}`;
     }
     if (isEmulator()) {
         // Emulator without secrets: stable but obviously-non-secret value
@@ -89,8 +94,12 @@ export function getCallbackHmacSecret(): string {
     }
     throw new Error(
         'M-Pesa callback HMAC secret is not configured. Set '
-        + 'functions:config:mpesa.callback_secret (or both '
-        + 'mpesa.consumer_secret and mpesa.passkey) before deploying.'
+        + 'functions:config:mpesa.callback_secret (or env '
+        + 'MPESA_CALLBACK_SECRET) to a fresh random value before '
+        + 'deploying. The previous consumer_secret+passkey '
+        + 'derivation has been removed (audit-v2 N-MED-2) because '
+        + 'both fields are sent on the wire to Safaricom on every '
+        + 'STK push.'
     );
 }
 
@@ -302,20 +311,35 @@ export const initiateStkPush = functions.https.onCall(async (data, context) => {
         const { MerchantRequestID, CheckoutRequestID, ResponseCode, ResponseDescription } = response.data;
 
         if (ResponseCode === '0') {
-            await paymentRef.update({
+            // Phase 4 (audit-v2 §N-MED-10) — the two writes below MUST
+            // land atomically. Pre-fix: paymentRef.update ran first,
+            // then requestRef.update ran with a `.catch(swallow)`. If
+            // the mirror failed, `payment_requests/{key}` said
+            // `pending` while `requests/{id}.payment.status` stayed at
+            // its initial value (`failed`/unset), the customer's
+            // tracking screen drifted from the source of truth, and
+            // the next dispatch decision read a stale payment state.
+            //
+            // Using a Firestore WriteBatch makes the two writes
+            // atomic per the SDK's guarantees: either both succeed or
+            // both fail. If the batch fails after the STK push
+            // already went out, the customer sees a clear error and
+            // can retry — the next attempt's idempotency key gates
+            // the duplicate (audit-v2 §X-1) and the stale-payment
+            // sweeper (audit-v2 §N-HIGH-6) clears the orphan row.
+            const batch = db.batch();
+            batch.update(paymentRef, {
                 merchantRequestID: MerchantRequestID,
                 checkoutRequestID: CheckoutRequestID,
                 status: 'pending',
                 pendingAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
-            await db.collection('requests').doc(requestId).update({
+            batch.update(db.collection('requests').doc(requestId), {
                 'payment.checkoutRequestID': CheckoutRequestID,
                 'payment.idempotencyKey': idempotencyKey,
                 'payment.status': 'processing',
-            }).catch((err) => {
-                console.warn('Failed to mirror payment.checkoutRequestID on request:', err.message);
             });
+            await batch.commit();
 
             return {
                 success: true,
@@ -351,28 +375,88 @@ export const initiateStkPush = functions.https.onCall(async (data, context) => {
  * `initiating` (the HTTP call to Safaricom never completed). Anything
  * older than 1 hour is moved to `failed` so the row stops blocking
  * fresh idempotency keys.
+ *
+ * Phase 4 (audit-v2 §N-HIGH-6) — pagination.
+ *
+ * The pre-fix version capped the run at the first 500 stale rows. If a
+ * Safaricom outage stalled more than 500 payments overnight, the surplus
+ * stayed in `initiating` forever and continued to short-circuit fresh
+ * idempotency keys with `duplicate: true, status: 'initiating'` —
+ * customers retrying after the outage would silently keep getting "in
+ * progress" for a key that would never resolve. The audit recommended
+ * paginating with a stable cursor (createdAt < cutoff) until the page
+ * is empty, capped at N pages per run so a runaway loop can't burn the
+ * cron's wall-clock budget. Mirrors the pagination pattern in
+ * `functions/src/services/triggers.ts:107-117` (resetDailyEarnings).
+ *
+ * Skills: Source-Driven-Development (Firestore paginated queries —
+ * https://firebase.google.com/docs/firestore/query-data/query-cursors),
+ * Security-and-Hardening (cap + metric so a runaway never blocks the
+ * function host's other scheduled work).
  */
+// CodeRabbit feedback (PR #9): 500 sits exactly on Firestore's
+// batched-writes ceiling. Today we issue one update per doc per loop
+// (well within limits), but a future contributor adding any
+// secondary write inside the page-loop would silently break. Match
+// the sibling `resetDailyEarnings` worker (PAGE_SIZE = 400) so the
+// headroom is uniform across scheduled cleanups.
+const STALE_PAYMENT_PAGE_SIZE = 400;
+const STALE_PAYMENT_MAX_PAGES = 60; // 24k rows / run hard cap (~ unchanged)
+
 export const cleanupStaleInitiatingPayments = functions.pubsub
     .schedule('every day 02:00')
     .timeZone('Africa/Nairobi')
     .onRun(async () => {
         const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
-        const stale = await db.collection('payment_requests')
-            .where('status', '==', 'initiating')
-            .where('createdAt', '<', cutoff)
-            .limit(500)
-            .get();
-        if (stale.empty) return null;
-        const batch = db.batch();
-        stale.docs.forEach((doc) => {
-            batch.update(doc.ref, {
-                status: 'failed',
-                failureReason: 'Stuck in initiating; auto-failed by cron',
-                failedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+        let totalFailed = 0;
+        let pages = 0;
+        // Order by createdAt so the cursor is stable across pages.
+        // Each batch updates `status='failed'`, which removes it from the
+        // `where status='initiating'` filter — so the next page's first
+        // row is always genuinely older than the cursor, never the same
+        // doc twice.
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            if (pages >= STALE_PAYMENT_MAX_PAGES) {
+                console.warn(
+                    `[cleanupStaleInitiatingPayments] hit max pages (${STALE_PAYMENT_MAX_PAGES}); ` +
+                    `failed=${totalFailed} so far, remaining will be picked up on the next run`
+                );
+                break;
+            }
+
+            const page = await db.collection('payment_requests')
+                .where('status', '==', 'initiating')
+                .where('createdAt', '<', cutoff)
+                .orderBy('createdAt', 'asc')
+                .limit(STALE_PAYMENT_PAGE_SIZE)
+                .get();
+
+            if (page.empty) break;
+
+            const batch = db.batch();
+            page.docs.forEach((doc) => {
+                batch.update(doc.ref, {
+                    status: 'failed',
+                    failureReason: 'Stuck in initiating; auto-failed by cron',
+                    failedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
             });
-        });
-        await batch.commit();
-        console.log(`cleanupStaleInitiatingPayments: failed ${stale.size} stuck rows`);
+            await batch.commit();
+
+            totalFailed += page.size;
+            pages += 1;
+
+            // Defensive: if a page was short (< PAGE_SIZE), there are no
+            // more matching rows. Break early instead of issuing one more
+            // round-trip just to confirm `empty`.
+            if (page.size < STALE_PAYMENT_PAGE_SIZE) break;
+        }
+
+        console.log(
+            `cleanupStaleInitiatingPayments: failed ${totalFailed} stuck rows across ${pages} page(s)`
+        );
         return null;
     });
 

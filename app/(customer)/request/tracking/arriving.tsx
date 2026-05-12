@@ -23,13 +23,28 @@ import {
     getTraveledRoute,
     getRemainingRoute,
 } from '../../../../constants/nairobiRoutes';
+import { useRequestTracking, useStatusNavigation } from '../../../../hooks/useRequestTracking';
 
 export default function ArrivingScreen() {
     const insets = useSafeAreaInsets();
-    const params = useLocalSearchParams<{ serviceType?: string; price?: string }>();
+    const params = useLocalSearchParams<{ serviceType?: string; price?: string; requestId?: string }>();
     const serviceType = params.serviceType || 'Service Request';
+    const requestId = params.requestId;
 
-    const [countdown, setCountdown] = useState(60);
+    // Phase 4 (audit-v2 §F-CRIT-2) — advance to /in-progress only
+    // when the request row's `status` actually transitions to
+    // `inProgress`. Pre-fix this was a 60-second countdown with no
+    // backend involvement.
+    const { request, eta: liveEta } = useRequestTracking(requestId);
+    useStatusNavigation(request?.status, 'arriving', requestId, {
+        serviceType: String(serviceType),
+        price: String(params.price || ''),
+    });
+
+    // Countdown sourced from live RTDB ETA when available, else
+    // falls back to the original 60s visual heuristic.
+    const initialCountdown = liveEta != null && liveEta > 0 ? liveEta : 60;
+    const [countdown, setCountdown] = useState(initialCountdown);
     const hasNavigated = useRef(false);
 
     // Pulse for arriving banner
@@ -51,19 +66,9 @@ export default function ArrivingScreen() {
         return () => clearInterval(interval);
     }, []);
 
-    // Navigate when countdown reaches 0 — deferred to avoid setState-during-render
-    useEffect(() => {
-        if (countdown <= 0 && !hasNavigated.current) {
-            hasNavigated.current = true;
-            const timer = setTimeout(() => {
-                router.replace({
-                    pathname: '/(customer)/request/tracking/in-progress',
-                    params: { serviceType, price: params.price },
-                });
-            }, 0);
-            return () => clearTimeout(timer);
-        }
-    }, [countdown]);
+    // Phase 4 (audit-v2 §F-CRIT-2) — the countdown auto-advance has
+    // been removed. `useStatusNavigation` above is the single
+    // source of truth for screen progression.
 
     const steps: Step[] = [
         { label: 'Matched', status: 'completed' },

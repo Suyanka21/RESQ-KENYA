@@ -15,8 +15,40 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import type { User as ResQUser } from '../types';
 
-// Store verification result globally for OTP verification
+/**
+ * Phase 4 (audit-v2 §N-MED-4) — module-state for the pending OTP
+ * confirmation. ConfirmationResult is not serialisable, so we cannot
+ * persist it to AsyncStorage. To survive hot-reload / navigation
+ * loops, `verify-otp.tsx` calls `hasPendingOtpConfirmation()` on
+ * mount; if false (e.g. the module was hot-reloaded) it routes back
+ * to login so the user re-requests rather than hitting the cryptic
+ * "No OTP request pending" error.
+ */
 let confirmationResult: ConfirmationResult | null = null;
+
+/**
+ * True iff `sendOTP` succeeded and the user has not yet completed
+ * verifyOTP. Used by the OTP screen to detect hot-reload / lost-
+ * state scenarios (audit-v2 §N-MED-4) and bounce back to login.
+ */
+export function hasPendingOtpConfirmation(): boolean {
+    return confirmationResult !== null;
+}
+
+/**
+ * Test/dev-only escape hatch — clears the pending confirmation so
+ * a fresh sendOTP call starts cleanly. Never invoked by production
+ * UI flows; the underscore prefix and `_ForTests` suffix make the
+ * intent obvious and discourage accidental production use.
+ *
+ * CodeRabbit feedback (PR #9): the previous name
+ * `clearPendingOtpConfirmation` advertised the helper on the
+ * production surface. Renamed (no callers existed) per
+ * Deprecation-and-Migration + Code-Review-and-Quality skills.
+ */
+export function _clearPendingOtpConfirmationForTests(): void {
+    confirmationResult = null;
+}
 
 /**
  * Format phone number to international format
@@ -99,11 +131,21 @@ export async function verifyOTP(
         const result = await confirmationResult.confirm(code);
         const user = result.user;
 
-        // Create or update user profile in Firestore
-        await createUserProfile(user);
-
-        // Clear confirmation result
+        // CodeRabbit feedback (PR #9): the ConfirmationResult is a
+        // one-shot token. Once `confirm()` resolves it has been
+        // consumed regardless of whether downstream `createUserProfile`
+        // succeeds; leaving the module-state set after a profile-create
+        // failure means the next verifyOTP call would re-use a spent
+        // confirmation and Firebase rejects with a cryptic
+        // `auth/code-expired`. Clear it BEFORE the profile-create so a
+        // retry triggers a fresh sendOTP path.
         confirmationResult = null;
+
+        // Create or update user profile in Firestore (best-effort —
+        // failure here does not invalidate the auth, just means the
+        // profile row is missing and will be created lazily on next
+        // login).
+        await createUserProfile(user);
 
         return { success: true, user };
     } catch (error: any) {
@@ -125,16 +167,28 @@ async function createUserProfile(user: User): Promise<void> {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-        // First time user - create profile
+        // First time user - create profile.
+        //
+        // Phase 4 (audit-v2 §N-HIGH-1/§N-HIGH-2): the legacy seed
+        // wrote empty `vehicles[] / emergencyContacts[] / savedLocations[]`
+        // arrays on the user doc. Those array fields are now
+        // **deprecated** in favour of subcollections
+        // (`users/{uid}/vehicles/{id}` etc.), and the tightened
+        // `users/{userId}` rule rejects writes to those keys. Drop
+        // them from the seed; the new UI reads from subcollections
+        // anyway and the missing keys are rendered as empty.
+        // CodeRabbit feedback (PR #9): pin role to 'customer' on first
+        // create so the schema and firestore.rules `role` allow-list
+        // match what the auth flow actually writes. Provider sign-up
+        // goes through a separate callable (`verifyProvider`) so this
+        // path is customer-only.
         const userData: Partial<ResQUser> = {
             id: user.uid,
             phoneNumber: user.phoneNumber || '',
             displayName: '',
+            role: 'customer',
             membership: 'basic',
             loyaltyPoints: 0,
-            vehicles: [],
-            emergencyContacts: [],
-            savedLocations: [],
         };
 
         await setDoc(userRef, {
