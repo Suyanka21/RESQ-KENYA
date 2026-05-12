@@ -138,44 +138,62 @@ export const triggerEmergencySOS = functions.https.onCall(
         // Per-user rate limit: reject if this user fired an SOS within
         // the last `SOS_MIN_INTERVAL_MS`. Real incidents do not repeat
         // sub-30s; anything that does is either accidental double-tap
-        // or abuse. We rely on the `sos_events` write rules (server-
-        // only) so this query is the authoritative gate.
+        // or abuse.
+        //
+        // CodeRabbit feedback (post-merge PR #9): the previous body
+        // did a separate read-then-write — two parallel SOS calls
+        // could both pass the recency check (TOCTOU) and both create
+        // events inside the 30s window, defeating the throttle. Move
+        // the recency check + event-create into a single Firestore
+        // transaction over a per-user `sos_throttle/{userId}` doc.
+        // Firestore serialises conflicting transactions, so only one
+        // call can pass the gate per interval — the rest reject with
+        // `resource-exhausted` even when issued in parallel.
         //
         // Skills: Security-and-Hardening (rate limit on auth'd state-
-        // writing callable), TRUSTLESS-AUDITOR (anything touching
-        // personal safety also needs to defend against denial-of-
-        // service of the very service it provides).
-        const recent = await db.collection('sos_events')
-            .where('userId', '==', userId)
-            .orderBy('createdAt', 'desc')
-            .limit(1)
-            .get();
-        if (!recent.empty) {
-            const last = recent.docs[0].data();
-            const lastCreatedAt = last.createdAt as admin.firestore.Timestamp | undefined;
-            const lastMs = lastCreatedAt?.toMillis?.() ?? 0;
+        // writing callable; atomic enforcement instead of optimistic),
+        // TRUSTLESS-AUDITOR (anything touching personal safety also
+        // needs to defend against denial-of-service of the very
+        // service it provides), API-and-Interface-Design (the gate
+        // is now a single round-trip on the happy path).
+        const throttleRef = db.collection('sos_throttle').doc(userId);
+        const eventRef = db.collection('sos_events').doc();
+
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(throttleRef);
+            const data = snap.data() as { lastSosAt?: admin.firestore.Timestamp } | undefined;
+            const lastMs = data?.lastSosAt?.toMillis?.() ?? 0;
+            // `Date.now()` here is only a best-effort check — the
+            // throttle doc itself is server-stamped on write, so the
+            // *next* call's read will see the authoritative timestamp.
+            // The race window is therefore the transaction's own
+            // serialisation window, which Firestore handles via
+            // optimistic concurrency control + retries.
             if (lastMs > 0 && Date.now() - lastMs < SOS_MIN_INTERVAL_MS) {
                 throw new functions.https.HttpsError(
                     'resource-exhausted',
                     'SOS rate limit: please wait before sending another emergency'
                 );
             }
-        }
-
-        const eventRef = db.collection('sos_events').doc();
-
-        await eventRef.set({
-            userId,
-            type: input.type,
-            location, // may be null
-            // Server-stamped timestamp is authoritative for ordering /
-            // analytics. The client's `capturedAt` (if any) lives
-            // inside `location`.
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            // Status machine for the deferred contact-fanout worker.
-            // Stays `pending` until a worker either dispatches FCM
-            // to contacts (then `notified`) or skips (no contacts).
-            status: 'pending',
+            tx.set(
+                throttleRef,
+                { lastSosAt: admin.firestore.FieldValue.serverTimestamp() },
+                { merge: true }
+            );
+            tx.set(eventRef, {
+                userId,
+                type: input.type,
+                location, // may be null
+                // Server-stamped timestamp is authoritative for
+                // ordering / analytics. The client's `capturedAt` (if
+                // any) lives inside `location`.
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                // Status machine for the deferred contact-fanout
+                // worker. Stays `pending` until a worker either
+                // dispatches FCM to contacts (then `notified`) or
+                // skips (no contacts).
+                status: 'pending',
+            });
         });
 
         console.log(

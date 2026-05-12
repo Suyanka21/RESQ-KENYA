@@ -77,12 +77,29 @@ export const setFcmToken = functions.https.onCall(
         const userId = context.auth.uid;
         const userRef = db.collection('users').doc(userId);
 
+        // CodeRabbit feedback (post-merge PR #9): the previous body
+        // used `.update()`, which throws `NOT_FOUND` if the
+        // `users/{uid}` document does not yet exist (first-login
+        // race, partially-provisioned account, profile-create
+        // failure on the auth path). Switching to `.set({...}, {
+        // merge: true })` keeps the same field-level semantics
+        // (still deletes `fcmToken` via FieldValue.delete) while
+        // making the write a safe upsert.
+        //
+        // Skills: TRUSTLESS-AUDITOR (any path that silently drops
+        // push notifications is a real-user pothole),
+        // API-and-Interface-Design (writes that never throw on
+        // missing parent are easier to reason about and to retry).
+
         // Clear path: token === null OR token === '' both clear.
         if (input.token === null || input.token === '') {
-            await userRef.update({
-                fcmToken: admin.firestore.FieldValue.delete(),
-                fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+            await userRef.set(
+                {
+                    fcmToken: admin.firestore.FieldValue.delete(),
+                    fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+            );
             return { success: true, cleared: true };
         }
 
@@ -93,10 +110,13 @@ export const setFcmToken = functions.https.onCall(
             );
         }
 
-        await userRef.update({
-            fcmToken: input.token,
-            fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        await userRef.set(
+            {
+                fcmToken: input.token,
+                fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+        );
 
         return { success: true, cleared: false };
     }

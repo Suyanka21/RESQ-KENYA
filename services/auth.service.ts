@@ -145,7 +145,32 @@ export async function verifyOTP(
         // failure here does not invalidate the auth, just means the
         // profile row is missing and will be created lazily on next
         // login).
-        await createUserProfile(user);
+        //
+        // CodeRabbit feedback (post-merge PR #9): the previous body
+        // `await`-ed createUserProfile inside the outer try, so a
+        // transient Firestore hiccup (rules denial, offline, quota)
+        // would surface as `success:false` even though Firebase Auth
+        // already succeeded — the caller would loop back to the
+        // OTP screen with a stale confirmationResult and the user
+        // would be stuck. Isolate the profile-seed in its own
+        // try/catch so failures are logged but never invalidate the
+        // auth result. The profile row will be (re)created lazily
+        // on the next session via `useAuth`.
+        //
+        // Skills: TRUSTLESS-AUDITOR (every silent failure is a real-
+        // user pothole), Debugging-and-Error-Recovery (fix the root
+        // cause — the implicit coupling of auth-success to a
+        // best-effort write — not the symptom),
+        // API-and-Interface-Design (verifyOTP's contract is now
+        // unambiguous: success iff Firebase Auth succeeded).
+        try {
+            await createUserProfile(user);
+        } catch (profileError) {
+            console.error(
+                '[verifyOTP] createUserProfile failed (non-blocking):',
+                profileError
+            );
+        }
 
         return { success: true, user };
     } catch (error: any) {
