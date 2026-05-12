@@ -469,94 +469,37 @@ export const retryFailedDispatches = functions.pubsub
 
                 cursor = page.docs[page.docs.length - 1];
 
-                for (const doc of page.docs) {
-                    const data = doc.data();
-                    const retryCount = (data.dispatch?.retryCount ?? 0) as number;
-                    const requestId = doc.id;
-
-                    if (retryCount >= DISPATCH_MAX_RETRIES) {
-                        // Terminal: transition to 'cancelled' so the
-                        // customer's listener can flip the UI to a
-                        // recoverable error state rather than "still
-                        // searching" forever.
-                        try {
-                            await doc.ref.update({
-                                status: 'cancelled',
-                                'dispatch.status': DISPATCH_STATUS.Failed,
-                                cancellationReason: 'no_provider_found',
-                                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-                            });
-                            totalCancelled += 1;
-
-                            // Best-effort customer notification. Wrapped so
-                            // a missing FCM token does not block other rows.
-                            try {
-                                const userDoc = await db.collection('users')
-                                    .doc(data.userId)
-                                    .get();
-                                const fcmToken = userDoc.data()?.fcmToken;
-                                if (fcmToken) {
-                                    await admin.messaging().send({
-                                        token: fcmToken,
-                                        notification: {
-                                            title: 'No provider available',
-                                            body:
-                                                'We could not find a provider for your request. ' +
-                                                'Please try again or contact support.',
-                                        },
-                                        data: {
-                                            type: 'request_cancelled',
-                                            requestId,
-                                            reason: 'no_provider_found',
-                                        },
-                                    });
-                                }
-                            } catch (notifyError) {
-                                console.warn(
-                                    `[retryFailedDispatches] notify failed requestId=${requestId}`,
-                                    notifyError
-                                );
-                            }
-                        } catch (cancelError) {
-                            console.error(
-                                `[retryFailedDispatches] cancel failed requestId=${requestId}`,
-                                cancelError
-                            );
-                        }
-                        continue;
-                    }
-
-                    // Retry path: re-run the dispatcher. It will bump
-                    // retryCount via FieldValue.increment(1) on its own
-                    // failure path, or flip status → 'notified' on
-                    // success.
-                    const coords = data.customerLocation?.coordinates;
-                    if (
-                        !coords ||
-                        typeof coords.latitude !== 'number' ||
-                        typeof coords.longitude !== 'number' ||
-                        typeof data.serviceType !== 'string'
-                    ) {
-                        console.warn(
-                            `[retryFailedDispatches] missing fields, skipping requestId=${requestId}`
-                        );
-                        continue;
-                    }
-                    // Phase 4 (audit-v2 §N-MED-9) — pass the row's
-                    // current retryCount so dispatch widens its
-                    // radius on each attempt per the policy in
-                    // `../shared/dispatchRadius.ts`.
-                    const currentRetryCount = typeof data.dispatch?.retryCount === 'number'
-                        ? data.dispatch.retryCount
-                        : 0;
-                    await notifyNearbyProviders(
-                        requestId,
-                        data.serviceType,
-                        coords.latitude,
-                        coords.longitude,
-                        currentRetryCount
+                // CodeRabbit feedback (post-merge PR #9): the inner
+                // loop previously processed each row sequentially via
+                // a series of `await`s, so a busy 2-minute tick (20
+                // rows/page × 2 status buckets × ~hundreds of ms per
+                // dispatch including Firestore reads + FCM multicast)
+                // could blow past the function's wall-clock budget.
+                // Drive each row through `processRetryDoc` and run
+                // them in bounded chunks of `RETRY_CONCURRENCY` so we
+                // get parallelism without thundering Firestore /
+                // exhausting FCM quota.
+                //
+                // The per-row work is independent (no shared mutable
+                // state besides the two integer counters, which we
+                // fold-back outside the chunk), so this is safe.
+                //
+                // Skills: Performance-Optimization (bounded
+                // parallelism instead of premature serialisation),
+                // API-and-Interface-Design (per-row helper has a
+                // small, testable signature).
+                const chunked: Array<FirebaseFirestore.QueryDocumentSnapshot[]> = [];
+                for (let i = 0; i < page.docs.length; i += RETRY_CONCURRENCY) {
+                    chunked.push(page.docs.slice(i, i + RETRY_CONCURRENCY));
+                }
+                for (const chunk of chunked) {
+                    const results = await Promise.all(
+                        chunk.map((doc) => processRetryDoc(doc))
                     );
-                    totalRetried += 1;
+                    for (const result of results) {
+                        if (result === 'retried') totalRetried += 1;
+                        else if (result === 'cancelled') totalCancelled += 1;
+                    }
                 }
 
                 pages += 1;
@@ -565,12 +508,174 @@ export const retryFailedDispatches = functions.pubsub
         }
 
         if (totalRetried > 0 || totalCancelled > 0) {
+            // CodeRabbit feedback (post-merge PR #9): structured
+            // single-line log so the Cloud Logging filter
+            // `[dispatch.retry]` surfaces this worker's behaviour
+            // without parsing free text. A future operator can grep
+            // / build a Cloud Monitoring alert on `cancelled` > 0.
             console.log(
-                `[retryFailedDispatches] retried=${totalRetried} cancelled=${totalCancelled}`
+                `[dispatch.retry] tick complete retried=${totalRetried} cancelled=${totalCancelled}`
             );
         }
         return null;
     });
+
+/**
+ * Bounded concurrency for the retry worker's per-row work. Sized so
+ * the function fits comfortably inside the 60s default Cloud
+ * Functions timeout even when each row needs Firestore reads + FCM
+ * multicast. See CodeRabbit post-merge feedback on PR #9.
+ */
+const RETRY_CONCURRENCY = 5;
+
+/**
+ * Per-row handler for `retryFailedDispatches`. Returns a tag
+ * describing the outcome so the caller can accumulate counters
+ * without sharing mutable state across the parallel branch.
+ *
+ * Extracted from the inner page-loop so we can drive it through a
+ * bounded `Promise.all` instead of awaiting one row at a time.
+ */
+async function processRetryDoc(
+    doc: FirebaseFirestore.QueryDocumentSnapshot
+): Promise<'retried' | 'cancelled' | 'skipped'> {
+    const data = doc.data();
+    const retryCount = (data.dispatch?.retryCount ?? 0) as number;
+    const requestId = doc.id;
+    const serviceType =
+        typeof data.serviceType === 'string' ? data.serviceType : 'unknown';
+
+    if (retryCount >= DISPATCH_MAX_RETRIES) {
+        // Terminal: transition to 'cancelled' so the customer's
+        // listener can flip the UI to a recoverable error state
+        // rather than "still searching" forever.
+        try {
+            // CodeRabbit feedback (post-merge PR #9): every other
+            // transition in this file stamps `timeline.${status}At`
+            // (see updateRequestStatus, planRequestStatusUpdate,
+            // acceptServiceRequest). Writing a root-level
+            // `cancelledAt` here would diverge the schema between
+            // customer- and retry-worker-cancelled rows. Stamp
+            // `timeline.cancelledAt` + `updatedAt` so UI code
+            // reading `request.timeline.*` sees one consistent
+            // contract.
+            await doc.ref.update({
+                status: 'cancelled',
+                'dispatch.status': DISPATCH_STATUS.Failed,
+                cancellationReason: 'no_provider_found',
+                'timeline.cancelledAt':
+                    admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            // Structured log so a future Cloud Monitoring alert
+            // can target `dispatch.retry cancelled` directly.
+            console.log(
+                `[dispatch.retry] cancelled reason=max_retries ` +
+                `requestId=${requestId} serviceType=${serviceType}`
+            );
+
+            // Best-effort customer notification. Wrapped so a
+            // missing/stale FCM token does not block other rows.
+            try {
+                const userDoc = await db.collection('users')
+                    .doc(data.userId)
+                    .get();
+                const fcmToken = userDoc.data()?.fcmToken;
+                if (fcmToken) {
+                    await admin.messaging().send({
+                        token: fcmToken,
+                        notification: {
+                            title: 'No provider available',
+                            body:
+                                'We could not find a provider for your request. ' +
+                                'Please try again or contact support.',
+                        },
+                        data: {
+                            type: 'request_cancelled',
+                            requestId,
+                            reason: 'no_provider_found',
+                        },
+                    });
+                }
+            } catch (notifyError) {
+                // CodeRabbit feedback (post-merge PR #9): catch
+                // `messaging/registration-token-not-registered` so a
+                // dead token clears itself on first cancellation
+                // instead of generating one noisy warn per tick.
+                // Using `set({...}, {merge:true})` mirrors the
+                // upsert convention from fcmToken.ts so it never
+                // throws on a missing user doc.
+                const code = (notifyError as { code?: string } | null)?.code;
+                if (code === 'messaging/registration-token-not-registered') {
+                    try {
+                        await db.collection('users').doc(data.userId).set(
+                            {
+                                fcmToken: admin.firestore.FieldValue.delete(),
+                                fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            },
+                            { merge: true }
+                        );
+                        console.log(
+                            `[dispatch.retry] cleared stale FCM token ` +
+                            `userId=${data.userId} requestId=${requestId}`
+                        );
+                    } catch (clearError) {
+                        console.warn(
+                            `[dispatch.retry] failed to clear stale FCM token ` +
+                            `userId=${data.userId}`,
+                            clearError
+                        );
+                    }
+                } else {
+                    console.warn(
+                        `[dispatch.retry] notify failed requestId=${requestId} code=${code ?? 'unknown'}`,
+                        notifyError
+                    );
+                }
+            }
+        } catch (cancelError) {
+            console.error(
+                `[dispatch.retry] cancel failed requestId=${requestId}`,
+                cancelError
+            );
+        }
+        return 'cancelled';
+    }
+
+    // Retry path: re-run the dispatcher. It will bump retryCount
+    // via FieldValue.increment(1) on its own failure path, or flip
+    // status → 'notified' on success.
+    const coords = data.customerLocation?.coordinates;
+    if (
+        !coords ||
+        typeof coords.latitude !== 'number' ||
+        typeof coords.longitude !== 'number' ||
+        typeof data.serviceType !== 'string'
+    ) {
+        console.warn(
+            `[dispatch.retry] skipped reason=missing_coords requestId=${requestId}`
+        );
+        return 'skipped';
+    }
+    // Phase 4 (audit-v2 §N-MED-9) — pass the row's current
+    // retryCount so dispatch widens its radius on each attempt per
+    // the policy in `../shared/dispatchRadius.ts`.
+    const currentRetryCount = typeof data.dispatch?.retryCount === 'number'
+        ? data.dispatch.retryCount
+        : 0;
+    console.log(
+        `[dispatch.retry] attempted requestId=${requestId} ` +
+        `serviceType=${serviceType} attemptNo=${currentRetryCount + 1}`
+    );
+    await notifyNearbyProviders(
+        requestId,
+        data.serviceType,
+        coords.latitude,
+        coords.longitude,
+        currentRetryCount
+    );
+    return 'retried';
+}
 
 /**
  * Cloud Function: Accept Service Request.
