@@ -290,6 +290,20 @@ service cloud.firestore {
     }
 
     // =============================================
+    // SOS RATE-LIMIT THROTTLE (server-only)
+    // =============================================
+    // Per-user throttle document used by the `triggerEmergencySOS`
+    // callable to enforce the 30-second rate limit atomically (see
+    // CodeRabbit post-merge feedback on PR #9). Clients never need
+    // to read or write this — the callable runs as admin and is
+    // gated by its own auth check. Explicit `if false` here is
+    // documentation, not a behaviour change: the default-deny block
+    // below would catch it anyway.
+    match /sos_throttle/{userId} {
+      allow read, write: if false;
+    }
+
+    // =============================================
     // DEFAULT DENY
     // =============================================
     // Anything not explicitly matched above is denied. Belt-and-
