@@ -1,7 +1,7 @@
 // ⚡ ResQ Kenya - Provider Requests Screen
 // Converted from NativeWind to StyleSheet for consistency
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { colors, SERVICE_TYPES, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
@@ -14,65 +14,56 @@ import {
     estimateETA
 } from '../../services/provider.service';
 import { getCurrentLocation } from '../../services/location.service';
+import { useAuth } from '../../services/AuthContext';
 import type { ServiceRequest, GeoLocation } from '../../types';
+import type { ServiceType } from '../../theme/voltage-premium';
 
-// Mock provider data (in production, fetch from auth context)
-const MOCK_PROVIDER = {
-    id: 'provider_1',
-    serviceTypes: ['towing', 'tire', 'battery', 'fuel', 'diagnostics'],
-};
-
-// Mock pending requests for demo (will be replaced by real-time subscription)
-const MOCK_REQUESTS: ServiceRequest[] = [
-    {
-        id: 'req_1',
-        userId: 'user_1',
-        serviceType: 'towing',
-        status: 'pending',
-        customerLocation: {
-            coordinates: { latitude: -1.2673, longitude: 36.8114 },
-            address: 'Westlands, Nairobi',
-        },
-        timeline: { requestedAt: new Date(Date.now() - 120000) },
-        pricing: { total: 3500 },
-    } as ServiceRequest,
-    {
-        id: 'req_2',
-        userId: 'user_2',
-        serviceType: 'tire',
-        status: 'pending',
-        customerLocation: {
-            coordinates: { latitude: -1.2875, longitude: 36.7844 },
-            address: 'Kilimani, Nairobi',
-        },
-        timeline: { requestedAt: new Date(Date.now() - 300000) },
-        pricing: { total: 1500 },
-    } as ServiceRequest,
-    {
-        id: 'req_3',
-        userId: 'user_3',
-        serviceType: 'battery',
-        status: 'pending',
-        customerLocation: {
-            coordinates: { latitude: -1.3103, longitude: 36.8441 },
-            address: 'South B, Nairobi',
-        },
-        timeline: { requestedAt: new Date(Date.now() - 480000) },
-        pricing: { total: 2500 },
-    } as ServiceRequest,
-];
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_PROVIDER and
+// MOCK_REQUESTS constants (Westlands towing KES 3,500 / Kilimani tire
+// / South B battery) painted three fake jobs onto every provider's
+// request inbox regardless of whether they had ever come online. The
+// real-time subscription via `subscribeToNearbyRequests` below now
+// drives the list; fresh accounts render the existing EmptyState.
 
 export default function ProviderRequestsScreen() {
-    const [requests, setRequests] = useState<ServiceRequest[]>(MOCK_REQUESTS);
-    const [isLoading, setIsLoading] = useState(false);
+    const { provider } = useAuth();
+    const [requests, setRequests] = useState<ServiceRequest[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [acceptingId, setAcceptingId] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'accepted'>('all');
     const [providerLocation, setProviderLocation] = useState<GeoLocation | null>(null);
+
+    // Resolve the provider's serviceTypes so the subscription filters
+    // to jobs they can actually fulfil. Until onboarding sets this,
+    // we fall back to the full SERVICE_TYPES catalog rather than the
+    // empty array (which would return no rows even when work exists).
+    const subscribedTypes = useMemo<ServiceType[]>(() => {
+        const configured = provider?.serviceTypes ?? [];
+        if (configured.length > 0) return configured;
+        return Object.keys(SERVICE_TYPES) as ServiceType[];
+    }, [provider?.serviceTypes]);
 
     // Get provider location on mount
     useEffect(() => {
         getCurrentLocation().then(setProviderLocation);
     }, []);
+
+    // Phase 4 (audit-v3 §CRIT-1, CodeRabbit) — wire the real-time
+    // subscription that the screen comment has always claimed drives
+    // the list. Previously `subscribeToNearbyRequests` was imported
+    // but never invoked, so the provider's inbox was permanently
+    // empty regardless of pending jobs in Firestore.
+    useEffect(() => {
+        setIsLoading(true);
+        const unsubscribe = subscribeToNearbyRequests(
+            subscribedTypes,
+            (next) => {
+                setRequests(next);
+                setIsLoading(false);
+            }
+        );
+        return unsubscribe;
+    }, [subscribedTypes]);
 
     const handleAccept = async (requestId: string) => {
         setAcceptingId(requestId);
@@ -116,6 +107,26 @@ export default function ProviderRequestsScreen() {
         const service = SERVICE_TYPES[request.serviceType as keyof typeof SERVICE_TYPES];
         const timeAgo = getTimeAgo(new Date(request.timeline.requestedAt));
 
+        // Phase 4 (audit-v3 §MOCK-SWEEP) — derive distance and ETA from
+        // the provider's GPS instead of rendering the "~2.5 km away ·
+        // 8 min drive" placeholder on every card.
+        const distanceLine = (() => {
+            if (!providerLocation) return null;
+            const customer = request.customerLocation?.coordinates;
+            if (!customer || typeof customer.latitude !== 'number') return null;
+            const distanceKm = calculateDistance(
+                providerLocation.latitude,
+                providerLocation.longitude,
+                customer.latitude,
+                customer.longitude
+            );
+            const etaMin = estimateETA(distanceKm);
+            const distanceLabel = distanceKm < 1
+                ? `${Math.round(distanceKm * 1000)} m`
+                : `${distanceKm.toFixed(1)} km`;
+            return `${distanceLabel} away • ${etaMin} min drive`;
+        })();
+
         return (
             <View style={styles.requestCard}>
                 {/* Header */}
@@ -143,7 +154,9 @@ export default function ProviderRequestsScreen() {
                     </View>
                     <View style={styles.locationInfo}>
                         <Text style={styles.locationAddress}>{request.customerLocation.address}</Text>
-                        <Text style={styles.locationDistance}>~2.5 km away • 8 min drive</Text>
+                        {distanceLine ? (
+                            <Text style={styles.locationDistance}>{distanceLine}</Text>
+                        ) : null}
                     </View>
                 </View>
 

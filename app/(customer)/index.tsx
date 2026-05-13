@@ -24,13 +24,15 @@ const SHEET_HALF = height * 0.40;
 const SHEET_COLLAPSED = 80;
 const SNAP_POINTS = [SHEET_COLLAPSED, SHEET_HALF, SHEET_EXPANDED];
 
-// Provider markers scattered across "Nairobi"
-const PROVIDER_MARKERS = [
-    { top: '22%', left: '18%' }, { top: '35%', left: '72%' },
-    { top: '52%', left: '28%' }, { top: '68%', left: '82%' },
-    { top: '28%', left: '55%' }, { top: '75%', left: '40%' },
-    { top: '40%', left: '12%' }, { top: '58%', left: '65%' },
-];
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous PROVIDER_MARKERS array
+// painted eight fake dots onto the dark-map background, suggesting
+// provider coverage that does not actually exist. For a fresh account
+// the correct state is an empty map; a follow-up wires real markers
+// from a future `subscribeToNearbyProviders(location)` service. The
+// DarkMap component below still renders the grid + "You are here"
+// puck, which is honest about what we know (the user is here, we are
+// not yet showing where any provider is).
+const PROVIDER_MARKERS: { top: string; left: string }[] = [];
 
 // ============================================================================
 // DARK MAP COMPONENT

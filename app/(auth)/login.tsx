@@ -184,16 +184,16 @@ export default function LoginScreen() {
                             style={({ pressed }) => [
                                 styles.continueButton,
                                 pressed && styles.continueButtonPressed,
-                                (!isValidPhone() || isLoading) && styles.continueButtonDisabled,
+                                (!isValidPhone() || !agreedToTerms || isLoading) && styles.continueButtonDisabled,
                             ]}
                             onPress={handleContinue}
-                            disabled={!isValidPhone() || isLoading}
+                            disabled={!isValidPhone() || !agreedToTerms || isLoading}
                             accessibilityLabel="Continue to verification"
                             accessibilityRole="button"
                         >
                             <Text style={[
                                 styles.continueButtonText,
-                                (!isValidPhone() || isLoading) && styles.continueButtonTextDisabled,
+                                (!isValidPhone() || !agreedToTerms || isLoading) && styles.continueButtonTextDisabled,
                             ]}>
                                 {isLoading ? 'Sending...' : 'Continue'}
                             </Text>

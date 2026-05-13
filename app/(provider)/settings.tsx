@@ -5,11 +5,34 @@ import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet, Platform 
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { colors, spacing, borderRadius } from '../../theme/voltage-premium';
+import { useAuth } from '../../services/AuthContext';
+import { deriveInitials } from '../../components/dashboard/SidebarDrawer.helpers';
 
 export default function ProviderSettingsScreen() {
+    const { user, provider, signOut } = useAuth();
     const [notifications, setNotifications] = useState(true);
     const [soundAlerts, setSoundAlerts] = useState(true);
     const [autoAccept, setAutoAccept] = useState(false);
+
+    // Phase 4 (audit-v3 §MOCK-SWEEP) — resolve provider chrome from
+    // the AuthContext rather than the previous "John's Towing Services"
+    // / "+254 700 000 001" / "★ 4.8 · 156 services" / "Tow Truck KCA
+    // 123A" / "M-Pesa •••• 0001" / "JT" placeholders that shipped to
+    // every provider regardless of identity.
+    const providerDisplayName: string =
+        provider?.displayName?.trim() ||
+        user?.displayName?.trim() ||
+        'Provider';
+    const providerPhone: string = provider?.phoneNumber || user?.phoneNumber || '';
+    const providerInitials = deriveInitials(providerDisplayName);
+    const providerRating = provider?.rating ?? 0;
+    const providerServices = provider?.totalServices ?? 0;
+    const providerVehicleType = provider?.vehicle?.type || '';
+    const providerVehiclePlate = provider?.vehicle?.licensePlate || '';
+    const providerVehicleSummary =
+        providerVehicleType && providerVehiclePlate
+            ? `${providerVehicleType} • ${providerVehiclePlate}`
+            : 'Not yet configured';
 
     const handleLogout = () => {
         Alert.alert(
@@ -17,7 +40,23 @@ export default function ProviderSettingsScreen() {
             'Are you sure you want to sign out?',
             [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Sign Out', style: 'destructive', onPress: () => router.replace('/') },
+                {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                        // Phase 4 (audit-v3, CodeRabbit) — keep
+                        // navigation inside the try block so a failed
+                        // signOut() doesn't bounce the provider to
+                        // the splash while still authenticated.
+                        try {
+                            await signOut();
+                            router.replace('/');
+                        } catch (err) {
+                            console.warn('[provider/settings] sign out failed:', err);
+                            Alert.alert('Sign Out Failed', 'Please try again.');
+                        }
+                    },
+                },
             ]
         );
     };
@@ -57,15 +96,19 @@ export default function ProviderSettingsScreen() {
                 {/* Profile Section */}
                 <View style={styles.profileCard}>
                     <View style={styles.profileAvatar}>
-                        <Text style={styles.profileAvatarText}>JT</Text>
+                        <Text style={styles.profileAvatarText}>{providerInitials}</Text>
                     </View>
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>John's Towing Services</Text>
-                        <Text style={styles.profilePhone}>+254 700 000 001</Text>
+                        <Text style={styles.profileName}>{providerDisplayName}</Text>
+                        <Text style={styles.profilePhone}>{providerPhone || '—'}</Text>
                         <View style={styles.profileStats}>
-                            <Text style={styles.profileRating}>★ 4.8</Text>
+                            <Text style={styles.profileRating}>
+                                {providerRating > 0 ? `★ ${providerRating.toFixed(1)}` : '★ —'}
+                            </Text>
                             <Text style={styles.profileDot}>•</Text>
-                            <Text style={styles.profileServices}>156 services</Text>
+                            <Text style={styles.profileServices}>
+                                {providerServices} service{providerServices === 1 ? '' : 's'}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -73,9 +116,13 @@ export default function ProviderSettingsScreen() {
                 {/* Account */}
                 <Text style={styles.sectionTitle}>Account</Text>
                 <SettingItem title="Edit Profile" onPress={() => { }} />
-                <SettingItem title="Vehicle Details" subtitle="Tow Truck • KCA 123A" onPress={() => { }} />
-                <SettingItem title="Documents" subtitle="All verified ✓" onPress={() => { }} />
-                <SettingItem title="Payment Methods" subtitle="M-Pesa •••• 0001" onPress={() => { }} />
+                <SettingItem title="Vehicle Details" subtitle={providerVehicleSummary} onPress={() => { }} />
+                <SettingItem
+                    title="Documents"
+                    subtitle={provider?.verificationStatus === 'verified' ? 'All verified ✓' : 'Pending verification'}
+                    onPress={() => { }}
+                />
+                <SettingItem title="Payment Methods" subtitle="Not yet configured" onPress={() => { }} />
 
                 {/* Notifications */}
                 <Text style={styles.sectionTitle}>Notifications</Text>

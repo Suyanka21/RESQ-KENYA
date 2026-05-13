@@ -80,44 +80,33 @@ interface ActiveEmergency {
 // MOCK DATA
 // ============================================================================
 
-const MOCK_STATS: MedicalProviderStats = {
-    todayEmergencies: 3,
-    weeklyEmergencies: 18,
-    avgResponseTime: 8.5,
-    patientsSaved: 247,
-    rating: 4.9,
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_STATS
+// (3 today / 18 week / 247 patients saved / 4.9 rating) and
+// MOCK_RECENT_CASES (Cardiac Arrest at KNH, Traffic Accident, Breathing
+// Difficulty at Nairobi Hospital) shipped to every medical provider
+// regardless of activity. For a fresh account, stats are zeroed and
+// the recent-cases list is empty.
+const INITIAL_STATS: MedicalProviderStats = {
+    todayEmergencies: 0,
+    weeklyEmergencies: 0,
+    avgResponseTime: 0,
+    patientsSaved: 0,
+    rating: 0,
     certificationStatus: 'valid',
-    nextExpiringCert: { name: 'CPR Certification', daysUntil: 45 },
+    nextExpiringCert: null,
 };
 
-const MOCK_EMERGENCY: ActiveEmergency | null = null; // No active emergency
+const INITIAL_EMERGENCY: ActiveEmergency | null = null;
 
-const MOCK_RECENT_CASES = [
-    {
-        id: '1',
-        date: new Date(Date.now() - 3600000),
-        type: 'Cardiac Arrest',
-        triageLevel: 'red' as TriageLevel,
-        outcome: 'transported',
-        hospital: 'KNH Emergency',
-    },
-    {
-        id: '2',
-        date: new Date(Date.now() - 86400000),
-        type: 'Traffic Accident',
-        triageLevel: 'yellow' as TriageLevel,
-        outcome: 'treated_on_scene',
-        hospital: null,
-    },
-    {
-        id: '3',
-        date: new Date(Date.now() - 172800000),
-        type: 'Breathing Difficulty',
-        triageLevel: 'yellow' as TriageLevel,
-        outcome: 'transported',
-        hospital: 'Nairobi Hospital',
-    },
-];
+type RecentCase = {
+    id: string;
+    date: Date;
+    type: string;
+    triageLevel: TriageLevel;
+    outcome: string;
+    hospital: string | null;
+};
+const INITIAL_RECENT_CASES: RecentCase[] = [];
 
 // ============================================================================
 // COMPONENT
@@ -126,8 +115,9 @@ const MOCK_RECENT_CASES = [
 export default function MedicalDashboard() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
-    const [stats, setStats] = useState<MedicalProviderStats>(MOCK_STATS);
-    const [activeEmergency, setActiveEmergency] = useState<ActiveEmergency | null>(MOCK_EMERGENCY);
+    const [stats, setStats] = useState<MedicalProviderStats>(INITIAL_STATS);
+    const [activeEmergency, setActiveEmergency] = useState<ActiveEmergency | null>(INITIAL_EMERGENCY);
+    const recentCases: RecentCase[] = INITIAL_RECENT_CASES;
     const emtLevel: KenyaEMTLevel = 'emt_intermediate';
 
     const onRefresh = useCallback(async () => {
@@ -283,7 +273,13 @@ export default function MedicalDashboard() {
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Cases</Text>
 
-            {MOCK_RECENT_CASES.map(caseItem => {
+            {recentCases.length === 0 && (
+                <Text style={styles.emptyCaseText}>
+                    Recent cases will appear here after you handle your first dispatch.
+                </Text>
+            )}
+
+            {recentCases.map(caseItem => {
                 const triage = getTriageStyle(caseItem.triageLevel);
                 return (
                     <View key={caseItem.id} style={styles.caseCard}>
@@ -720,6 +716,12 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
         marginTop: spacing.xs,
         textAlign: 'center',
+    },
+    emptyCaseText: {
+        color: colors.textMuted,
+        fontSize: 13,
+        textAlign: 'center',
+        paddingVertical: spacing.lg,
     },
     caseCard: {
         backgroundColor: colors.surface,

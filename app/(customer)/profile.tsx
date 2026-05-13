@@ -16,6 +16,8 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
+import { useAuth } from '../../services/AuthContext';
+import { deriveInitials } from '../../components/dashboard/SidebarDrawer.helpers';
 
 // ============================================================================
 // SECTION HEADER
@@ -136,11 +138,16 @@ const ToggleItem = ({
 
 // ============================================================================
 // MEMBERSHIP BADGE TOKEN
+//
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the User.membership union is
+// 'basic' | 'plus' (see types/index.ts). We keep two named tiers here so
+// future tier rollouts (e.g. 'gold') only require adding an entry; the
+// lookup below falls back to Basic for unknown values rather than
+// throwing.
 // ============================================================================
-const MEMBERSHIP_TIERS: Record<string, { bg: string; text: string; border: string }> = {
-    Basic: { bg: colors.charcoal[700], text: colors.text.secondary, border: colors.charcoal[600] },
-    Gold: { bg: `26`, text: colors.voltage, border: `4D` },
-    Platinum: { bg: colors.text.secondary, text: colors.text.secondary, border: colors.text.secondary },
+const MEMBERSHIP_TIERS: Record<string, { label: string; bg: string; text: string; border: string }> = {
+    basic: { label: 'Basic', bg: colors.charcoal[700], text: colors.text.secondary, border: colors.charcoal[600] },
+    plus: { label: 'Plus', bg: `${colors.voltage}26`, text: colors.voltage, border: `${colors.voltage}4D` },
 };
 
 // ============================================================================
@@ -154,9 +161,41 @@ export default function AccountHubScreen() {
     const [biometricEnabled, setBiometricEnabled] = useState(true);
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-    // Current membership
-    const membershipTier = 'Basic';
-    const tierStyle = MEMBERSHIP_TIERS[membershipTier];
+    // Phase 4 (audit-v3 §MOCK-SWEEP) — read the authed user's profile from
+    // AuthContext instead of rendering the hard-coded 'John Mwangi' /
+    // '+254 712 345 678' / 'JM' that previously shipped to every customer.
+    // The route-level guard in `(customer)/_layout.tsx` already redirects
+    // unauthenticated users to /(auth)/login, so `user` is only null in
+    // the narrow window where the Firestore profile read is still in
+    // flight after the Firebase Auth listener has fired — fall back to
+    // safe, neutral strings rather than placeholder identities.
+    const { user, signOut } = useAuth();
+    const displayName = user?.displayName?.trim() || 'New User';
+    const phoneNumber = user?.phoneNumber || '';
+    const initials = deriveInitials(user?.displayName);
+    const membershipKey: 'basic' | 'plus' = user?.membership === 'plus' ? 'plus' : 'basic';
+    const tierStyle = MEMBERSHIP_TIERS[membershipKey];
+
+    // Phase 4 (audit-v3 §MOCK-SWEEP, CodeRabbit) — derive the vehicle and
+    // emergency-contact previews from the real `user.vehicles` /
+    // `user.emergencyContacts` arrays on the Firestore profile. The
+    // previous hard-coded "Toyota Prado · KBZ 123A / 2 saved" and
+    // "Next of Kin / 3 added" copy painted the same numbers on every
+    // account regardless of what the user had actually saved.
+    const userVehicles = user?.vehicles ?? [];
+    const primaryVehicle = userVehicles.find(v => v.isPrimary) ?? userVehicles[0];
+    const vehiclePreviewSublabel = primaryVehicle
+        ? `${primaryVehicle.make} · ${primaryVehicle.licensePlate}`
+        : undefined;
+    const vehiclePreviewBadge = userVehicles.length > 0
+        ? `${userVehicles.length} saved`
+        : undefined;
+
+    const userContacts = user?.emergencyContacts ?? [];
+    const contactsPreviewSublabel = userContacts[0]?.relationship || undefined;
+    const contactsPreviewBadge = userContacts.length > 0
+        ? `${userContacts.length} added`
+        : undefined;
 
     useEffect(() => {
         Animated.parallel([
@@ -191,7 +230,7 @@ export default function AccountHubScreen() {
                         <View style={styles.avatarContainer}>
                             <View style={styles.avatar}>
                                 <View style={styles.avatarInner}>
-                                    <Text style={styles.avatarText}>JM</Text>
+                                    <Text style={styles.avatarText}>{initials}</Text>
                                 </View>
                             </View>
                             <Pressable
@@ -203,8 +242,8 @@ export default function AccountHubScreen() {
                             </Pressable>
                         </View>
 
-                        <Text style={styles.userName}>John Mwangi</Text>
-                        <Text style={styles.userPhone}>+254 712 345 678</Text>
+                        <Text style={styles.userName}>{displayName}</Text>
+                        <Text style={styles.userPhone}>{phoneNumber}</Text>
 
                         {/* Membership Badge */}
                         <View style={[styles.membershipBadge, {
@@ -213,7 +252,7 @@ export default function AccountHubScreen() {
                         }]}>
                             <Crown size={14} color={tierStyle.text} strokeWidth={2} />
                             <Text style={[styles.membershipText, { color: tierStyle.text }]}>
-                                {membershipTier} Member
+                                {tierStyle.label} Member
                             </Text>
                         </View>
 
@@ -254,9 +293,9 @@ export default function AccountHubScreen() {
                             <MenuItem
                                 icon={Car}
                                 label="My Vehicles"
-                                sublabel="Toyota Prado · KBZ 123A"
-                                sublabelMono
-                                badge="2 saved"
+                                sublabel={vehiclePreviewSublabel}
+                                sublabelMono={!!primaryVehicle}
+                                badge={vehiclePreviewBadge}
                                 badgeColor={colors.voltage}
                                 badgeTextColor={colors.background.primary}
                                 onPress={() => router.push('/(customer)/vehicles')}
@@ -264,9 +303,9 @@ export default function AccountHubScreen() {
                             <MenuItem
                                 icon={Phone}
                                 label="Emergency Contacts"
-                                sublabel="Next of Kin"
+                                sublabel={contactsPreviewSublabel}
                                 iconColor={colors.status.error}
-                                badge="3 added"
+                                badge={contactsPreviewBadge}
                                 badgeColor={colors.successGlow}
                                 badgeTextColor={colors.status.success}
                                 isLast
@@ -343,7 +382,21 @@ export default function AccountHubScreen() {
                             styles.logoutButton,
                             pressed && { backgroundColor: colors.text.opacity20, transform: [{ scale: 0.98 }] }
                         ]}
-                        onPress={() => router.replace('/')}
+                        onPress={async () => {
+                            // Phase 4 (audit-v3 §MOCK-SWEEP) — actually drop
+                            // the Firebase session (and clear the FCM token
+                            // per audit-v2 §N-MED-8) instead of just
+                            // bouncing back to '/'. Navigation lives inside
+                            // the try block (CodeRabbit) so a failed
+                            // signOut() does NOT bounce the user to the
+                            // splash while still authenticated.
+                            try {
+                                await signOut();
+                                router.replace('/');
+                            } catch (err) {
+                                console.warn('[profile] sign out failed:', err);
+                            }
+                        }}
                         accessibilityLabel="Sign out"
                         accessibilityRole="button"
                     >

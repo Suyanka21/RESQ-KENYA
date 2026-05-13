@@ -14,6 +14,8 @@ import { getPendingRequestsNearby } from '../../services/firestore.service';
 import {
     updateLocation as updateProviderLocationCallable,
     setAvailability as setProviderAvailabilityCallable,
+    getEarningsSummary as getProviderEarningsSummary,
+    getRequestHistory as getProviderRequestHistory,
 } from '../../services/provider.service';
 import {
     getCurrentLocation,
@@ -23,27 +25,44 @@ import {
 import { colors, SERVICE_TYPES, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
 import { ServiceIcon } from '../../components/ui/ServiceIcon';
 import type { GeoLocation, ServiceRequest } from '../../types';
+import type { ServiceType } from '../../theme/voltage-premium';
+import { useAuth } from '../../services/AuthContext';
 
-// Mock provider data (in production, fetch from Firestore)
-const MOCK_PROVIDER = {
-    id: 'provider_1',
-    displayName: "John's Towing Services",
-    serviceTypes: ['towing', 'tire', 'battery'],
-    rating: 4.8,
-    totalServices: 156,
-};
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_PROVIDER constant
+// ("John's Towing Services", 156 services, 4.8 rating, towing/tire/
+// battery service types) was rendered on every provider dashboard
+// regardless of who was signed in. Provider chrome now reads from the
+// AuthContext's `provider` slot (Provider) when present, else falls
+// back to the user object's display name. The serviceTypes default
+// is empty until the provider configures their offering via the
+// onboarding flow.
 
 export default function ProviderDashboard() {
+    const { user, provider } = useAuth();
     const [isOnline, setIsOnline] = useState(false);
     const [currentLocation, setCurrentLocation] = useState<GeoLocation>(NAIROBI_DEFAULT);
     const [nearbyRequests, setNearbyRequests] = useState<ServiceRequest[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    // Phase 4 (audit-v3 §MOCK-SWEEP) — a freshly-onboarded provider
+    // has zero completed jobs, zero earnings, and no rating yet. The
+    // previous "3 jobs / KES 7,500 / 45.2km / 4.9" placeholder painted
+    // the same dashboard for every account regardless of activity. A
+    // future patch wires this to a daily aggregate query.
     const [todayStats, setTodayStats] = useState({
-        completedJobs: 3,
-        earnings: 7500,
-        distance: 45.2,
-        avgRating: 4.9,
+        completedJobs: 0,
+        earnings: 0,
+        distance: 0,
+        avgRating: 0,
     });
+
+    // Resolve provider identity & service types from the authed user.
+    // Falls back across `provider.displayName` → `user.displayName` →
+    // a neutral placeholder — never the previous mock string.
+    const providerDisplayName: string =
+        provider?.displayName?.trim() ||
+        user?.displayName?.trim() ||
+        'Provider';
+    const providerServiceTypes: ServiceType[] = provider?.serviceTypes ?? [];
 
     // Get current location on mount
     useEffect(() => {
@@ -53,6 +72,52 @@ export default function ProviderDashboard() {
         };
         initLocation();
     }, []);
+
+    // Phase 4 (audit-v3 §PROVIDER-DASH) — replace the hard-coded
+    // "3 jobs / KES 7,500 / 45.2km / 4.9" placeholder with a real
+    // per-day rollup. Completed jobs and distance are derived from
+    // today's RequestHistory rows; earnings come from the same
+    // `transactions` query that drives the earnings screen; rating
+    // comes from the provider profile (Provider.rating, populated
+    // by the Cloud Function that closes out a paid job).
+    useEffect(() => {
+        let cancelled = false;
+        const providerId = provider?.id;
+        if (!providerId) return;
+        const startOfDay = (() => {
+            const d = new Date();
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        })();
+        (async () => {
+            try {
+                const [earnings, history] = await Promise.all([
+                    getProviderEarningsSummary(providerId),
+                    getProviderRequestHistory(providerId, 50),
+                ]);
+                if (cancelled) return;
+                const todays = history.filter((r) => {
+                    const completedAt = r.timeline?.completedAt as any;
+                    const completed = completedAt instanceof Date
+                        ? completedAt
+                        : completedAt?.toDate?.() ?? null;
+                    return r.status === 'completed' && completed && completed >= startOfDay;
+                });
+                // Distance-driven-today requires provider location history
+                // per job, which the schema doesn't currently capture.
+                // Report 0 honestly rather than the previous 45.2km
+                // placeholder — wiring this up is tracked separately.
+                setTodayStats({
+                    completedJobs: todays.length,
+                    earnings: earnings.today,
+                    distance: 0,
+                    avgRating: provider?.rating ?? 0,
+                });
+            } catch (err) {
+                console.warn('[provider/dashboard] todayStats load failed:', err);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [provider?.id, provider?.rating]);
 
     // Handle online/offline toggle
     const handleToggleOnline = async (value: boolean) => {
@@ -75,13 +140,18 @@ export default function ProviderDashboard() {
                 await setProviderAvailabilityCallable(true, location);
                 await updateProviderLocationCallable(location.latitude, location.longitude);
 
-                // Fetch nearby pending requests
-                const requests = await getPendingRequestsNearby(
-                    location.latitude,
-                    location.longitude,
-                    MOCK_PROVIDER.serviceTypes,
-                    15
-                );
+                // Fetch nearby pending requests. When the provider has
+                // not yet configured serviceTypes (fresh account), this
+                // returns an empty list rather than crashing on an
+                // unbounded query.
+                const requests = providerServiceTypes.length === 0
+                    ? []
+                    : await getPendingRequestsNearby(
+                        location.latitude,
+                        location.longitude,
+                        providerServiceTypes,
+                        15
+                    );
                 setNearbyRequests(requests);
             } else {
                 // Go offline. The setAvailability callable clears
@@ -124,7 +194,7 @@ export default function ProviderDashboard() {
                 <View style={styles.headerTop}>
                     <View>
                         <Text style={styles.greeting}>Good morning</Text>
-                        <Text style={styles.providerName}>{MOCK_PROVIDER.displayName}</Text>
+                        <Text style={styles.providerName}>{providerDisplayName}</Text>
                     </View>
                     <View style={styles.statusBadgeContainer}>
                         <View style={[styles.statusBadge, isOnline ? styles.statusOnline : styles.statusOffline]}>
@@ -217,17 +287,23 @@ export default function ProviderDashboard() {
                 {/* Services Offered */}
                 <Text style={styles.sectionTitle}>Your Services</Text>
                 <View style={styles.servicesRow}>
-                    {MOCK_PROVIDER.serviceTypes.map(type => {
-                        const service = SERVICE_TYPES[type as keyof typeof SERVICE_TYPES];
-                        return (
-                            <View key={type} style={styles.serviceChip}>
-                                <ServiceIcon type={type as any} size={16} color={colors.voltage} />
-                                <Text style={styles.serviceChipText}>
-                                    {service?.name || type}
-                                </Text>
-                            </View>
-                        );
-                    })}
+                    {providerServiceTypes.length === 0 ? (
+                        <Text style={styles.servicesEmpty}>
+                            You haven't added any services yet. Complete onboarding to start receiving jobs.
+                        </Text>
+                    ) : (
+                        providerServiceTypes.map(type => {
+                            const service = SERVICE_TYPES[type as keyof typeof SERVICE_TYPES];
+                            return (
+                                <View key={type} style={styles.serviceChip}>
+                                    <ServiceIcon type={type as any} size={16} color={colors.voltage} />
+                                    <Text style={styles.serviceChipText}>
+                                        {service?.name || type}
+                                    </Text>
+                                </View>
+                            );
+                        })
+                    )}
                 </View>
             </ScrollView>
 
@@ -467,6 +543,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         marginLeft: spacing.sm,
+    },
+    servicesEmpty: {
+        color: colors.text.tertiary,
+        fontSize: 14,
+        lineHeight: 20,
+        paddingVertical: spacing.sm,
     },
 
     // Alert Banner

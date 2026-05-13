@@ -87,20 +87,25 @@ export default function RootLayout() {
                         }}
                     >
                         <Stack.Screen name="index" />
-                        {/* Phase 4 (audit-v2 §N-LOW-1) — debug routes
-                            registered ONLY in dev. `__DEV__` is a global
-                            constant set to false by Metro on production
-                            builds, so production bundles never include
-                            these screens in the navigator. The .tsx
-                            files still exist on disk for local testing
-                            but the routes are unreachable via deep link
-                            in release builds. */}
-                        {__DEV__ && (
+                        {/* Phase 4 (audit-v3 §HIGH-2 + CodeRabbit) —
+                            debug routes use BOTH navigator-level AND
+                            component-level guards for defense-in-depth.
+                            Component guards in firebase-test.tsx and
+                            database-test.tsx redirect via
+                            `if (!__DEV__) return <Redirect />` — they
+                            remain the authoritative gate because
+                            expo-router auto-discovers every .tsx in
+                            app/ regardless of <Stack.Screen>
+                            declarations. The navigator-level
+                            `{__DEV__ && ...}` below adds a second
+                            independent check so both must fail before
+                            the debug screens are reachable in prod. */}
+                        {__DEV__ ? (
                             <>
                                 <Stack.Screen name="firebase-test" />
                                 <Stack.Screen name="database-test" />
                             </>
-                        )}
+                        ) : null}
                         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                         <Stack.Screen name="(customer)" options={{ headerShown: false }} />
                         <Stack.Screen name="(provider)" options={{ headerShown: false }} />
