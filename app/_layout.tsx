@@ -87,22 +87,25 @@ export default function RootLayout() {
                         }}
                     >
                         <Stack.Screen name="index" />
-                        {/* Phase 4 (audit-v3 §HIGH-2) — debug routes are
-                            gated AT THE COMPONENT LEVEL inside
-                            firebase-test.tsx and database-test.tsx via
-                            `if (!__DEV__) return <Redirect />`. The
-                            previous gate here only controlled the
-                            navigator entry, not the file-based route
-                            itself — expo-router auto-discovers every
-                            .tsx in app/ regardless of <Stack.Screen>
-                            declarations, so production users could
-                            deep-link to /firebase-test and
-                            /database-test. The component-level guard
-                            is the authoritative one. We still register
-                            them here unconditionally so transitions are
-                            consistent across dev/prod. */}
-                        <Stack.Screen name="firebase-test" />
-                        <Stack.Screen name="database-test" />
+                        {/* Phase 4 (audit-v3 §HIGH-2 + CodeRabbit) —
+                            debug routes use BOTH navigator-level AND
+                            component-level guards for defense-in-depth.
+                            Component guards in firebase-test.tsx and
+                            database-test.tsx redirect via
+                            `if (!__DEV__) return <Redirect />` — they
+                            remain the authoritative gate because
+                            expo-router auto-discovers every .tsx in
+                            app/ regardless of <Stack.Screen>
+                            declarations. The navigator-level
+                            `{__DEV__ && ...}` below adds a second
+                            independent check so both must fail before
+                            the debug screens are reachable in prod. */}
+                        {__DEV__ ? (
+                            <>
+                                <Stack.Screen name="firebase-test" />
+                                <Stack.Screen name="database-test" />
+                            </>
+                        ) : null}
                         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                         <Stack.Screen name="(customer)" options={{ headerShown: false }} />
                         <Stack.Screen name="(provider)" options={{ headerShown: false }} />

@@ -44,12 +44,17 @@ export default function ProviderSettingsScreen() {
                     text: 'Sign Out',
                     style: 'destructive',
                     onPress: async () => {
+                        // Phase 4 (audit-v3, CodeRabbit) — keep
+                        // navigation inside the try block so a failed
+                        // signOut() doesn't bounce the provider to
+                        // the splash while still authenticated.
                         try {
                             await signOut();
+                            router.replace('/');
                         } catch (err) {
                             console.warn('[provider/settings] sign out failed:', err);
+                            Alert.alert('Sign Out Failed', 'Please try again.');
                         }
-                        router.replace('/');
                     },
                 },
             ]

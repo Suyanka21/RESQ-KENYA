@@ -117,7 +117,7 @@ export default function MedicalDashboard() {
     const [isOnline, setIsOnline] = useState(true);
     const [stats, setStats] = useState<MedicalProviderStats>(INITIAL_STATS);
     const [activeEmergency, setActiveEmergency] = useState<ActiveEmergency | null>(INITIAL_EMERGENCY);
-    const [recentCases] = useState<RecentCase[]>(INITIAL_RECENT_CASES);
+    const recentCases: RecentCase[] = INITIAL_RECENT_CASES;
     const emtLevel: KenyaEMTLevel = 'emt_intermediate';
 
     const onRefresh = useCallback(async () => {

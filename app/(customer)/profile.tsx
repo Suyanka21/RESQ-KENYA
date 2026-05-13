@@ -176,6 +176,27 @@ export default function AccountHubScreen() {
     const membershipKey: 'basic' | 'plus' = user?.membership === 'plus' ? 'plus' : 'basic';
     const tierStyle = MEMBERSHIP_TIERS[membershipKey];
 
+    // Phase 4 (audit-v3 §MOCK-SWEEP, CodeRabbit) — derive the vehicle and
+    // emergency-contact previews from the real `user.vehicles` /
+    // `user.emergencyContacts` arrays on the Firestore profile. The
+    // previous hard-coded "Toyota Prado · KBZ 123A / 2 saved" and
+    // "Next of Kin / 3 added" copy painted the same numbers on every
+    // account regardless of what the user had actually saved.
+    const userVehicles = user?.vehicles ?? [];
+    const primaryVehicle = userVehicles.find(v => v.isPrimary) ?? userVehicles[0];
+    const vehiclePreviewSublabel = primaryVehicle
+        ? `${primaryVehicle.make} · ${primaryVehicle.licensePlate}`
+        : undefined;
+    const vehiclePreviewBadge = userVehicles.length > 0
+        ? `${userVehicles.length} saved`
+        : undefined;
+
+    const userContacts = user?.emergencyContacts ?? [];
+    const contactsPreviewSublabel = userContacts[0]?.relationship || undefined;
+    const contactsPreviewBadge = userContacts.length > 0
+        ? `${userContacts.length} added`
+        : undefined;
+
     useEffect(() => {
         Animated.parallel([
             Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
@@ -272,9 +293,9 @@ export default function AccountHubScreen() {
                             <MenuItem
                                 icon={Car}
                                 label="My Vehicles"
-                                sublabel="Toyota Prado · KBZ 123A"
-                                sublabelMono
-                                badge="2 saved"
+                                sublabel={vehiclePreviewSublabel}
+                                sublabelMono={!!primaryVehicle}
+                                badge={vehiclePreviewBadge}
                                 badgeColor={colors.voltage}
                                 badgeTextColor={colors.background.primary}
                                 onPress={() => router.push('/(customer)/vehicles')}
@@ -282,9 +303,9 @@ export default function AccountHubScreen() {
                             <MenuItem
                                 icon={Phone}
                                 label="Emergency Contacts"
-                                sublabel="Next of Kin"
+                                sublabel={contactsPreviewSublabel}
                                 iconColor={colors.status.error}
-                                badge="3 added"
+                                badge={contactsPreviewBadge}
                                 badgeColor={colors.successGlow}
                                 badgeTextColor={colors.status.success}
                                 isLast
@@ -365,19 +386,16 @@ export default function AccountHubScreen() {
                             // Phase 4 (audit-v3 §MOCK-SWEEP) — actually drop
                             // the Firebase session (and clear the FCM token
                             // per audit-v2 §N-MED-8) instead of just
-                            // bouncing back to '/'. router.replace('/')
-                            // alone left the user signed-in: the splash
-                            // would immediately redirect them right back
-                            // into the customer surface. The auth-state
-                            // change in AuthContext drops isAuthenticated,
-                            // and the (customer)/_layout guard then sends
-                            // the user to /(auth)/login.
+                            // bouncing back to '/'. Navigation lives inside
+                            // the try block (CodeRabbit) so a failed
+                            // signOut() does NOT bounce the user to the
+                            // splash while still authenticated.
                             try {
                                 await signOut();
+                                router.replace('/');
                             } catch (err) {
                                 console.warn('[profile] sign out failed:', err);
                             }
-                            router.replace('/');
                         }}
                         accessibilityLabel="Sign out"
                         accessibilityRole="button"

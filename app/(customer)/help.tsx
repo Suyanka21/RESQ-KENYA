@@ -145,7 +145,7 @@ export default function HelpScreen() {
                                 styles.callButton,
                                 pressed && { transform: [{ scale: 0.95 }] }
                             ]}
-                            onPress={() => Linking.openURL('tel:+254712345678')}
+                            onPress={() => Linking.openURL(`tel:${SUPPORT_PHONE_E164}`)}
                             accessibilityLabel="Call support"
                             accessibilityRole="button"
                         >

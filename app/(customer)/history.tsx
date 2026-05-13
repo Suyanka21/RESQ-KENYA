@@ -303,7 +303,7 @@ export default function HistoryScreen() {
                         <ErrorState
                             title="Couldn't Load History"
                             message={error}
-                            onRetry={() => { setError(null); setIsLoading(true); setTimeout(() => setIsLoading(false), 800); }}
+                            onRetry={() => { setError(null); setIsLoading(true); loadHistory(); }}
                             compact
                             style={{ margin: spacing.md }}
                         />
