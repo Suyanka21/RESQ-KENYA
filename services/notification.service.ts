@@ -4,9 +4,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { COLLECTIONS } from './firestore.service';
+import { pushFcmToken } from './fcmToken.service';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -87,33 +85,37 @@ export async function getExpoPushToken(): Promise<string | null> {
 }
 
 /**
- * Register device for push notifications and save token to Firestore
+ * Register device for push notifications and persist the token via
+ * the owned `setFcmToken` callable.
+ *
+ * Phase 4 (audit-v3 §AUTH-WIRE) — previously this function wrote
+ * directly to `users/{uid}.fcmToken` and `providers/{uid}.fcmToken`.
+ * That bypass is locked down by the Phase 3.5 ownership rules
+ * (the client can only write `fcmToken` through the callable, which
+ * enforces ownership and validates the token shape server-side).
+ *
+ * The function is now invoked from AuthContext after every successful
+ * auth state change so live users actually receive the request_accepted /
+ * provider_enroute / new_request pushes that the Cloud Functions emit.
  */
 export async function registerForPushNotifications(
-    userId: string,
-    isProvider: boolean = false
+    _userId?: string,
+    _isProvider: boolean = false
 ): Promise<void> {
     try {
         const token = await getExpoPushToken();
 
         if (!token) {
-            console.warn('No push token available');
+            console.warn('[notifications] no push token available');
             return;
         }
 
-        // Save token to user/provider profile
-        const collection = isProvider ? COLLECTIONS.PROVIDERS : COLLECTIONS.USERS;
-        const docRef = doc(db, collection, userId);
-
-        await updateDoc(docRef, {
-            fcmToken: token,
-            notificationsEnabled: true,
-            tokenUpdatedAt: new Date(),
-        });
-
-        console.log('Push token saved to Firestore');
+        const success = await pushFcmToken(token);
+        if (!success) {
+            console.warn('[notifications] setFcmToken callable returned false');
+        }
     } catch (error) {
-        console.error('Error registering for notifications:', error);
+        console.error('[notifications] registration failed:', error);
     }
 }
 
