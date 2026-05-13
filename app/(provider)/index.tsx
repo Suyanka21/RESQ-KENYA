@@ -14,6 +14,8 @@ import { getPendingRequestsNearby } from '../../services/firestore.service';
 import {
     updateLocation as updateProviderLocationCallable,
     setAvailability as setProviderAvailabilityCallable,
+    getEarningsSummary as getProviderEarningsSummary,
+    getRequestHistory as getProviderRequestHistory,
 } from '../../services/provider.service';
 import {
     getCurrentLocation,
@@ -70,6 +72,52 @@ export default function ProviderDashboard() {
         };
         initLocation();
     }, []);
+
+    // Phase 4 (audit-v3 §PROVIDER-DASH) — replace the hard-coded
+    // "3 jobs / KES 7,500 / 45.2km / 4.9" placeholder with a real
+    // per-day rollup. Completed jobs and distance are derived from
+    // today's RequestHistory rows; earnings come from the same
+    // `transactions` query that drives the earnings screen; rating
+    // comes from the provider profile (Provider.rating, populated
+    // by the Cloud Function that closes out a paid job).
+    useEffect(() => {
+        let cancelled = false;
+        const providerId = provider?.id;
+        if (!providerId) return;
+        const startOfDay = (() => {
+            const d = new Date();
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        })();
+        (async () => {
+            try {
+                const [earnings, history] = await Promise.all([
+                    getProviderEarningsSummary(providerId),
+                    getProviderRequestHistory(providerId, 50),
+                ]);
+                if (cancelled) return;
+                const todays = history.filter((r) => {
+                    const completedAt = r.timeline?.completedAt as any;
+                    const completed = completedAt instanceof Date
+                        ? completedAt
+                        : completedAt?.toDate?.() ?? null;
+                    return r.status === 'completed' && completed && completed >= startOfDay;
+                });
+                // Distance-driven-today requires provider location history
+                // per job, which the schema doesn't currently capture.
+                // Report 0 honestly rather than the previous 45.2km
+                // placeholder — wiring this up is tracked separately.
+                setTodayStats({
+                    completedJobs: todays.length,
+                    earnings: earnings.today,
+                    distance: 0,
+                    avgRating: provider?.rating ?? 0,
+                });
+            } catch (err) {
+                console.warn('[provider/dashboard] todayStats load failed:', err);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [provider?.id, provider?.rating]);
 
     // Handle online/offline toggle
     const handleToggleOnline = async (value: boolean) => {

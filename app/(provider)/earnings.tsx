@@ -1,19 +1,20 @@
 // ⚡ ResQ Kenya - Provider Earnings Screen
 // Converted from NativeWind to StyleSheet for consistency
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { colors, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
 import { ServiceIcon } from '../../components/ui/ServiceIcon';
 import { useAuth } from '../../services/AuthContext';
+import { getProviderEarningsSummary, getProviderTransactions } from '../../services/transaction.service';
 
 // Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_EARNINGS
 // (KES 7,500 / 32,500 / 125,000 / 4,500) and MOCK_TRANSACTIONS
 // (towing, tire, battery, fuel) shipped to every provider regardless
-// of activity. A freshly-onboarded provider has zero earnings and
-// zero transactions. Earnings now read from the AuthContext's
-// `provider.earnings` slot; transactions render an empty state until
-// the per-provider transactions query is wired up.
+// of activity. The screen now reads real per-provider data from the
+// `transactions` collection via `getProviderEarningsSummary` and
+// `getProviderTransactions`; a fresh provider sees zeros and an
+// empty list, an active provider sees the truth.
 interface Transaction {
     id: string;
     type: string;
@@ -27,18 +28,41 @@ export default function ProviderEarningsScreen() {
     const [activePeriod, setActivePeriod] = useState<'today' | 'week' | 'month'>('today');
     const [isWithdrawing, setIsWithdrawing] = useState(false);
 
-    // Earnings are sourced from the Provider.earnings sub-object on
-    // the AuthContext. A fresh provider account has all zeros until
-    // the provider has completed and settled a paid request.
-    const earnings = {
+    // Earnings start at the AuthContext snapshot (Provider.earnings)
+    // and are refreshed from the canonical transactions collection
+    // on mount. The Provider.earnings sub-object can lag behind
+    // freshly-settled jobs because it is only updated by the Cloud
+    // Function trigger; the summary query gives the authoritative
+    // up-to-the-second view.
+    const [earnings, setEarnings] = useState({
         today: provider?.earnings?.today ?? 0,
         thisWeek: provider?.earnings?.thisWeek ?? 0,
         thisMonth: provider?.earnings?.thisMonth ?? 0,
-        // Pending is not currently tracked on the Provider type; until
-        // it is, render 0 rather than hard-coding KES 4,500.
         pending: 0,
-    };
-    const transactions: Transaction[] = [];
+    });
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const providerId = provider?.id;
+        if (!providerId) return;
+        getProviderEarningsSummary(providerId)
+            .then((next) => { if (!cancelled) setEarnings(next); })
+            .catch((err) => console.warn('[provider/earnings] summary failed:', err));
+        getProviderTransactions(providerId, 50)
+            .then((rows) => {
+                if (cancelled) return;
+                setTransactions(rows.map((t) => ({
+                    id: t.id,
+                    type: t.type,
+                    amount: t.breakdown?.providerShare ?? (t.amount * 0.75),
+                    date: t.createdAt instanceof Date ? t.createdAt : new Date(t.createdAt as any),
+                    status: t.status,
+                })));
+            })
+            .catch((err) => console.warn('[provider/earnings] transactions failed:', err));
+        return () => { cancelled = true; };
+    }, [provider?.id]);
 
     const getActiveEarnings = () => {
         switch (activePeriod) {

@@ -163,7 +163,15 @@ export async function getRequestHistory(
 }
 
 /**
- * Get provider's earnings summary
+ * Get provider's earnings summary.
+ *
+ * Phase 4 (audit-v3 §MOCK-SWEEP) — previously returned the literal
+ * 7500 / 35000 / 125000 / 850000 placeholder regardless of the
+ * provider's real activity. The replacement queries the canonical
+ * `transactions` collection (status === 'completed', providerId
+ * matches) and rolls up the provider share into today / week /
+ * month / allTime buckets so a fresh provider sees zeros and an
+ * active provider sees the truth.
  */
 export async function getEarningsSummary(providerId: string): Promise<{
     today: number;
@@ -172,17 +180,36 @@ export async function getEarningsSummary(providerId: string): Promise<{
     allTime: number;
 }> {
     try {
-        const providerDoc = await doc(db, 'providers', providerId);
-        // This would normally fetch from Firestore
-        // For now, return mock data
-        return {
-            today: 7500,
-            thisWeek: 35000,
-            thisMonth: 125000,
-            allTime: 850000,
-        };
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek = new Date(startOfDay.getTime() - startOfDay.getDay() * 86400000);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const q = query(
+            collection(db, 'transactions'),
+            where('providerId', '==', providerId),
+            where('type', '==', 'service_payment'),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+
+        let today = 0, thisWeek = 0, thisMonth = 0, allTime = 0;
+        for (const docSnap of snapshot.docs) {
+            const tx = docSnap.data() as any;
+            if (tx.status !== 'completed') continue;
+            const providerAmount = tx.breakdown?.providerShare ?? (tx.amount * 0.75);
+            const txDate = tx.createdAt instanceof Date
+                ? tx.createdAt
+                : tx.createdAt?.toDate?.() ?? null;
+            if (!txDate) continue;
+            allTime += providerAmount;
+            if (txDate >= startOfMonth) thisMonth += providerAmount;
+            if (txDate >= startOfWeek) thisWeek += providerAmount;
+            if (txDate >= startOfDay) today += providerAmount;
+        }
+        return { today, thisWeek, thisMonth, allTime };
     } catch (error) {
-        console.error('Get earnings error:', error);
+        console.error('[provider.service] getEarningsSummary failed:', error);
         return { today: 0, thisWeek: 0, thisMonth: 0, allTime: 0 };
     }
 }
