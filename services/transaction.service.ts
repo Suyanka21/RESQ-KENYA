@@ -2,7 +2,7 @@
 // Handles payment tracking, reconciliation, and financial reporting
 
 import {
-    collection, query, where, orderBy, getDocs,
+    collection, query, where, orderBy, limit, getDocs,
     doc, getDoc, setDoc, updateDoc, serverTimestamp,
     Timestamp
 } from 'firebase/firestore';
@@ -150,10 +150,16 @@ export async function getUserTransactions(
     userId: string,
     limitCount: number = 50
 ): Promise<Transaction[]> {
+    // Phase 4 (audit-v3 §WALLET-WIRE) — apply the limit to the query
+    // instead of accepting a `limitCount` argument and ignoring it.
+    // Unbounded reads on the transactions collection scale with the
+    // user's lifetime activity and risk noticeable jank on the wallet
+    // screen for high-volume users.
     const q = query(
         collection(db, 'transactions'),
         where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
     );
 
     const snapshot = await getDocs(q);
@@ -170,7 +176,8 @@ export async function getProviderTransactions(
     const q = query(
         collection(db, 'transactions'),
         where('providerId', '==', providerId),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
     );
 
     const snapshot = await getDocs(q);

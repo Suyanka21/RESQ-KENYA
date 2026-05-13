@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SkeletonListItem } from '../../components/ui/SkeletonLoader';
 import { useAuth } from '../../services/AuthContext';
 import { subscribeToWalletBalance } from '../../services/customer.service';
+import { getUserTransactions, type Transaction as ServiceTransaction } from '../../services/transaction.service';
 import { formatWalletBalance } from '../../components/dashboard/SidebarDrawer.helpers';
 
 // Phase 4 (audit-v3 §MOCK-SWEEP) — transactions and payment methods are
@@ -45,6 +46,59 @@ function maskMpesaPhone(phone: string | undefined): string {
     return `+${cc} ${prefix} *** ${suffix}`;
 }
 
+// Phase 4 (audit-v3 §WALLET-WIRE) — translate the canonical Transaction
+// record into the wallet screen's display shape. Kept as a pure helper
+// (Code-Simplification) so it's unit-testable in isolation.
+function adaptTransaction(t: ServiceTransaction): WalletTransaction {
+    let title: string;
+    let icon: string;
+    let direction: 'debit' | 'credit' | 'pending';
+    switch (t.type) {
+        case 'wallet_topup':
+            title = 'Wallet Top Up';
+            icon = 'topup';
+            direction = 'credit';
+            break;
+        case 'wallet_withdraw':
+            title = 'Withdrawal';
+            icon = 'service';
+            direction = 'debit';
+            break;
+        case 'refund':
+            title = 'Refund';
+            icon = 'refund';
+            direction = 'credit';
+            break;
+        case 'provider_payout':
+            title = 'Provider Payout';
+            icon = 'service';
+            direction = 'credit';
+            break;
+        case 'service_payment':
+        default:
+            title = t.description?.trim() || 'Service Payment';
+            icon = 'service';
+            direction = 'debit';
+            break;
+    }
+    if (t.status === 'pending' || t.status === 'processing') {
+        direction = 'pending';
+    }
+    const createdAt = t.createdAt instanceof Date
+        ? t.createdAt
+        : new Date(t.createdAt as any);
+    return {
+        id: t.id,
+        title,
+        date: Number.isNaN(createdAt.getTime())
+            ? ''
+            : createdAt.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }),
+        amount: t.amount,
+        type: direction,
+        icon,
+    };
+}
+
 export default function WalletScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -56,7 +110,7 @@ export default function WalletScreen() {
     // is the correct empty state.
     const { user } = useAuth();
     const [balance, setBalance] = useState<number>(0);
-    const [transactions] = useState<WalletTransaction[]>([]);
+    const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const mpesaPhone = maskMpesaPhone(user?.phoneNumber);
 
     useEffect(() => {
@@ -79,6 +133,30 @@ export default function WalletScreen() {
             setIsLoading(false);
         });
         return unsubscribe;
+    }, [user?.id]);
+
+    // Phase 4 (audit-v3 §WALLET-WIRE) — populate the transaction list
+    // from the real `transactions` collection scoped to user.id. The
+    // previous hard-coded empty array meant a customer who had topped
+    // up, paid for a service, or received a refund still saw
+    // "No transactions yet" forever.
+    useEffect(() => {
+        let cancelled = false;
+        if (!user?.id) {
+            setTransactions([]);
+            return;
+        }
+        getUserTransactions(user.id, 50)
+            .then((rows) => {
+                if (cancelled) return;
+                setTransactions(rows.map(adaptTransaction));
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                console.warn('[wallet] getUserTransactions failed:', err);
+                setTransactions([]);
+            });
+        return () => { cancelled = true; };
     }, [user?.id]);
 
     const renderTransactionIcon = (icon: string) => {
