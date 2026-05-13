@@ -16,54 +16,15 @@ import {
 import { getCurrentLocation } from '../../services/location.service';
 import type { ServiceRequest, GeoLocation } from '../../types';
 
-// Mock provider data (in production, fetch from auth context)
-const MOCK_PROVIDER = {
-    id: 'provider_1',
-    serviceTypes: ['towing', 'tire', 'battery', 'fuel', 'diagnostics'],
-};
-
-// Mock pending requests for demo (will be replaced by real-time subscription)
-const MOCK_REQUESTS: ServiceRequest[] = [
-    {
-        id: 'req_1',
-        userId: 'user_1',
-        serviceType: 'towing',
-        status: 'pending',
-        customerLocation: {
-            coordinates: { latitude: -1.2673, longitude: 36.8114 },
-            address: 'Westlands, Nairobi',
-        },
-        timeline: { requestedAt: new Date(Date.now() - 120000) },
-        pricing: { total: 3500 },
-    } as ServiceRequest,
-    {
-        id: 'req_2',
-        userId: 'user_2',
-        serviceType: 'tire',
-        status: 'pending',
-        customerLocation: {
-            coordinates: { latitude: -1.2875, longitude: 36.7844 },
-            address: 'Kilimani, Nairobi',
-        },
-        timeline: { requestedAt: new Date(Date.now() - 300000) },
-        pricing: { total: 1500 },
-    } as ServiceRequest,
-    {
-        id: 'req_3',
-        userId: 'user_3',
-        serviceType: 'battery',
-        status: 'pending',
-        customerLocation: {
-            coordinates: { latitude: -1.3103, longitude: 36.8441 },
-            address: 'South B, Nairobi',
-        },
-        timeline: { requestedAt: new Date(Date.now() - 480000) },
-        pricing: { total: 2500 },
-    } as ServiceRequest,
-];
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_PROVIDER and
+// MOCK_REQUESTS constants (Westlands towing KES 3,500 / Kilimani tire
+// / South B battery) painted three fake jobs onto every provider's
+// request inbox regardless of whether they had ever come online. The
+// real-time subscription via `subscribeToNearbyRequests` below now
+// drives the list; fresh accounts render the existing EmptyState.
 
 export default function ProviderRequestsScreen() {
-    const [requests, setRequests] = useState<ServiceRequest[]>(MOCK_REQUESTS);
+    const [requests, setRequests] = useState<ServiceRequest[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [acceptingId, setAcceptingId] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'accepted'>('all');

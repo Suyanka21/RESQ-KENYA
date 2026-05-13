@@ -5,32 +5,46 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { colors, spacing, borderRadius, shadows } from '../../theme/voltage-premium';
 import { ServiceIcon } from '../../components/ui/ServiceIcon';
+import { useAuth } from '../../services/AuthContext';
 
-// Mock earnings data
-const MOCK_EARNINGS = {
-    today: 7500,
-    thisWeek: 32500,
-    thisMonth: 125000,
-    pending: 4500,
-};
-
-const MOCK_TRANSACTIONS = [
-    { id: '1', type: 'towing', amount: 3500, date: new Date(), status: 'completed' },
-    { id: '2', type: 'tire', amount: 1500, date: new Date(Date.now() - 3600000), status: 'completed' },
-    { id: '3', type: 'battery', amount: 2500, date: new Date(Date.now() - 7200000), status: 'completed' },
-    { id: '4', type: 'towing', amount: 4000, date: new Date(Date.now() - 86400000), status: 'completed' },
-    { id: '5', type: 'fuel', amount: 1200, date: new Date(Date.now() - 172800000), status: 'completed' },
-];
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_EARNINGS
+// (KES 7,500 / 32,500 / 125,000 / 4,500) and MOCK_TRANSACTIONS
+// (towing, tire, battery, fuel) shipped to every provider regardless
+// of activity. A freshly-onboarded provider has zero earnings and
+// zero transactions. Earnings now read from the AuthContext's
+// `provider.earnings` slot; transactions render an empty state until
+// the per-provider transactions query is wired up.
+interface Transaction {
+    id: string;
+    type: string;
+    amount: number;
+    date: Date;
+    status: string;
+}
 
 export default function ProviderEarningsScreen() {
+    const { provider } = useAuth();
     const [activePeriod, setActivePeriod] = useState<'today' | 'week' | 'month'>('today');
     const [isWithdrawing, setIsWithdrawing] = useState(false);
 
+    // Earnings are sourced from the Provider.earnings sub-object on
+    // the AuthContext. A fresh provider account has all zeros until
+    // the provider has completed and settled a paid request.
+    const earnings = {
+        today: provider?.earnings?.today ?? 0,
+        thisWeek: provider?.earnings?.thisWeek ?? 0,
+        thisMonth: provider?.earnings?.thisMonth ?? 0,
+        // Pending is not currently tracked on the Provider type; until
+        // it is, render 0 rather than hard-coding KES 4,500.
+        pending: 0,
+    };
+    const transactions: Transaction[] = [];
+
     const getActiveEarnings = () => {
         switch (activePeriod) {
-            case 'today': return MOCK_EARNINGS.today;
-            case 'week': return MOCK_EARNINGS.thisWeek;
-            case 'month': return MOCK_EARNINGS.thisMonth;
+            case 'today': return earnings.today;
+            case 'week': return earnings.thisWeek;
+            case 'month': return earnings.thisMonth;
         }
     };
 
@@ -43,13 +57,11 @@ export default function ProviderEarningsScreen() {
         return `${Math.floor(diffHours / 24)}d ago`;
     };
 
-    const getJobCount = () => {
-        switch (activePeriod) {
-            case 'today': return 3;
-            case 'week': return 12;
-            case 'month': return 45;
-        }
-    };
+    // Job counts come from the same transactions list. Until the
+    // per-period aggregate query is wired we report the in-memory
+    // count for whichever period is showing.
+    const getJobCount = () => transactions.length;
+    const avgRating = provider?.rating ?? 0;
 
     return (
         <View style={styles.container}>
@@ -92,7 +104,7 @@ export default function ProviderEarningsScreen() {
                         <View style={styles.earningsStat}>
                             <Text style={styles.earningsStatLabel}>Pending</Text>
                             <Text style={styles.earningsStatValue}>
-                                KES {MOCK_EARNINGS.pending.toLocaleString()}
+                                KES {earnings.pending.toLocaleString()}
                             </Text>
                         </View>
                         <View style={styles.earningsStat}>
@@ -101,7 +113,9 @@ export default function ProviderEarningsScreen() {
                         </View>
                         <View style={styles.earningsStat}>
                             <Text style={styles.earningsStatLabel}>Rating</Text>
-                            <Text style={styles.earningsStatValue}>4.9 ★</Text>
+                            <Text style={styles.earningsStatValue}>
+                                {avgRating > 0 ? `${avgRating.toFixed(1)} ★` : '—'}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -128,26 +142,35 @@ export default function ProviderEarningsScreen() {
                 {/* Transaction History */}
                 <Text style={styles.sectionTitle}>Recent Transactions</Text>
                 <View style={styles.transactionsList}>
-                    {MOCK_TRANSACTIONS.map((tx, index) => (
-                        <View
-                            key={tx.id}
-                            style={[
-                                styles.transactionItem,
-                                index < MOCK_TRANSACTIONS.length - 1 && styles.transactionItemBorder
-                            ]}
-                        >
-                            <View style={styles.transactionIcon}>
-                                <ServiceIcon type={tx.type as any} size={18} color={colors.voltage} />
-                            </View>
-                            <View style={styles.transactionInfo}>
-                                <Text style={styles.transactionType}>{tx.type.charAt(0).toUpperCase() + tx.type.slice(1)} Service</Text>
-                                <Text style={styles.transactionTime}>{formatTime(tx.date)}</Text>
-                            </View>
-                            <Text style={styles.transactionAmount}>
-                                +KES {tx.amount.toLocaleString()}
+                    {transactions.length === 0 ? (
+                        <View style={styles.transactionsEmpty}>
+                            <Text style={styles.transactionsEmptyTitle}>No transactions yet</Text>
+                            <Text style={styles.transactionsEmptyBody}>
+                                Completed jobs and payouts will appear here.
                             </Text>
                         </View>
-                    ))}
+                    ) : (
+                        transactions.map((tx, index) => (
+                            <View
+                                key={tx.id}
+                                style={[
+                                    styles.transactionItem,
+                                    index < transactions.length - 1 && styles.transactionItemBorder
+                                ]}
+                            >
+                                <View style={styles.transactionIcon}>
+                                    <ServiceIcon type={tx.type as any} size={18} color={colors.voltage} />
+                                </View>
+                                <View style={styles.transactionInfo}>
+                                    <Text style={styles.transactionType}>{tx.type.charAt(0).toUpperCase() + tx.type.slice(1)} Service</Text>
+                                    <Text style={styles.transactionTime}>{formatTime(tx.date)}</Text>
+                                </View>
+                                <Text style={styles.transactionAmount}>
+                                    +KES {tx.amount.toLocaleString()}
+                                </Text>
+                            </View>
+                        ))
+                    )}
                 </View>
             </ScrollView>
         </View>
@@ -309,5 +332,21 @@ const styles = StyleSheet.create({
     transactionAmount: {
         color: colors.success,
         fontWeight: '700',
+    },
+    transactionsEmpty: {
+        paddingVertical: spacing.xl,
+        paddingHorizontal: spacing.lg,
+        alignItems: 'center',
+        gap: spacing.xs,
+    },
+    transactionsEmptyTitle: {
+        color: colors.text.primary,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    transactionsEmptyBody: {
+        color: colors.text.tertiary,
+        fontSize: 13,
+        textAlign: 'center',
     },
 });

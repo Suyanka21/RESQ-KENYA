@@ -15,31 +15,71 @@ import {
 import { colors, spacing, borderRadius, shadows, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
 import { SkeletonListItem } from '../../components/ui/SkeletonLoader';
+import { useAuth } from '../../services/AuthContext';
+import { subscribeToWalletBalance } from '../../services/customer.service';
+import { formatWalletBalance } from '../../components/dashboard/SidebarDrawer.helpers';
 
-// Mock transactions
-const TRANSACTIONS = [
-    { id: 'TXN-1234', title: 'Towing Service', date: 'Today, 2:45 PM', amount: -2750, type: 'debit', icon: '🚛' },
-    { id: 'TXN-1233', title: 'Wallet Top Up', date: 'Yesterday, 10:00 AM', amount: 1000, type: 'credit', icon: 'topup' },
-    { id: 'TXN-1232', title: 'Fuel Delivery', date: 'Oct 24, 4:30 PM', amount: -1500, type: 'debit', icon: '⛽' },
-    { id: 'TXN-1231', title: 'Refund Processed', date: 'Oct 22, 9:15 AM', amount: 500, type: 'pending', icon: 'refund' },
-    { id: 'TXN-1230', title: 'Monthly Subscription', date: 'Oct 01, 12:00 AM', amount: -2500, type: 'debit', icon: 'card' },
-];
+// Phase 4 (audit-v3 §MOCK-SWEEP) — transactions and payment methods are
+// scoped per user. The mock array (Towing Service / Top Up / Fuel / etc.)
+// that previously shipped to every customer has been removed. Until the
+// transactions collection has a per-user query (separate ticket), a
+// fresh account renders the empty-state card defined below.
+interface WalletTransaction {
+    id: string;
+    title: string;
+    date: string;
+    amount: number;
+    type: 'debit' | 'credit' | 'pending';
+    icon: string;
+}
+
+function maskMpesaPhone(phone: string | undefined): string {
+    // "+254712345678" → "+254 712 *** 678". Returns '' if we don't have a
+    // valid 12-digit phone so the UI can hide the payment-method tile
+    // for fresh accounts instead of rendering a misleading placeholder.
+    const digits = (phone ?? '').replace(/\D/g, '');
+    if (digits.length < 12) return '';
+    const cc = digits.slice(0, 3);
+    const prefix = digits.slice(3, 6);
+    const suffix = digits.slice(-3);
+    return `+${cc} ${prefix} *** ${suffix}`;
+}
 
 export default function WalletScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(20)).current;
 
+    // Phase 4 (audit-v3 §MOCK-SWEEP) — wire the balance to the user's
+    // Firestore wallet doc via the existing subscribeToWalletBalance
+    // service. Returns 0 for fresh accounts (no wallet doc yet), which
+    // is the correct empty state.
+    const { user } = useAuth();
+    const [balance, setBalance] = useState<number>(0);
+    const [transactions] = useState<WalletTransaction[]>([]);
+    const mpesaPhone = maskMpesaPhone(user?.phoneNumber);
+
     useEffect(() => {
         Animated.parallel([
             Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
             Animated.timing(slideAnim, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         ]).start();
+    }, [fadeAnim, slideAnim]);
 
-        // Simulate loading
-        const timer = setTimeout(() => setIsLoading(false), 1500);
-        return () => clearTimeout(timer);
-    }, []);
+    useEffect(() => {
+        if (!user?.id) {
+            // No user yet (route guard should keep this unreachable).
+            // Render zero and don't subscribe.
+            setBalance(0);
+            setIsLoading(false);
+            return;
+        }
+        const unsubscribe = subscribeToWalletBalance(user.id, (next) => {
+            setBalance(next);
+            setIsLoading(false);
+        });
+        return unsubscribe;
+    }, [user?.id]);
 
     const renderTransactionIcon = (icon: string) => {
         if (icon === 'topup') return <ArrowDownLeft size={20} color={colors.status.success} strokeWidth={2} />;
@@ -87,10 +127,10 @@ export default function WalletScreen() {
                                 <Text style={styles.balanceLabel}>Available Balance</Text>
                                 <Wallet size={20} color={colors.voltage} style={{ opacity: 0.5 }} strokeWidth={2} />
                             </View>
-                            <Text style={styles.balanceAmount}>KES 4,500</Text>
+                            <Text style={styles.balanceAmount}>{formatWalletBalance(balance)}</Text>
                             <View style={styles.updatedRow}>
                                 <View style={styles.liveDot} />
-                                <Text style={styles.updatedText}>Updated 2 min ago</Text>
+                                <Text style={styles.updatedText}>Live</Text>
                             </View>
                         </View>
                     </View>
@@ -130,26 +170,31 @@ export default function WalletScreen() {
                             </View>
                         </View>
 
-                        {/* M-Pesa Card */}
-                        <View style={styles.paymentCard}>
-                            <View style={styles.paymentCardLeft}>
-                                <View style={styles.mpesaBadge}>
-                                    <Text style={styles.mpesaText}>M-PESA</Text>
-                                </View>
-                                <View>
-                                    <View style={styles.paymentNameRow}>
-                                        <Text style={styles.paymentName}>M-Pesa</Text>
-                                        <View style={styles.defaultBadge}>
-                                            <Text style={styles.defaultBadgeText}>Default</Text>
-                                        </View>
+                        {/* M-Pesa Card — only shown when we actually have
+                            a phone number on the user profile. For fresh
+                            accounts the user lands straight on the
+                            "Add Payment Method" CTA below. */}
+                        {mpesaPhone ? (
+                            <View style={styles.paymentCard}>
+                                <View style={styles.paymentCardLeft}>
+                                    <View style={styles.mpesaBadge}>
+                                        <Text style={styles.mpesaText}>M-PESA</Text>
                                     </View>
-                                    <Text style={styles.paymentNumber}>+254 712 *** 678</Text>
+                                    <View>
+                                        <View style={styles.paymentNameRow}>
+                                            <Text style={styles.paymentName}>M-Pesa</Text>
+                                            <View style={styles.defaultBadge}>
+                                                <Text style={styles.defaultBadgeText}>Default</Text>
+                                            </View>
+                                        </View>
+                                        <Text style={styles.paymentNumber}>{mpesaPhone}</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.paymentCheck}>
+                                    <View style={styles.paymentCheckMark} />
                                 </View>
                             </View>
-                            <View style={styles.paymentCheck}>
-                                <View style={styles.paymentCheckMark} />
-                            </View>
-                        </View>
+                        ) : null}
 
                         {/* Add Payment Button */}
                         <Pressable
@@ -176,17 +221,29 @@ export default function WalletScreen() {
 
                         <View style={styles.transactionList}>
                             {isLoading ? (
-                                // Loading skeletons
-                                [...Array(5)].map((_, i) => (
+                                // Loading skeletons — only while the
+                                // subscribeToWalletBalance subscription is
+                                // in flight.
+                                [...Array(3)].map((_, i) => (
                                     <SkeletonListItem key={i} />
                                 ))
+                            ) : transactions.length === 0 ? (
+                                <View style={styles.emptyState} accessibilityRole="summary">
+                                    <View style={styles.emptyIconWrap}>
+                                        <HistoryIcon size={24} color={colors.text.tertiary} strokeWidth={2} />
+                                    </View>
+                                    <Text style={styles.emptyTitle}>No transactions yet</Text>
+                                    <Text style={styles.emptyBody}>
+                                        Your top-ups, service payments, and refunds will appear here.
+                                    </Text>
+                                </View>
                             ) : (
-                                TRANSACTIONS.map((txn, idx) => (
+                                transactions.map((txn, idx) => (
                                     <Pressable
                                         key={txn.id}
                                         style={[
                                             styles.transactionRow,
-                                            idx < TRANSACTIONS.length - 1 && styles.transactionBorder
+                                            idx < transactions.length - 1 && styles.transactionBorder
                                         ]}
                                         accessibilityLabel={`${txn.title}, ${txn.type === 'debit' ? 'minus' : 'plus'} KES ${Math.abs(txn.amount)}`}
                                         accessibilityRole="button"
@@ -216,28 +273,34 @@ export default function WalletScreen() {
                         </View>
                     </View>
 
-                    {/* Membership Upsell */}
-                    <View style={styles.membershipCard}>
-                        <View style={styles.membershipLeft}>
-                            <View style={styles.membershipIconWrap}>
-                                <Crown size={20} color={colors.voltage} strokeWidth={2} />
+                    {/* Membership Upsell — Phase 4 (audit-v3 §MOCK-SWEEP).
+                        The user's tier is read from the authed user; only
+                        "basic" accounts see the upgrade CTA. The Plus tier
+                        is the real upsell target (matches User.membership
+                        union in types/index.ts). */}
+                    {user?.membership !== 'plus' && (
+                        <View style={styles.membershipCard}>
+                            <View style={styles.membershipLeft}>
+                                <View style={styles.membershipIconWrap}>
+                                    <Crown size={20} color={colors.voltage} strokeWidth={2} />
+                                </View>
+                                <View style={styles.membershipTextBlock}>
+                                    <Text style={styles.membershipTitle}>Current Plan: Basic</Text>
+                                    <Text style={styles.membershipDesc}>Upgrade to Plus for discounted services</Text>
+                                </View>
                             </View>
-                            <View style={styles.membershipTextBlock}>
-                                <Text style={styles.membershipTitle}>Current Plan: Basic</Text>
-                                <Text style={styles.membershipDesc}>Upgrade to Gold for 10% off all services</Text>
-                            </View>
+                            <Pressable
+                                style={({ pressed }) => [
+                                    styles.upgradeButton,
+                                    pressed && { backgroundColor: colors.interactive.pressed }
+                                ]}
+                                accessibilityLabel="Upgrade membership plan"
+                                accessibilityRole="button"
+                            >
+                                <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
+                            </Pressable>
                         </View>
-                        <Pressable
-                            style={({ pressed }) => [
-                                styles.upgradeButton,
-                                pressed && { backgroundColor: colors.interactive.pressed }
-                            ]}
-                            accessibilityLabel="Upgrade membership plan"
-                            accessibilityRole="button"
-                        >
-                            <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
-                        </Pressable>
-                    </View>
+                    )}
                 </ScrollView>
             </Animated.View>
         </View>
@@ -502,6 +565,34 @@ const styles = StyleSheet.create({
         borderColor: colors.background.border,
         borderRadius: borderRadius.xl,
         overflow: 'hidden',
+    },
+    emptyState: {
+        paddingVertical: spacing.xl,
+        paddingHorizontal: spacing.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+    },
+    emptyIconWrap: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: colors.charcoal[800],
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: spacing.xs,
+    },
+    emptyTitle: {
+        fontSize: typography.fontSize.base,
+        fontWeight: '700',
+        color: colors.text.primary,
+        textAlign: 'center',
+    },
+    emptyBody: {
+        fontSize: typography.fontSize.sm,
+        color: colors.text.tertiary,
+        textAlign: 'center',
+        lineHeight: typography.fontSize.sm * 1.4,
     },
     transactionRow: {
         height: 72,

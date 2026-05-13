@@ -21,32 +21,15 @@ interface Vehicle {
     isDefault: boolean;
 }
 
-// Mock vehicles data
-const INITIAL_VEHICLES: Vehicle[] = [
-    {
-        id: '1',
-        make: 'Toyota',
-        model: 'Prado',
-        year: '2020',
-        registration: 'KBZ 123A',
-        fuelType: 'diesel',
-        color: 'White',
-        isDefault: true
-    },
-    {
-        id: '2',
-        make: 'Mercedes',
-        model: 'C200',
-        year: '2019',
-        registration: 'KCA 456B',
-        fuelType: 'petrol',
-        color: 'Black',
-        isDefault: false
-    },
-];
-
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous INITIAL_VEHICLES array
+// (Toyota Prado KBZ 123A / Mercedes C200 KCA 456B) seeded every brand
+// new account with two vehicles that didn't belong to them. Fresh
+// accounts now start with an empty garage and the existing EmptyState
+// CTA below guides the user into the "Add Vehicle" flow. The vehicles
+// list will be hydrated from User.vehicles once that subscription is
+// wired — tracked separately.
 export default function VehiclesScreen() {
-    const [vehicles, setVehicles] = useState<Vehicle[]>(INITIAL_VEHICLES);
+    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
     const [isLoading, setIsLoading] = useState(true);

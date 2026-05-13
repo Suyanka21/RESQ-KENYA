@@ -2,7 +2,7 @@
 // Converted from: DESIGN RES Q/components/ActivityHistoryScreen.tsx (Google Stitch)
 // Phase 2.5 UI Enhancement - Agent 2.5
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, Pressable, ScrollView, Animated,
     Easing, Platform, Dimensions, RefreshControl
@@ -18,6 +18,9 @@ import { StatusBar } from 'expo-status-bar';
 import { SkeletonCard, SkeletonStatRow } from '../../components/ui/SkeletonLoader';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { useAuth } from '../../services/AuthContext';
+import { getRequestHistory } from '../../services/customer.service';
+import type { ServiceRequest, RequestStatus } from '../../types';
 
 const { width } = Dimensions.get('window');
 
@@ -40,40 +43,73 @@ interface ServiceRecord {
     breakdown: { service: number; platform: number };
 }
 
-const MOCK_HISTORY: ServiceRecord[] = [
-    {
-        id: 'RSQ-2601-1234', type: 'towing', provider: 'Michael Kiprop',
-        date: '2026-01-28T14:45:00', displayDate: 'Jan 28, 2026', displayTime: '2:45 PM',
-        location: 'Westlands, Nairobi', status: 'completed', price: 2750, rating: 5,
-        duration: 25, distance: 12.4, breakdown: { service: 2500, platform: 250 },
-    },
-    {
-        id: 'RSQ-2601-1190', type: 'fuel', provider: 'Sarah Kamau',
-        date: '2026-01-27T09:15:00', displayDate: 'Jan 27, 2026', displayTime: '9:15 AM',
-        location: 'Mombasa Road, Nairobi', status: 'completed', price: 3800, rating: 4,
-        duration: 15, breakdown: { service: 3500, platform: 300 },
-    },
-    {
-        id: 'RSQ-2601-1155', type: 'battery', provider: 'John Omondi',
-        date: '2026-01-20T18:30:00', displayDate: 'Jan 20, 2026', displayTime: '6:30 PM',
-        location: 'Langata Road, Nairobi', status: 'cancelled', price: 0,
-        breakdown: { service: 0, platform: 0 },
-    },
-    {
-        id: 'RSQ-2512-9982', type: 'diagnostics', provider: 'AutoFix Garage',
-        date: '2025-12-15T11:00:00', displayDate: 'Dec 15, 2025', displayTime: '11:00 AM',
-        location: 'Ngong Road, Nairobi', status: 'completed', price: 2500, rating: 5,
-        duration: 45, breakdown: { service: 2200, platform: 300 },
-    },
-    {
-        id: 'RSQ-2511-8871', type: 'tire', provider: 'QuickFix Tires',
-        date: '2025-11-20T14:20:00', displayDate: 'Nov 20, 2025', displayTime: '2:20 PM',
-        location: 'Thika Road, Nairobi', status: 'completed', price: 2000, rating: 5,
-        duration: 20, breakdown: { service: 1800, platform: 200 },
-    },
-];
-
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the previous MOCK_HISTORY array
+// (Michael Kiprop / Sarah Kamau / John Omondi / AutoFix Garage / etc.)
+// has been removed. History is now sourced from
+// `getRequestHistory(userId)` against the real `requests` Firestore
+// collection, with an empty state for fresh accounts.
 const FILTER_OPTIONS = ['all', 'towing', 'fuel', 'battery', 'tire', 'diagnostics', 'medical'];
+
+// Maps a RequestStatus from the backend type union onto the three
+// states the history screen renders. Anything in-flight (pending /
+// accepted / enroute / arrived / inProgress) is treated as
+// "in_progress" so an active request still surfaces on the history
+// screen — important so users can find a request that hasn't yet
+// completed.
+function mapStatus(s: RequestStatus): Status {
+    if (s === 'completed') return 'completed';
+    if (s === 'cancelled') return 'cancelled';
+    return 'in_progress';
+}
+
+function toDate(value: any): Date | null {
+    // Firestore Timestamps expose a .toDate() method; Date objects pass
+    // through; ISO strings are parsed. Returns null for anything we
+    // can't recognise rather than throwing inside the list reducer.
+    if (!value) return null;
+    if (typeof value === 'object' && typeof (value as any).toDate === 'function') {
+        try { return (value as any).toDate(); } catch { return null; }
+    }
+    if (value instanceof Date) return value;
+    if (typeof value === 'string' || typeof value === 'number') {
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+}
+
+function adaptRequest(req: ServiceRequest): ServiceRecord | null {
+    // Reject records missing the minimum fields we'd need to render a
+    // meaningful row, rather than dropping placeholder strings into the
+    // UI. Real Firestore documents should always have id + serviceType
+    // + timeline; demo seeds may not.
+    if (!req.id || !req.serviceType) return null;
+    const when =
+        toDate(req.timeline?.completedAt) ??
+        toDate(req.timeline?.requestedAt) ??
+        new Date();
+    // providerInfo is attached by customer.service.subscribeToRequest
+    // in demo mode; the real-mode equivalent will be a lookup. Fall
+    // back to empty string when we don't have the provider name yet —
+    // the row's title is the service type, not the provider, so this
+    // remains useful.
+    const providerInfo = (req as any).providerInfo as { displayName?: string } | undefined;
+    const baseFee = req.pricing?.baseServiceFee ?? 0;
+    const platformFee = req.pricing?.platformFee ?? 0;
+    return {
+        id: req.id,
+        type: req.serviceType as ServiceType,
+        provider: providerInfo?.displayName ?? '',
+        date: when.toISOString(),
+        displayDate: when.toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' }),
+        displayTime: when.toLocaleTimeString('en-KE', { hour: 'numeric', minute: '2-digit' }),
+        location: req.customerLocation?.address ?? '',
+        status: mapStatus(req.status),
+        price: req.pricing?.total ?? 0,
+        rating: req.rating?.stars,
+        breakdown: { service: baseFee, platform: platformFee },
+    };
+}
 
 const getServiceIcon = (type: ServiceType, size = 24) => {
     const map: Record<ServiceType, { Icon: any; color: string }> = {
@@ -106,12 +142,14 @@ const getStatusStyle = (status: Status) => {
 };
 
 export default function HistoryScreen() {
+    const { user } = useAuth();
     const [filter, setFilter] = useState('all');
     const [isStatsCollapsed, setIsStatsCollapsed] = useState(false);
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [history, setHistory] = useState<ServiceRecord[]>([]);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(20)).current;
@@ -121,15 +159,53 @@ export default function HistoryScreen() {
             Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
             Animated.timing(slideAnim, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         ]).start();
+    }, [fadeAnim, slideAnim]);
 
-        // Simulate data loading
-        const timer = setTimeout(() => setIsLoading(false), 800);
-        return () => clearTimeout(timer);
-    }, []);
+    const loadHistory = useCallback(async () => {
+        if (!user?.id) {
+            setHistory([]);
+            setIsLoading(false);
+            return;
+        }
+        try {
+            setError(null);
+            const records = await getRequestHistory(user.id);
+            const adapted = records
+                .map(adaptRequest)
+                .filter((r): r is ServiceRecord => r !== null);
+            setHistory(adapted);
+        } catch (e: any) {
+            // Surface to the user via ErrorState rather than crashing.
+            setError(e?.message ?? 'Could not load your service history.');
+            setHistory([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        loadHistory();
+    }, [loadHistory]);
 
     const filteredHistory = filter === 'all'
-        ? MOCK_HISTORY
-        : MOCK_HISTORY.filter((item) => item.type === filter);
+        ? history
+        : history.filter((item) => item.type === filter);
+
+    // Phase 4 (audit-v3 §MOCK-SWEEP) — derive summary stats from the
+    // real history list instead of the previously hard-coded
+    // "Total: 24 / This month: 3 / Spent: KES 52k" placeholders. A new
+    // account therefore renders Total: 0 / This month: 0 / Spent: KES 0
+    // until they actually book a service.
+    const nowMonth = new Date().toISOString().slice(0, 7);
+    const totalCount = history.length;
+    const thisMonthCount = history.filter((h) => h.date.slice(0, 7) === nowMonth).length;
+    const totalSpentKES = history
+        .filter((h) => h.status === 'completed')
+        .reduce((acc, h) => acc + (h.price ?? 0), 0);
+    const formattedSpent =
+        totalSpentKES >= 1000
+            ? `KES ${Math.round(totalSpentKES / 1000).toLocaleString('en-KE')}k`
+            : `KES ${totalSpentKES.toLocaleString('en-KE')}`;
 
     // Group by time period
     const groupedHistory = filteredHistory.reduce((groups, item) => {
@@ -150,9 +226,13 @@ export default function HistoryScreen() {
 
     const groupOrder = ['Today', 'Yesterday', 'This Week', 'Last Month', 'Older'];
 
-    const onRefresh = () => {
+    const onRefresh = async () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1500);
+        try {
+            await loadHistory();
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     return (
@@ -248,15 +328,15 @@ export default function HistoryScreen() {
                                     <View style={styles.statsGrid}>
                                         <View style={styles.statItem}>
                                             <Text style={styles.statLabel}>TOTAL</Text>
-                                            <Text style={styles.statValue}>24</Text>
+                                            <Text style={styles.statValue}>{totalCount}</Text>
                                         </View>
                                         <View style={styles.statItem}>
                                             <Text style={styles.statLabel}>THIS MONTH</Text>
-                                            <Text style={[styles.statValue, { color: colors.voltage }]}>3</Text>
+                                            <Text style={[styles.statValue, { color: colors.voltage }]}>{thisMonthCount}</Text>
                                         </View>
                                         <View style={styles.statItem}>
                                             <Text style={styles.statLabel}>SPENT</Text>
-                                            <Text style={styles.statValueSmall}>KES 52k</Text>
+                                            <Text style={styles.statValueSmall}>{formattedSpent}</Text>
                                         </View>
                                     </View>
                                 )}

@@ -16,6 +16,11 @@ import {
 } from 'lucide-react-native';
 import { colors, spacing, borderRadius, shadows, typography } from '../../theme/voltage-premium';
 import { StatusBar } from 'expo-status-bar';
+import {
+    SUPPORT_EMAIL,
+    SUPPORT_PHONE_E164,
+    formatSupportPhoneDisplay,
+} from '../../constants/support';
 
 const TOPICS = [
     { id: 'payment', Icon: CreditCard, title: 'Payment Issues', subtitle: 'Billing & refunds', color: colors.voltage },
@@ -248,7 +253,7 @@ export default function HelpScreen() {
 
                         <Pressable
                             style={styles.contactCard}
-                            onPress={() => Linking.openURL('mailto:support@resq.co.ke')}
+                            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
                             accessibilityLabel="Email support"
                             accessibilityRole="button"
                         >
@@ -257,14 +262,14 @@ export default function HelpScreen() {
                             </View>
                             <View style={styles.contactTextBlock}>
                                 <Text style={styles.contactTitle}>Email Support</Text>
-                                <Text style={styles.contactSubtitle}>support@resq.co.ke</Text>
+                                <Text style={styles.contactSubtitle}>{SUPPORT_EMAIL}</Text>
                             </View>
                             <ChevronRight size={20} color={colors.text.tertiary} strokeWidth={2} />
                         </Pressable>
 
                         <Pressable
                             style={styles.contactCard}
-                            onPress={() => Linking.openURL('https://wa.me/254712345678')}
+                            onPress={() => Linking.openURL(`https://wa.me/${SUPPORT_PHONE_E164.replace(/\D/g,'')}`)}
                             accessibilityLabel="WhatsApp support"
                             accessibilityRole="button"
                         >
@@ -273,7 +278,7 @@ export default function HelpScreen() {
                             </View>
                             <View style={styles.contactTextBlock}>
                                 <Text style={styles.contactTitle}>WhatsApp</Text>
-                                <Text style={styles.contactSubtitle}>+254 712 345 678</Text>
+                                <Text style={styles.contactSubtitle}>{formatSupportPhoneDisplay()}</Text>
                             </View>
                             <ChevronRight size={20} color={colors.text.tertiary} strokeWidth={2} />
                         </Pressable>

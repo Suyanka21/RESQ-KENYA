@@ -17,12 +17,17 @@ interface ProviderCardProps {
     showBadge?: boolean;
 }
 
+// Phase 4 (audit-v3 §MOCK-SWEEP) — the prior default props
+// ("Michael Kiprop" / 4.8 / 234 rescues / Toyota Hilux KXX 789B)
+// silently shipped a fake provider any time a caller forgot to pass
+// props. Callers must now supply real data; absent fields render as
+// em-dash placeholders so missing data is visible rather than mocked.
 export const ProviderCard: React.FC<ProviderCardProps> = ({
-    name = 'Michael Kiprop',
-    rating = 4.8,
-    rescueCount = 234,
-    vehicle = 'Toyota Hilux',
-    plate = 'KXX 789B',
+    name = '—',
+    rating,
+    rescueCount,
+    vehicle = '',
+    plate = '',
     serviceType,
     compact = false,
     showBadge = true,
@@ -38,9 +43,11 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
                     <Text style={styles.compactName}>{name}</Text>
                     <View style={styles.compactMeta}>
                         <Star size={12} color={colors.voltage} fill={colors.voltage} />
-                        <Text style={styles.compactRating}>{rating}</Text>
+                        <Text style={styles.compactRating}>{rating !== undefined ? rating.toFixed(1) : '—'}</Text>
                         <Text style={styles.compactDot}>•</Text>
-                        <Text style={styles.compactVehicle}>{vehicle} - {plate}</Text>
+                        <Text style={styles.compactVehicle}>
+                            {[vehicle, plate].filter(Boolean).join(' - ') || '—'}
+                        </Text>
                     </View>
                 </View>
             </View>
@@ -65,13 +72,17 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({
                 <Text style={styles.name}>{name}</Text>
                 <View style={styles.ratingRow}>
                     <Star size={14} color={colors.voltage} fill={colors.voltage} />
-                    <Text style={styles.ratingText}>{rating} </Text>
-                    <Text style={styles.rescues}>({rescueCount} rescues)</Text>
+                    <Text style={styles.ratingText}>{rating !== undefined ? rating.toFixed(1) : '—'} </Text>
+                    {rescueCount !== undefined && (
+                        <Text style={styles.rescues}>({rescueCount} rescues)</Text>
+                    )}
                 </View>
                 <View style={styles.tagsRow}>
                     <View style={styles.vehicleTag}>
                         <Car size={12} color={colors.text.secondary} />
-                        <Text style={styles.vehicleText}>{vehicle} - {plate}</Text>
+                        <Text style={styles.vehicleText}>
+                            {[vehicle, plate].filter(Boolean).join(' - ') || '—'}
+                        </Text>
                     </View>
                     {serviceType && (
                         <View style={styles.serviceTag}>

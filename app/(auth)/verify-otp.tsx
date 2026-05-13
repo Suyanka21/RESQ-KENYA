@@ -183,7 +183,13 @@ export default function VerifyOTPScreen() {
                         </Pressable>
                         <Text style={styles.title}>Verify Phone Number</Text>
                         <Text style={styles.subtitle}>Enter the 6-digit code sent to</Text>
-                        <Text style={styles.phoneDisplay}>{phoneNumber || '+254 712 345 678'}</Text>
+                        {/* Phase 4 (audit-v3 §MOCK-SWEEP) — the placeholder
+                            "+254 712 345 678" previously rendered when the
+                            phoneNumber route param was missing. That value
+                            misleads the user about which number the OTP
+                            went to. Render an em-dash instead so the
+                            absence of data is honest. */}
+                        <Text style={styles.phoneDisplay}>{phoneNumber || '—'}</Text>
                     </View>
 
                     {/* OTP Display Cells */}

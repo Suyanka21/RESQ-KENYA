@@ -256,12 +256,16 @@ export async function clearAllNotifications(): Promise<void> {
     await setBadgeCount(0);
 }
 
-// Demo notifications for testing
+// Demo notifications for testing.
+// Phase 4 (audit-v3 §MOCK-SWEEP) — body strings used to name a specific
+// provider ("John's Towing Services"). For a generic dev/QA fixture
+// we now use a neutral placeholder so screenshots taken with these
+// values don't appear to belong to a real provider account.
 export const DEMO_NOTIFICATIONS: Record<NotificationType, ResQNotification> = {
     request_accepted: {
         type: 'request_accepted',
         title: '🚗 Provider Found!',
-        body: "John's Towing Services has accepted your request",
+        body: 'A nearby provider has accepted your request',
     },
     provider_enroute: {
         type: 'provider_enroute',
